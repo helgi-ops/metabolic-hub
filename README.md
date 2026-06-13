@@ -1,136 +1,74 @@
 # Metabolic Hub
 
-Heimasíða og Coach Academy fyrir metabolic.is. Next.js 15 + Supabase + Vercel.
+Eitt vistkerfi fyrir Metabolic: opinber heimasíða, iðkenda-svæði og verkfæri þjálfara — byggt á **Next.js 16 + Supabase + Vercel**.
 
-## Hvað er búið og klárt
+## Hvað er í kerfinu
 
-- **Supabase project** `Metabolic` (`wphmeryxmfdxovvnichm`, eu-west-1)
-  - Database schema (15 töflur, RLS pólísíur, helper functions)
-  - Storage buckets (avatars, course-covers, exercise-thumbnails, certificates, weekly-plan-pdfs, submission-attachments)
-  - Auth trigger sem býr sjálfkrafa til profile fyrir hvern nýjan notanda
-  - Allar öryggis-aðvaranir (linter) hreinsaðar
-- **Next.js skeleton**
-  - Landing page með waitlist signup (skrifar í `email_signups`)
-  - Innskráning / nýskráning (Supabase Auth)
-  - `/app` dashboard (protected, með sign out)
-  - Middleware sem refresh-ar session og verndar `/app/*`
-  - Server + browser Supabase client með TypeScript types
+**Opinber síða (engin innskráning)**
+- `/` — hvað er Metabolic, MB1/MB2/MB3, stöðvarnar fjórar, miðlæg innskráning
+- `/akademia` — Coach Academy söluborð + waitlist
+- `/stod/[slug]` — síða hverrar stöðvar með staðsetningu og tímatöflu
 
-## Næstu skref (sem þú þarft að klára á þínum vél)
+**Iðkenda-svæði (`/app`)**
+- **Mín met** — Personal Best (þ.m.t. tímamældar æfingar í mm:ss) með framvindugrafi
+- **Dagbók** — álag (RPE), þyngdir og kaloríur eftir hverja æfingu, tengt æfingu dagsins til samanburðar yfir tíma
+- Iðkendur sjá **aldrei** æfinguna sjálfa (hún er á töflu/sjónvarpi á stöðinni) — tryggt með RLS
 
-### 1. Installa dependencies
+**Þjálfara/admin**
+- **Program Builder** — 752 structures, sía eftir stigi (MB1/2/3), 4ra vikna periodization → vikuplan
+- Server-hliðar **OptiSigns PDF** af vikunni
+- **Stöðin** — yfirlit iðkenda, leaderboards, tímatöflu-ritill
+- **Aðildarstjórnun** — samþykkja nýja iðkendur, loka aðgangi, eyða (GDPR)
 
-Sandbox umhverfið mitt klárar ekki `npm install` innan tímamarka vegna stærðar Next.js dependency tree. Keyrðu á vélinni þinni:
+## Tæknistakk
+
+- Next.js 16 (App Router) · React 19 · Tailwind 4
+- Supabase (Postgres + Auth + Storage) með station-scoped RLS — verkefni `wphmeryxmfdxovvnichm` (eu-west-1)
+- Vercel hýsing, deploy úr GitHub (`helgi-ops/metabolic-hub`)
+
+## Local dev
 
 ```bash
-cd ~/Desktop/Metabolic/metabolic-hub
 npm install
+npm run dev          # keyrir á porti úr .claude/launch.json (3100)
 ```
 
-### 2. Prófaðu lokalt
+Þarf `.env.local` (ekki committað):
 
-```bash
-npm run dev
+```
+NEXT_PUBLIC_SUPABASE_URL=...        # Supabase project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...   # publishable (anon) key
+NEXT_PUBLIC_SITE_URL=http://localhost:3100
 ```
 
-Opnaðu http://localhost:3000 — landing page á að birtast. Prófaðu:
-- Skrá netfang í waitlist (athugaðu í Supabase `email_signups` töflunni)
-- Búa til aðgang á `/signup`
-- Skrá inn á `/login`
-- Skoða `/app` dashboard
+## Deploy
 
-### 3. Settu sjálfan þig sem admin
-
-Eftir að þú hefur búið til þinn fyrsta aðgang, opnaðu Supabase SQL editor og keyrðu:
-
-```sql
-update public.profiles
-set role = 'admin'
-where id = (select id from auth.users where email = 'helgi@metabolic.is');
-```
-
-### 4. Deploy á Vercel
-
-```bash
-# Frá metabolic-hub möppunni:
-npx vercel login           # einu sinni — opnar browser
-npx vercel link            # tengir möppuna við Vercel project (búðu til nýtt)
-npx vercel env add NEXT_PUBLIC_SUPABASE_URL          # límdu inn URL
-npx vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY     # límdu inn anon key
-npx vercel env add NEXT_PUBLIC_SITE_URL              # https://metabolic.is þegar lén er klárt
-npx vercel --prod          # deploy
-```
-
-Eða einfaldara: pushaðu á GitHub og connect-aðu repoið við Vercel via vercel.com/new.
-
-### 5. Connect metabolic.is lénið
+Vercel deploy-ar sjálfkrafa við hvert `git push` á `main`. Umhverfisbreyturnar
+(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) eru stilltar í
+Vercel project settings.
 
 Eftir fyrsta deploy:
-1. Vercel → þitt project → Settings → Domains → Add `metabolic.is`
-2. Vercel sýnir hvaða DNS records þú þarft hjá ISNÍC (A record + CNAME fyrir www)
-3. Bíddu eftir SSL útgáfu (~5 mín)
+1. **Lén:** Vercel → Settings → Domains → bæta `metabolic.is` + DNS records hjá ISNÍC.
+2. **Supabase auth redirects:** Authentication → URL Configuration → Site URL +
+   `https://metabolic.is/auth/callback` (og `*.vercel.app` fyrir preview).
+3. **Supabase Pro:** uppfæra úr ókeypis-tier svo gagnagrunnurinn pásist ekki á notendur.
 
-### 6. Stilltu Supabase auth redirects
+## Gagnagrunnur
 
-Í Supabase → Authentication → URL Configuration:
-- **Site URL:** `https://metabolic.is`
-- **Redirect URLs:** bæta við `https://metabolic.is/auth/callback`, `https://*.vercel.app/auth/callback` (fyrir preview deploys), og `http://localhost:3000/auth/callback` (fyrir local dev)
-
-## Env vars
-
-Sjá `.env.local` (ekki committað) og `.env.example` (template).
-
-```
-NEXT_PUBLIC_SUPABASE_URL=https://wphmeryxmfdxovvnichm.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_hiAlVHV4Ki_RKWUdujKKpA_YSd7Kcrx
-NEXT_PUBLIC_SITE_URL=http://localhost:3000   # uppfærðu í production
-```
-
-## Möppustaður
-
-```
-metabolic-hub/
-├── src/
-│   ├── app/
-│   │   ├── page.tsx                    Landing page
-│   │   ├── layout.tsx                  Root layout
-│   │   ├── globals.css                 Tailwind + theme
-│   │   ├── login/                      Innskráning
-│   │   ├── signup/                     Nýskráning
-│   │   ├── auth/
-│   │   │   ├── callback/route.ts       Email confirmation
-│   │   │   └── signout/route.ts        Logout
-│   │   ├── api/waitlist/route.ts       Waitlist endpoint
-│   │   └── (app)/
-│   │       ├── layout.tsx              Auth-protected layout
-│   │       └── app/page.tsx            Dashboard
-│   ├── components/
-│   │   └── waitlist-form.tsx
-│   └── lib/
-│       ├── supabase/
-│       │   ├── client.ts               Browser client
-│       │   ├── server.ts               Server client
-│       │   └── middleware.ts           Session refresh helper
-│       └── types/
-│           └── database.ts             Auto-generated frá Supabase
-├── middleware.ts                       Top-level middleware
-└── ...
-```
-
-## Næstu áfangar (sjá `../metabolic-hub-plan.md`)
-
-- Áfangi 1: Restin af public síðunni (/adferd, /timataflur, /blogg, /um, /akademia)
-- Áfangi 2: Course player (video + framvinda) — Track 2 MVP
-- Áfangi 3: Program Builder v2 migrate-aður yfir á þennan stack
-- Áfangi 4: Track 1 með assignment system + cert generation
-- Áfangi 5: OptiSigns + weekly_plans integration
-
-## Regenerate Database types
-
-Eftir schema breytingar í Supabase:
+Schema er í `supabase/migrations/` (raðað 01–22). Seed í `supabase/seed.sql` og
+`supabase/data/`. Eftir schema-breytingar, endurgerðu types **í heilu lagi** (ekki
+hand-breyta — það brýtur typaða clientinn):
 
 ```bash
-npx supabase gen types typescript --project-id wphmeryxmfdxovvnichm > src/lib/types/database.ts
+# Supabase MCP: generate_typescript_types  →  src/lib/types/database.ts
 ```
 
-Eða biddu Claude að gera það — Supabase MCP-ið heitir `generate_typescript_types`.
+## Mappa
+
+```
+src/app/                 (public síður + (app) verndað svæði + api + auth)
+src/lib/supabase/        client.ts / server.ts / middleware.ts
+src/lib/auth/            require-staff.ts (gátun á þjálfara/admin)
+src/lib/format.ts        mm:ss o.fl.
+supabase/migrations/     SQL saga
+```
