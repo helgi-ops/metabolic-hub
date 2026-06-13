@@ -1,0 +1,154 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+
+export const metadata = {
+  title: "Yfirlit · Metabolic",
+};
+
+export default async function DashboardPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, role, created_at")
+    .eq("id", user!.id)
+    .single();
+
+  const { count: programCount } = await supabase
+    .from("programs")
+    .select("*", { count: "exact", head: true })
+    .eq("owner_id", user!.id);
+
+  const { count: enrollmentCount } = await supabase
+    .from("enrollments")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", user!.id);
+
+  const firstName =
+    profile?.full_name?.split(" ")[0] ?? user!.email?.split("@")[0];
+
+  return (
+    <main className="mx-auto max-w-6xl px-6 py-12">
+      <div className="mb-12">
+        <div className="font-mono text-xs tracking-widest text-accent uppercase">
+          Yfirlit
+        </div>
+        <h1 className="mt-2 text-3xl font-bold">Hæ, {firstName}.</h1>
+        <p className="mt-2 text-muted-foreground">
+          Velkomin/n á Metabolic Hub.{" "}
+          {profile?.role === "admin" &&
+            "Þú ert admin — fullur aðgangur að öllu."}
+        </p>
+      </div>
+
+      <div className="grid sm:grid-cols-3 gap-4 mb-12">
+        <Stat label="Æfingaplön" value={programCount ?? 0} />
+        <Stat label="Námskeið" value={enrollmentCount ?? 0} />
+        <Stat
+          label="Hlutverk"
+          value={
+            profile?.role === "admin"
+              ? "Admin"
+              : profile?.role === "coach"
+                ? "Þjálfari"
+                : "Nemandi"
+          }
+        />
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <Card
+          title="Mín met"
+          description="Skráðu Personal Best og fylgstu með framvindunni þinni."
+          href="/app/personal-bests"
+          cta="Skrá met →"
+        />
+        <Card
+          title="Dagbók"
+          description="Skráðu álag, þyngdir og kaloríur eftir hverja æfingu."
+          href="/app/log"
+          cta="Skrá æfingu →"
+        />
+        {profile?.role !== "student" && (
+          <Card
+            title="Program Builder"
+            description="Skoðaðu 752 æfinga-structures úr Metabolic kerfinu — síaðar eftir flokki."
+            href="/app/programs"
+            cta="Opna safnið →"
+          />
+        )}
+        <Card
+          title="Skoða námskeið"
+          description="Coach Academy opnar á sumri 2026. Vertu á waitlist-anum."
+          href="/akademia"
+          cta="Skoða →"
+          disabled
+          ctaDisabled="Opnar á sumri"
+        />
+      </div>
+    </main>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted p-6">
+      <div className="text-xs uppercase tracking-widest text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-2 text-3xl font-bold">{value}</div>
+    </div>
+  );
+}
+
+function Card({
+  title,
+  description,
+  href,
+  cta,
+  disabled,
+  ctaDisabled,
+}: {
+  title: string;
+  description: string;
+  href: string;
+  cta: string;
+  disabled?: boolean;
+  ctaDisabled?: string;
+}) {
+  const body = (
+    <>
+      <h3 className="font-semibold">{title}</h3>
+      <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+      <div className="mt-4">
+        {disabled ? (
+          <span className="text-sm text-muted-foreground">
+            {ctaDisabled ?? cta}
+          </span>
+        ) : (
+          <span className="text-sm text-accent">{cta}</span>
+        )}
+      </div>
+    </>
+  );
+
+  if (disabled) {
+    return (
+      <div className="rounded-lg border border-border bg-muted p-6">{body}</div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className="block rounded-lg border border-border bg-muted p-6 transition hover:border-accent"
+    >
+      {body}
+    </Link>
+  );
+}

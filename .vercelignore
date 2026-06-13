@@ -1,0 +1,5 @@
+# Anchored to repo root so these don't also match src/lib/supabase, etc.
+/.claude
+/supabase
+/*.md
+!/README.md
