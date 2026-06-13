@@ -42,7 +42,7 @@ export default async function LessonPage({
   const { data: lesson } = await supabase
     .from("lessons")
     .select(
-      "id, module_id, title, body_markdown, video_url, video_duration_seconds, is_free_preview",
+      "id, module_id, title, body_markdown, video_url, video_duration_seconds, is_free_preview, image_urls",
     )
     .eq("id", lessonId)
     .maybeSingle();
@@ -117,6 +117,23 @@ export default async function LessonPage({
           {lesson.body_markdown && (
             <div className="mt-5">
               <Markdown source={lesson.body_markdown} />
+            </div>
+          )}
+
+          {lesson.image_urls && lesson.image_urls.length > 0 && (
+            <div className="mt-8 space-y-4">
+              <div className="font-mono text-xs tracking-widest text-accent uppercase">
+                Skýringarmyndir
+              </div>
+              {lesson.image_urls.map((src) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={src}
+                  src={src}
+                  alt=""
+                  className="w-full rounded-lg border border-border"
+                />
+              ))}
             </div>
           )}
 

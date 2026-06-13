@@ -376,6 +376,7 @@ export type Database = {
           body_markdown: string | null
           created_at: string
           id: string
+          image_urls: string[]
           is_free_preview: boolean
           module_id: string
           position: number
@@ -388,6 +389,7 @@ export type Database = {
           body_markdown?: string | null
           created_at?: string
           id?: string
+          image_urls?: string[]
           is_free_preview?: boolean
           module_id: string
           position: number
@@ -400,6 +402,7 @@ export type Database = {
           body_markdown?: string | null
           created_at?: string
           id?: string
+          image_urls?: string[]
           is_free_preview?: boolean
           module_id?: string
           position?: number
