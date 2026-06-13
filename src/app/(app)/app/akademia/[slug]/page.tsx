@@ -112,12 +112,22 @@ export default async function CoursePage({
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
-      <Link
-        href="/app/akademia"
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← Námskeið
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          href="/app/akademia"
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          ← Námskeið
+        </Link>
+        {isAdmin && (
+          <Link
+            href={`/app/akademia/${course.slug}/framvinda`}
+            className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition"
+          >
+            Framvinda iðkenda →
+          </Link>
+        )}
+      </div>
 
       {/* Hero */}
       <div className="mt-6">

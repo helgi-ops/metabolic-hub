@@ -24,6 +24,13 @@ export default async function LessonPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  const isAdmin = profile?.role === "admin";
+
   const { data: course } = await supabase
     .from("courses")
     .select("id, slug, title")
@@ -101,12 +108,22 @@ export default async function LessonPage({
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
-      <Link
-        href={`/app/akademia/${course.slug}`}
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← {course.title}
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link
+          href={`/app/akademia/${course.slug}`}
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          ← {course.title}
+        </Link>
+        {isAdmin && (
+          <Link
+            href={`/app/akademia/${course.slug}/${lesson.id}/edit`}
+            className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition"
+          >
+            ✎ Breyta lexíu
+          </Link>
+        )}
+      </div>
 
       <div className="mt-6 grid gap-10 lg:grid-cols-[1fr_300px]">
         {/* Player */}
