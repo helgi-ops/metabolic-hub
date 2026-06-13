@@ -47,6 +47,7 @@ export function Markdown({ source }: { source: string | null | undefined }) {
   const blocks: ReactNode[] = [];
   let para: string[] = [];
   let list: string[] = [];
+  let table: string[] = [];
   let bi = 0;
 
   const flushPara = () => {
@@ -73,12 +74,56 @@ export function Markdown({ source }: { source: string | null | undefined }) {
       list = [];
     }
   };
+  const splitRow = (row: string) =>
+    row.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+  const flushTable = () => {
+    if (table.length) {
+      // Drop a |---| separator row if present (second line).
+      const rows = table.filter((r) => !/^\|?[\s|:-]+\|?$/.test(r));
+      const head = splitRow(rows[0] ?? "");
+      const body = rows.slice(1).map(splitRow);
+      blocks.push(
+        <div key={`t-${bi++}`} className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border text-left">
+                {head.map((c, j) => (
+                  <th key={j} className="px-3 py-2 font-semibold">
+                    {renderInline(c, `th${bi}-${j}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {body.map((r, ri) => (
+                <tr key={ri} className="border-b border-border/60">
+                  {r.map((c, j) => (
+                    <td key={j} className="px-3 py-2 align-top text-muted-foreground">
+                      {renderInline(c, `td${bi}-${ri}-${j}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      table = [];
+    }
+  };
 
   for (const raw of lines) {
     const line = raw.trimEnd();
     if (!line.trim()) {
       flushPara();
       flushList();
+      flushTable();
+      continue;
+    }
+    if (/^\|.*\|\s*$/.test(line)) {
+      flushPara();
+      flushList();
+      table.push(line.trim());
       continue;
     }
     const heading = /^(#{1,4})\s+(.*)$/.exec(line);
@@ -87,6 +132,7 @@ export function Markdown({ source }: { source: string | null | undefined }) {
     if (heading) {
       flushPara();
       flushList();
+      flushTable();
       const level = heading[1].length;
       const cls =
         level <= 1
@@ -102,10 +148,12 @@ export function Markdown({ source }: { source: string | null | undefined }) {
       );
     } else if (bullet) {
       flushPara();
+      flushTable();
       list.push(bullet[1]);
     } else if (quote) {
       flushPara();
       flushList();
+      flushTable();
       blocks.push(
         <blockquote
           key={`q-${bi++}`}
@@ -116,11 +164,13 @@ export function Markdown({ source }: { source: string | null | undefined }) {
       );
     } else {
       flushList();
+      flushTable();
       para.push(line.trim());
     }
   }
   flushPara();
   flushList();
+  flushTable();
 
   return <div className="space-y-4 text-foreground/90">{blocks.map((b, i) => (
     <Fragment key={i}>{b}</Fragment>
