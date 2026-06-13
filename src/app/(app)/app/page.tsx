@@ -74,6 +74,12 @@ export default async function DashboardPage() {
           href="/app/log"
           cta="Skrá æfingu →"
         />
+        <Card
+          title="Kcal Leaderboard"
+          description="Uppsafnaðar kaloríur á Assault Airbike og Concept2 — keppnin á þinni stöð."
+          href="/app/leaderboard"
+          cta="Sjá leaderboard →"
+        />
         {profile?.role !== "student" && (
           <Card
             title="Program Builder"

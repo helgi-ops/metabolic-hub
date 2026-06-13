@@ -112,6 +112,12 @@ export default async function AppLayout({
                 Dagbók
               </Link>
               <Link
+                href="/app/leaderboard"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Leaderboard
+              </Link>
+              <Link
                 href="/app/akademia"
                 className="text-muted-foreground hover:text-foreground"
               >

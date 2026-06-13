@@ -920,6 +920,17 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_coach_or_admin: { Args: never; Returns: boolean }
       is_enrolled_in: { Args: { target_course_id: string }; Returns: boolean }
+      kcal_leaderboard: {
+        Args: { p_station?: string | null; p_machine?: string | null }
+        Returns: {
+          user_id: string
+          full_name: string | null
+          station_id: string | null
+          station_name: string | null
+          total_kcal: number
+          entries: number
+        }[]
+      }
       my_station_id: { Args: never; Returns: string }
       scheduled_structure_for: {
         Args: { d: string }
