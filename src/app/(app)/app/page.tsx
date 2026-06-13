@@ -83,12 +83,10 @@ export default async function DashboardPage() {
           />
         )}
         <Card
-          title="Skoða námskeið"
-          description="Coach Academy opnar á sumri 2026. Vertu á waitlist-anum."
-          href="/akademia"
-          cta="Skoða →"
-          disabled
-          ctaDisabled="Opnar á sumri"
+          title="Akademía"
+          description="Metabolic Coach Academy — horfðu á lexíur, fylgstu með framvindu og fáðu vottun."
+          href="/app/akademia"
+          cta={enrollmentCount && enrollmentCount > 0 ? "Halda áfram →" : "Skoða námskeið →"}
         />
       </div>
     </main>
