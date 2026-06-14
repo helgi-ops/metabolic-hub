@@ -80,6 +80,12 @@ export default async function DashboardPage() {
           href="/app/leaderboard"
           cta="Sjá leaderboard →"
         />
+        <Card
+          title="Afrek"
+          description="Safnaðu merkjum fyrir æfingar, met, brennslu, samfellni og námskeið."
+          href="/app/afrek"
+          cta="Sjá merkin →"
+        />
         {profile?.role !== "student" && (
           <Card
             title="Program Builder"
