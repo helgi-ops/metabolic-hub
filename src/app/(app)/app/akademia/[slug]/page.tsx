@@ -171,6 +171,21 @@ export default async function CoursePage({
                 {doneLessons === 0 ? "Byrja námskeið →" : "Halda áfram →"}
               </Link>
             )}
+            {totalLessons > 0 && doneLessons === totalLessons && (
+              <div className="mt-5">
+                <div className="text-sm font-medium text-accent">
+                  🎉 Til hamingju — þú hefur lokið námskeiðinu!
+                </div>
+                <a
+                  href={`/app/akademia/${course.slug}/skirteini`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-block rounded-md border border-accent px-5 py-2.5 text-sm font-medium text-accent hover:bg-accent hover:text-accent-foreground transition"
+                >
+                  🎓 Sækja skírteini (PDF)
+                </a>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

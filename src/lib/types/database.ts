@@ -926,6 +926,15 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_coach_or_admin: { Args: never; Returns: boolean }
       is_enrolled_in: { Args: { target_course_id: string }; Returns: boolean }
+      issue_certificate: {
+        Args: { p_course: string }
+        Returns: {
+          certificate_number: string
+          issued_at: string
+          full_name: string | null
+          course_title: string
+        }[]
+      }
       kcal_leaderboard: {
         Args: {
           p_station?: string | null
