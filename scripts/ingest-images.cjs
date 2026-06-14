@@ -36,8 +36,9 @@ const OVERRIDE = {
   7: { "anatomy of a metabolic burn": 1, "burn toolkit variations": 3, "endurance training work and rest": 4, "decoding metabolic endurance": 4 },
   8: { "advanced strength training protocols": 3, "power explosive training": 4, "unorthodox power workout": 5, "advanced metabolic training toolkit": 6, "combining power and strength": 7, "hirt": 2 },
   9: { "four otm": 5 },
-  10: { "twofold ladder": 6, "cluster complex training blueprint": 4, "density 5x5": 9, "rest pause training maximum": 8, "wave protocol": 12 },
-  11: { "garcia ramos explosive": 6, "hansen protocol guide to peak power": 8, "iglesias soler peak performance": 5, "iglesias soler protocol for power endurance": 9, "moreno protocol explosive power": 7, "tufano advanced strength": 5, "tufano protocol training guide": 11 },
+  10: { "twofold ladder": 6, "cluster complex training blueprint": 4, "density 5x5": 9, "rest pause training maximum": 8, "wave protocol": 12, "5 4 3 2 1": 13 },
+  11: { "garcia ramos explosive": 6, "hansen protocol guide to peak power": 8, "unlock strength hansen": 3, "iglesias soler peak performance": 4, "iglesias soler protocol for power endurance": 9, "moreno protocol explosive power": 7, "moreno protocol cluster training explained": 2, "tufano advanced strength": 5, "tufano protocol training guide": 10 },
+  12: { "knee pain": 1, "pressing": 2, "back pain": 3 },
 };
 
 function loadEnv() {
