@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatMeasure } from "@/lib/format";
+import { daysSince } from "@/lib/streak";
 import { MemberActions } from "./member-actions";
 
 export const metadata = {
@@ -123,6 +124,26 @@ export default async function StationPage({
     : { data: [] };
   const weeks = stationWeeks ?? [];
 
+  // Member activity — last logged workout per member, to spot who has dropped off.
+  const { data: actLogs } = memberIds.length
+    ? await supabase
+        .from("workout_logs")
+        .select("user_id, logged_on")
+        .in("user_id", memberIds)
+    : { data: [] as { user_id: string; logged_on: string }[] };
+  const lastActive = new Map<string, string>();
+  for (const l of actLogs ?? []) {
+    const prev = lastActive.get(l.user_id);
+    if (!prev || l.logged_on > prev) lastActive.set(l.user_id, l.logged_on);
+  }
+  const activity = roster
+    .filter((m) => m.role === "student" && m.status === "active")
+    .map((m) => {
+      const last = lastActive.get(m.id) ?? null;
+      return { name: m.full_name ?? "—", last, days: daysSince(last) };
+    })
+    .sort((a, b) => (b.days ?? 1e9) - (a.days ?? 1e9));
+
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
       <div className="mb-8">
@@ -166,6 +187,58 @@ export default async function StationPage({
               {s.name}
             </Link>
           ))}
+        </div>
+      )}
+
+      {/* Member activity / at-risk */}
+      {activity.length > 0 && (
+        <div className="mb-8">
+          <h2 className="mb-1 font-semibold">Virkni iðkenda</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Síðasta skráða æfing. Náðu í þá sem hafa dottið úr (⚠ = 14+ dagar
+            eða ekkert skráð).
+          </p>
+          <div className="overflow-hidden rounded-lg border border-border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2">Iðkandi</th>
+                  <th className="px-4 py-2 text-right">Síðasta skráning</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {activity.map((a, i) => {
+                  const atRisk = a.days == null || a.days >= 14;
+                  const warn = a.days != null && a.days >= 7 && a.days < 14;
+                  const label =
+                    a.days == null
+                      ? "Aldrei skráð"
+                      : a.days === 0
+                        ? "Í dag"
+                        : a.days === 1
+                          ? "Í gær"
+                          : `fyrir ${a.days} dögum`;
+                  return (
+                    <tr key={i}>
+                      <td className="px-4 py-2 font-medium">{a.name}</td>
+                      <td
+                        className={`px-4 py-2 text-right ${
+                          atRisk
+                            ? "text-red-400"
+                            : warn
+                              ? "text-amber-400"
+                              : "text-muted-foreground"
+                        }`}
+                      >
+                        {label}
+                        {atRisk && " ⚠"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

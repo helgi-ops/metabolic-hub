@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { currentWeekStreak } from "@/lib/streak";
 
 export const metadata = {
   title: "Yfirlit · Metabolic",
@@ -29,6 +30,12 @@ export default async function DashboardPage() {
     .select("*", { count: "exact", head: true })
     .eq("user_id", user!.id);
 
+  const { data: logDates } = await supabase
+    .from("workout_logs")
+    .select("logged_on")
+    .eq("user_id", user!.id);
+  const streak = currentWeekStreak((logDates ?? []).map((l) => l.logged_on));
+
   const firstName =
     profile?.full_name?.split(" ")[0] ?? user!.email?.split("@")[0];
 
@@ -44,6 +51,23 @@ export default async function DashboardPage() {
           {profile?.role === "admin" &&
             "Þú ert admin — fullur aðgangur að öllu."}
         </p>
+      </div>
+
+      {/* Consistency streak */}
+      <div className="mb-8 flex items-center gap-4 rounded-lg border border-accent/40 bg-accent/10 p-5">
+        <div className="text-4xl">🔥</div>
+        <div>
+          <div className="text-2xl font-bold">
+            {streak > 0
+              ? `${streak} ${streak === 1 ? "vika" : "vikur"} í röð`
+              : "Engin samfellni í gangi"}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {streak > 0
+              ? "Flott! Skráðu æfingu þessa viku til að halda röðinni."
+              : "Skráðu æfingu í Dagbók til að byrja nýja samfellni."}
+          </p>
+        </div>
       </div>
 
       <div className="grid sm:grid-cols-3 gap-4 mb-12">
