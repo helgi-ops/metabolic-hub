@@ -553,6 +553,7 @@ export type Database = {
           full_name: string | null
           id: string
           role: Database["public"]["Enums"]["user_role"]
+          share_pbs: boolean
           station_id: string | null
           status: string
           updated_at: string
@@ -565,6 +566,7 @@ export type Database = {
           full_name?: string | null
           id: string
           role?: Database["public"]["Enums"]["user_role"]
+          share_pbs?: boolean
           station_id?: string | null
           status?: string
           updated_at?: string
@@ -577,6 +579,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           role?: Database["public"]["Enums"]["user_role"]
+          share_pbs?: boolean
           station_id?: string | null
           status?: string
           updated_at?: string
@@ -939,6 +942,14 @@ export type Database = {
         }[]
       }
       my_station_id: { Args: never; Returns: string }
+      pb_leaderboard: {
+        Args: { p_benchmark: string; p_station?: string | null }
+        Returns: {
+          user_id: string
+          full_name: string | null
+          value: number
+        }[]
+      }
       scheduled_structure_for: {
         Args: { d: string }
         Returns: {

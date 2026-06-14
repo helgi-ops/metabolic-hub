@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatMeasure, formatTime, isTimeUnit } from "@/lib/format";
 import { PbForm } from "./pb-form";
 import { ProgressChart } from "./progress-chart";
+import { SharePbToggle } from "./share-toggle";
 
 export const metadata = {
   title: "Mín met · Metabolic",
@@ -25,7 +27,12 @@ type Pb = {
   benchmark: Benchmark | null;
 };
 
-export default async function PersonalBestsPage() {
+export default async function PersonalBestsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ met?: string }>;
+}) {
+  const { met: metParam } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -34,7 +41,7 @@ export default async function PersonalBestsPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, station:stations(name)")
+    .select("full_name, share_pbs, station_id, station:stations(name)")
     .eq("id", user!.id)
     .single();
 
@@ -42,6 +49,17 @@ export default async function PersonalBestsPage() {
     .from("benchmarks")
     .select("id, name, category, unit, higher_is_better")
     .order("position", { ascending: true });
+  const benchList = (benchmarks ?? []) as Benchmark[];
+
+  // Station PB leaderboard (only members who opted in + always yourself).
+  const selectedBenchmark =
+    benchList.find((b) => b.id === metParam) ?? benchList[0] ?? null;
+  const { data: lbRows } = selectedBenchmark
+    ? await supabase.rpc("pb_leaderboard", {
+        p_benchmark: selectedBenchmark.id,
+      })
+    : { data: [] };
+  const leaderboard = lbRows ?? [];
 
   const { data: pbs } = await supabase
     .from("personal_bests")
@@ -117,6 +135,17 @@ export default async function PersonalBestsPage() {
         </p>
       </div>
 
+      {/* Sharing toggle */}
+      {profile?.station_id && (
+        <div className="mb-8">
+          <SharePbToggle
+            userId={user!.id}
+            initial={profile?.share_pbs ?? false}
+            stationName={stationName}
+          />
+        </div>
+      )}
+
       {/* Current bests */}
       {bests.length > 0 && (
         <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -145,6 +174,70 @@ export default async function PersonalBestsPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Station leaderboard */}
+      {profile?.station_id && selectedBenchmark && (
+        <div className="mb-8">
+          <h2 className="mb-1 font-semibold">Topplisti stöðvarinnar</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Aðeins þeir sem hafa kveikt á deilingu sjást hér.
+          </p>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {benchList.map((b) => (
+              <Link
+                key={b.id}
+                href={`/app/personal-bests?met=${b.id}`}
+                className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                  b.id === selectedBenchmark.id
+                    ? "border-accent bg-accent text-accent-foreground"
+                    : "border-border bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {b.name}
+              </Link>
+            ))}
+          </div>
+          {leaderboard.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Engin deild met í þessari æfingu ennþá.
+            </p>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="w-12 px-4 py-2 text-center">#</th>
+                    <th className="px-4 py-2">Iðkandi</th>
+                    <th className="px-4 py-2 text-right">{selectedBenchmark.name}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {leaderboard.map((r, i) => {
+                    const me = r.user_id === user!.id;
+                    return (
+                      <tr
+                        key={r.user_id}
+                        className={me ? "bg-accent/10" : undefined}
+                      >
+                        <td className="px-4 py-2 text-center text-lg">
+                          {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
+                        </td>
+                        <td className="px-4 py-2 font-medium">
+                          {r.full_name || "—"}
+                          {me && <span className="ml-2 text-xs text-accent">(þú)</span>}
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono font-semibold">
+                          {formatMeasure(Number(r.value), selectedBenchmark.unit)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
