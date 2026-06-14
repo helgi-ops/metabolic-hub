@@ -17,7 +17,7 @@ export default async function TimetablePage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("station_id")
+    .select("station_id, coach_station_ids")
     .eq("id", user.id)
     .single();
 
@@ -25,12 +25,23 @@ export default async function TimetablePage({
     .from("stations")
     .select("id, slug, name")
     .order("name", { ascending: true });
+  const allStations = stations ?? [];
 
-  // Coach edits their own station; admin can pick any.
-  const targetStationId = isAdmin
-    ? stationParam || profile?.station_id || stations?.[0]?.id
-    : profile?.station_id;
-  const station = stations?.find((s) => s.id === targetStationId);
+  // Stations this user may edit: admins → all; coaches → primary + extras.
+  const myIds = [
+    profile?.station_id,
+    ...(profile?.coach_station_ids ?? []),
+  ].filter(Boolean) as string[];
+  const allowedStations = isAdmin
+    ? allStations
+    : allStations.filter((s) => myIds.includes(s.id));
+  const canSwitch = allowedStations.length > 1;
+
+  const targetStationId =
+    stationParam && allowedStations.some((s) => s.id === stationParam)
+      ? stationParam
+      : allowedStations[0]?.id ?? profile?.station_id;
+  const station = allStations.find((s) => s.id === targetStationId);
 
   const { data: classes } = targetStationId
     ? await supabase
@@ -72,10 +83,10 @@ export default async function TimetablePage({
         </p>
       </div>
 
-      {/* Admin: switch station */}
-      {isAdmin && stations && stations.length > 1 && (
+      {/* Switch station (admins, and coaches with more than one station) */}
+      {canSwitch && (
         <div className="mb-6 flex flex-wrap gap-2">
-          {stations.map((s) => (
+          {allowedStations.map((s) => (
             <Link
               key={s.id}
               href={`/app/station/timetable?station=${s.id}`}
