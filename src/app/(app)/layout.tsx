@@ -137,6 +137,12 @@ export default async function AppLayout({
             <div className="hidden sm:block text-muted-foreground">
               {profile?.full_name ?? user.email}
             </div>
+            <Link
+              href="/breyta-lykilord"
+              className="hidden sm:block text-muted-foreground hover:text-foreground transition"
+            >
+              Lykilorð
+            </Link>
             <form action="/auth/signout" method="post">
               <button
                 type="submit"

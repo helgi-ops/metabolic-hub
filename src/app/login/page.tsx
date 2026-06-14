@@ -26,7 +26,15 @@ export default function LoginPage({
           </p>
         </div>
         <LoginForm searchParams={searchParams} />
-        <div className="mt-6 text-center text-sm text-muted-foreground">
+        <div className="mt-4 text-center text-sm">
+          <Link
+            href="/gleymt-lykilord"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            Gleymdir þú lykilorði?
+          </Link>
+        </div>
+        <div className="mt-4 text-center text-sm text-muted-foreground">
           Engan aðgang?{" "}
           <Link href="/signup" className="text-accent hover:underline">
             Búa til aðgang
