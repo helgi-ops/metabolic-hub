@@ -10,12 +10,21 @@ const MACHINE_FILTERS = [
   { value: "concept2", label: "Concept2" },
 ];
 
+const PERIOD_FILTERS = [
+  { value: "", label: "Frá upphafi" },
+  { value: "month", label: "Þessi mánuður" },
+];
+
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ station?: string; machine?: string }>;
+  searchParams: Promise<{ station?: string; machine?: string; period?: string }>;
 }) {
-  const { station: stationParam, machine: machineParam } = await searchParams;
+  const {
+    station: stationParam,
+    machine: machineParam,
+    period: periodParam,
+  } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -36,10 +45,20 @@ export default async function LeaderboardPage({
   const machine = MACHINE_FILTERS.some((m) => m.value === machineParam)
     ? machineParam
     : "";
+  const period = PERIOD_FILTERS.some((p) => p.value === periodParam)
+    ? periodParam
+    : "";
+
+  const now = new Date();
+  const since =
+    period === "month"
+      ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
+      : null;
 
   const { data: rows } = await supabase.rpc("kcal_leaderboard", {
     p_station: isAdmin ? stationParam || null : null,
     p_machine: machine || null,
+    p_since: since,
   });
 
   const list = rows ?? [];
@@ -60,8 +79,10 @@ export default async function LeaderboardPage({
     const p = new URLSearchParams();
     const st = next.station ?? stationParam;
     const mc = next.machine ?? machine;
+    const pd = next.period ?? period;
     if (st) p.set("station", st);
     if (mc) p.set("machine", mc);
+    if (pd) p.set("period", pd);
     const s = p.toString();
     return `/app/leaderboard${s ? `?${s}` : ""}`;
   };
@@ -73,12 +94,21 @@ export default async function LeaderboardPage({
       </div>
       <h1 className="text-3xl font-bold">Brennslan</h1>
       <p className="mt-2 text-muted-foreground">
-        Uppsafnaðar kaloríur á Assault Airbike og Concept2.{" "}
-        {!isAdmin && "Þín stöð."}
+        {period === "month" ? "Kaloríur þennan mánuð" : "Uppsafnaðar kaloríur"} á
+        Assault Airbike og Concept2. {!isAdmin && "Þín stöð."}
       </p>
 
-      {/* Machine filter */}
+      {/* Period filter */}
       <div className="mt-6 flex flex-wrap gap-2">
+        {PERIOD_FILTERS.map((p) => (
+          <Link key={p.value} href={qs({ period: p.value })} className={chip(period === p.value)}>
+            {p.label}
+          </Link>
+        ))}
+      </div>
+
+      {/* Machine filter */}
+      <div className="mt-3 flex flex-wrap gap-2">
         {MACHINE_FILTERS.map((m) => (
           <Link key={m.value} href={qs({ machine: m.value })} className={chip(machine === m.value)}>
             {m.label}
