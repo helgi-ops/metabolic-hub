@@ -12,6 +12,20 @@ export const MACHINES: { value: string; label: string }[] = [
   { value: "other", label: "Annað" },
 ];
 
+// RPE = upplifað áreynslustig. Lýsingar byggðar á öndun / "talprófi".
+const RPE_LABELS: Record<number, string> = {
+  1: "Mjög létt — varla nokkur áreynsla",
+  2: "Létt — get spjallað áreynslulaust",
+  3: "Létt — þægilegt, tala í heilum setningum",
+  4: "Rólegt miðlungs — farin/n að hitna",
+  5: "Miðlungs — finn fyrir áreynslu en get talað",
+  6: "Nokkuð erfitt — mæðin/n, styttri setningar",
+  7: "Erfitt — mjög mæðin/n, fá orð í einu",
+  8: "Mjög erfitt — get rétt svarað í orðum",
+  9: "Næstum hámark — get varla talað",
+  10: "Hámark — get ekki meira",
+};
+
 type Scheduled = {
   source_id: string;
   scheduled_day: string;
@@ -30,6 +44,7 @@ export function LogForm({
   const router = useRouter();
   const [loggedOn, setLoggedOn] = useState(today);
   const [rpe, setRpe] = useState<number | null>(null);
+  const [hoverRpe, setHoverRpe] = useState<number | null>(null);
   const [weights, setWeights] = useState("");
   const [calories, setCalories] = useState("");
   const [machine, setMachine] = useState("");
@@ -103,7 +118,7 @@ export function LogForm({
 
         <div>
           <span className="mb-1 block text-sm text-muted-foreground">
-            Hversu erfið var æfingin? (1 = létt, 10 = hámark)
+            Hversu erfið var æfingin? (RPE — upplifað áreynslustig)
           </span>
           <div className="flex flex-wrap gap-1.5">
             {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
@@ -111,6 +126,9 @@ export function LogForm({
                 key={n}
                 type="button"
                 onClick={() => setRpe(rpe === n ? null : n)}
+                onMouseEnter={() => setHoverRpe(n)}
+                onMouseLeave={() => setHoverRpe(null)}
+                title={`${n} — ${RPE_LABELS[n]}`}
                 className={`h-9 w-9 rounded-md border text-sm transition ${
                   rpe === n
                     ? "border-accent bg-accent text-accent-foreground"
@@ -120,6 +138,38 @@ export function LogForm({
                 {n}
               </button>
             ))}
+          </div>
+          {/* Live description of the hovered/selected value */}
+          <div className="mt-2 min-h-[1.25rem] text-xs">
+            {hoverRpe ?? rpe ? (
+              <span>
+                <span className="font-semibold text-foreground">
+                  {hoverRpe ?? rpe}
+                </span>{" "}
+                <span className="text-muted-foreground">
+                  · {RPE_LABELS[(hoverRpe ?? rpe) as number]}
+                </span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">
+                Veldu tölu — eða sjáðu skalann hér fyrir neðan.
+              </span>
+            )}
+          </div>
+          {/* Quick zone reference */}
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+            <span>
+              <b className="text-foreground">1–3</b> Létt
+            </span>
+            <span>
+              <b className="text-foreground">4–6</b> Miðlungs
+            </span>
+            <span>
+              <b className="text-foreground">7–8</b> Erfitt
+            </span>
+            <span>
+              <b className="text-foreground">9–10</b> Hámark
+            </span>
           </div>
         </div>
 
