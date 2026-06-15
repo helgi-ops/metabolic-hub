@@ -11,6 +11,7 @@ type Structure = {
   name: string;
   category: string;
   level: string; // "MB1" | "MB2" | "MB3" | "ALL"
+  preview: string;
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -465,8 +466,15 @@ export function BuilderClient({
                 </button>
               </div>
               {chosen && (
-                <div className="mt-2 pl-11 text-xs text-accent">
-                  {chosen.name}
+                <div className="mt-3 pl-11">
+                  <div className="text-xs font-medium text-accent">
+                    {chosen.name}
+                  </div>
+                  {chosen.preview && (
+                    <pre className="mt-1 whitespace-pre-wrap font-sans text-xs leading-relaxed text-muted-foreground">
+                      {chosen.preview}
+                    </pre>
+                  )}
                 </div>
               )}
             </div>

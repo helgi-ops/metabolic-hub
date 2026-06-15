@@ -16,7 +16,7 @@ export default async function NewProgramPage() {
 
   const { data: structuresRaw } = await supabase
     .from("structures")
-    .select("id, source_id, name, category, levels")
+    .select("id, source_id, name, category, levels, preview")
     .order("name", { ascending: true });
 
   // The structure's real level lives in levels.l1 ("Level 1/2/3"); a handful are
@@ -34,6 +34,7 @@ export default async function NewProgramPage() {
       name: s.name,
       category: s.category,
       level: LEVEL_MAP[l1] ?? "ALL",
+      preview: s.preview ?? "",
     };
   });
 

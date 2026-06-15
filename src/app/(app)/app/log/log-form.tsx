@@ -32,17 +32,38 @@ type Scheduled = {
   category: string;
 } | null;
 
+type WeekWorkout = {
+  slot: number;
+  structure_source_id: string;
+  category: string;
+  name: string;
+  day: string | null;
+};
+
+const CATEGORY_LABEL: Record<string, string> = {
+  strength: "Strength",
+  power_strength: "Power/Strength",
+  power: "Power",
+  endurance: "Endurance",
+  burn: "Burn",
+};
+
 export function LogForm({
   userId,
   today,
   scheduled,
+  weekWorkouts,
 }: {
   userId: string;
   today: string;
   scheduled: Scheduled;
+  weekWorkouts: WeekWorkout[];
 }) {
   const router = useRouter();
   const [loggedOn, setLoggedOn] = useState(today);
+  const [workoutId, setWorkoutId] = useState<string>(
+    scheduled?.source_id ?? "",
+  );
   const [rpe, setRpe] = useState<number | null>(null);
   const [hoverRpe, setHoverRpe] = useState<number | null>(null);
   const [weights, setWeights] = useState("");
@@ -62,16 +83,18 @@ export function LogForm({
     }
     setSaving(true);
     const supabase = createClient();
-    // Tag the log with today's scheduled workout (identity only) so it can be
-    // compared next time the same workout comes up.
-    const tag =
-      loggedOn === today && scheduled
-        ? {
-            structure_source_id: scheduled.source_id,
-            scheduled_day: scheduled.scheduled_day,
-            scheduled_category: scheduled.category,
-          }
-        : {};
+    // Tag the log with the workout the member picked (from this week's plan) so
+    // it can be compared next time the same workout comes up.
+    const picked = weekWorkouts.find(
+      (w) => w.structure_source_id === workoutId,
+    );
+    const tag = picked
+      ? {
+          structure_source_id: picked.structure_source_id,
+          scheduled_day: picked.day ?? scheduled?.scheduled_day ?? null,
+          scheduled_category: picked.category,
+        }
+      : {};
     const { error: insertError } = await supabase.from("workout_logs").insert({
       user_id: userId,
       logged_on: loggedOn,
@@ -115,6 +138,30 @@ export function LogForm({
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent sm:w-auto"
           />
         </label>
+
+        {weekWorkouts.length > 0 && (
+          <label className="block">
+            <span className="mb-1 block text-sm text-muted-foreground">
+              Hvaða æfingu varstu að gera?
+            </span>
+            <select
+              value={workoutId}
+              onChange={(e) => setWorkoutId(e.target.value)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            >
+              <option value="">— ekki tengt æfingu —</option>
+              {weekWorkouts.map((w) => (
+                <option key={w.slot} value={w.structure_source_id}>
+                  {w.day ? `${w.day} · ` : ""}
+                  {CATEGORY_LABEL[w.category] ?? w.category} – {w.name}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-muted-foreground">
+              Tengir skráninguna við æfinguna svo þú getir borið þig saman næst.
+            </span>
+          </label>
+        )}
 
         <div>
           <span className="mb-1 block text-sm text-muted-foreground">

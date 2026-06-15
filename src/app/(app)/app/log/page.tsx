@@ -58,6 +58,10 @@ export default async function LogPage() {
   });
   const scheduled = sched?.[0] ?? null;
 
+  // All workouts in this week's plan, so the member can pick exactly which one
+  // they did (the log is then tied to that workout for comparison over time).
+  const { data: weekWorkouts } = await supabase.rpc("current_week_workouts");
+
   // Previous attempt at the same workout, for "last time" comparison.
   let lastSame: { logged_on: string; rpe: number | null; calories: number | null } | null = null;
   if (scheduled?.source_id) {
@@ -148,7 +152,12 @@ export default async function LogPage() {
       )}
 
       <div className="mb-8">
-        <LogForm userId={user!.id} today={today} scheduled={scheduled} />
+        <LogForm
+          userId={user!.id}
+          today={today}
+          scheduled={scheduled}
+          weekWorkouts={weekWorkouts ?? []}
+        />
       </div>
 
       {comparisons.length > 0 && (

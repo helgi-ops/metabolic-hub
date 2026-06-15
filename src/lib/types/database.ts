@@ -921,6 +921,16 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      current_week_workouts: {
+        Args: never
+        Returns: {
+          slot: number
+          structure_source_id: string
+          category: string
+          name: string
+          day: string | null
+        }[]
+      }
       delete_member: { Args: { member: string }; Returns: undefined }
       is_active_member: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
