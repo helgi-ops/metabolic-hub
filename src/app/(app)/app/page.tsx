@@ -1,7 +1,25 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { currentWeekStreak } from "@/lib/streak";
+import { currentWeekStreak, lastWeekRange } from "@/lib/streak";
+import { WeeklyRecap } from "./weekly-recap";
+
+const IS_MONTHS = [
+  "janúar", "febrúar", "mars", "apríl", "maí", "júní",
+  "júlí", "ágúst", "september", "október", "nóvember", "desember",
+];
+
+function weekLabel(start: string, end: string): string {
+  const s = new Date(`${start}T00:00:00Z`);
+  const e = new Date(`${end}T00:00:00Z`);
+  const sd = s.getUTCDate();
+  const ed = e.getUTCDate();
+  const sm = IS_MONTHS[s.getUTCMonth()];
+  const em = IS_MONTHS[e.getUTCMonth()];
+  return s.getUTCMonth() === e.getUTCMonth()
+    ? `${sd}.–${ed}. ${em}`
+    : `${sd}. ${sm} – ${ed}. ${em}`;
+}
 
 export const metadata = {
   title: "Yfirlit · Metabolic",
@@ -34,7 +52,18 @@ export default async function DashboardPage() {
     .from("workout_logs")
     .select("logged_on")
     .eq("user_id", user!.id);
-  const streak = currentWeekStreak((logDates ?? []).map((l) => l.logged_on));
+  const allDates = (logDates ?? []).map((l) => l.logged_on);
+  const streak = currentWeekStreak(allDates);
+
+  // AI weekly recap of the previous full week (Mon–Sun).
+  const { start: weekStart, end: weekEnd } = lastWeekRange();
+  const hadWeekLogs = allDates.some((d) => d >= weekStart && d <= weekEnd);
+  const { data: recap } = await supabase
+    .from("weekly_recaps")
+    .select("content")
+    .eq("user_id", user!.id)
+    .eq("week_start", weekStart)
+    .maybeSingle();
 
   const firstName =
     profile?.full_name?.split(" ")[0] ?? user!.email?.split("@")[0];
@@ -69,6 +98,12 @@ export default async function DashboardPage() {
           </p>
         </div>
       </div>
+
+      <WeeklyRecap
+        initialContent={recap?.content ?? null}
+        weekLabel={weekLabel(weekStart, weekEnd)}
+        hasLogs={hadWeekLogs}
+      />
 
       <div className="grid sm:grid-cols-3 gap-4 mb-12">
         <Stat label="Æfingaplön" value={programCount ?? 0} />

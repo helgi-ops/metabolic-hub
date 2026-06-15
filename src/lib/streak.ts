@@ -38,6 +38,12 @@ export function currentWeekStreak(dates: string[], today?: Date): number {
   return streak;
 }
 
+/** The previous full calendar week (Mon–Sun) as ISO date strings. */
+export function lastWeekRange(today?: Date): { start: string; end: string } {
+  const start = addDays(mondayOf(today ?? new Date()), -7);
+  return { start: iso(start), end: iso(addDays(start, 6)) };
+}
+
 /** Whole days since a date (YYYY-MM-DD); null if no date. */
 export function daysSince(dateStr: string | null, today?: Date): number | null {
   if (!dateStr) return null;
