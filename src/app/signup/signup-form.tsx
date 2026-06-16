@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { siteUrl } from "@/lib/site-url";
 
 export function SignupForm({
   stations,
@@ -27,7 +28,7 @@ export function SignupForm({
       password,
       options: {
         data: { full_name: fullName, station_id: stationId || null },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${siteUrl()}/auth/callback`,
       },
     });
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { siteUrl } from "@/lib/site-url";
 
 export function ForgotForm() {
   const [email, setEmail] = useState("");
@@ -15,7 +16,7 @@ export function ForgotForm() {
     setError(null);
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/breyta-lykilord`,
+      redirectTo: `${siteUrl()}/auth/callback?next=/breyta-lykilord`,
     });
     setLoading(false);
     if (error) {
