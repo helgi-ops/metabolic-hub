@@ -105,6 +105,17 @@ export default async function LogPage() {
   }
   const comparisons = [...groups.values()].filter((g) => g.entries.length >= 2);
 
+  // Workouts the member has already logged (rated). Their names are no longer a
+  // surprise, so they may be shown by name in the picker; unlogged ones stay
+  // hidden until logged — you should never see the workout before you do it.
+  const loggedSourceIds = [
+    ...new Set(
+      list
+        .map((l) => l.structure_source_id)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+
   const rpeValues = list.map((l) => l.rpe).filter((r): r is number => r != null);
   const avgRpe = rpeValues.length
     ? (rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length).toFixed(1)
@@ -157,6 +168,7 @@ export default async function LogPage() {
           today={today}
           scheduled={scheduled}
           weekWorkouts={weekWorkouts ?? []}
+          loggedSourceIds={loggedSourceIds}
         />
       </div>
 

@@ -53,13 +53,18 @@ export function LogForm({
   today,
   scheduled,
   weekWorkouts,
+  loggedSourceIds,
 }: {
   userId: string;
   today: string;
   scheduled: Scheduled;
   weekWorkouts: WeekWorkout[];
+  loggedSourceIds: string[];
 }) {
   const router = useRouter();
+  // Names of workouts the member hasn't logged yet stay hidden — you only find
+  // out what the workout was after you've done it and given it an RPE.
+  const loggedSet = new Set(loggedSourceIds);
   const [loggedOn, setLoggedOn] = useState(today);
   const [workoutId, setWorkoutId] = useState<string>(
     scheduled?.source_id ?? "",
@@ -150,15 +155,24 @@ export function LogForm({
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
             >
               <option value="">— ekki tengt æfingu —</option>
-              {weekWorkouts.map((w) => (
-                <option key={w.slot} value={w.structure_source_id}>
-                  {w.day ? `${w.day} · ` : ""}
-                  {CATEGORY_LABEL[w.category] ?? w.category} – {w.name}
-                </option>
-              ))}
+              {weekWorkouts.map((w) => {
+                const revealed = loggedSet.has(w.structure_source_id);
+                const prefix = `${w.day ? `${w.day} · ` : ""}${
+                  CATEGORY_LABEL[w.category] ?? w.category
+                }`;
+                return (
+                  <option key={w.slot} value={w.structure_source_id}>
+                    {revealed
+                      ? `${prefix} – ${w.name}`
+                      : `${prefix} · 🔒 (nafn birtist eftir skráningu)`}
+                  </option>
+                );
+              })}
             </select>
             <span className="mt-1 block text-xs text-muted-foreground">
-              Tengir skráninguna við æfinguna svo þú getir borið þig saman næst.
+              Þú sérð ekki æfinguna fyrirfram — nafnið birtist fyrst eftir að þú
+              hefur skráð hana og gefið RPE. Tengir líka skráninguna við æfinguna
+              svo þú getir borið þig saman næst.
             </span>
           </label>
         )}
