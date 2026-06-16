@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireStaff } from "@/lib/auth/require-staff";
+import { requireProgramBuilder } from "@/lib/auth/require-staff";
 import {
   generateOptiSignsPdf,
   type SlideWorkout,
@@ -52,7 +52,7 @@ function parsePreview(preview: string | null | undefined): LevelContent {
 export async function generatePlanPdf(
   planId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { supabase, user } = await requireStaff();
+  const { supabase, user } = await requireProgramBuilder();
 
   const { data: week, error: weekErr } = await supabase
     .from("weekly_plans")

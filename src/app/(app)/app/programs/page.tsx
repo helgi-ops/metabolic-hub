@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireStaff } from "@/lib/auth/require-staff";
+import { requireProgramBuilder } from "@/lib/auth/require-staff";
 import type { Database } from "@/lib/types/database";
 
 export const metadata = {
@@ -32,7 +32,7 @@ export default async function ProgramsPage({
     CATEGORY_LABEL[category ?? ""] ? category : null
   ) as Category | null;
 
-  const { supabase, user } = await requireStaff();
+  const { supabase, user } = await requireProgramBuilder();
 
   const { data: profile } = await supabase
     .from("profiles")

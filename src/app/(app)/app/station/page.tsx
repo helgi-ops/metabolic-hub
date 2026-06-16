@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatMeasure } from "@/lib/format";
 import { daysSince } from "@/lib/streak";
 import { MemberActions } from "./member-actions";
+import { ProgramBuilderToggle } from "./program-builder-toggle";
 
 export const metadata = {
   title: "Stöðin · Metabolic",
@@ -63,7 +64,7 @@ export default async function StationPage({
   const { data: members } = targetStationId
     ? await supabase
         .from("profiles")
-        .select("id, full_name, role, status")
+        .select("id, full_name, role, status, can_build_programs")
         .eq("station_id", targetStationId)
         .order("full_name", { ascending: true })
     : { data: [] };
@@ -331,6 +332,12 @@ export default async function StationPage({
                         memberId={m.id}
                         status={m.status}
                         canDelete={isAdmin}
+                      />
+                    )}
+                    {isAdmin && m.role === "coach" && (
+                      <ProgramBuilderToggle
+                        memberId={m.id}
+                        enabled={m.can_build_programs}
                       />
                     )}
                   </span>

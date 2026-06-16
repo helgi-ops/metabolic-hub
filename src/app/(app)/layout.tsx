@@ -18,11 +18,14 @@ export default async function AppLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role, status, station:stations(name)")
+    .select("full_name, role, status, can_build_programs, station:stations(name)")
     .eq("id", user.id)
     .single();
 
   const isStaff = profile?.role === "coach" || profile?.role === "admin";
+  // Program Builder / exercise library: admins always; coaches only when granted.
+  const canBuildPrograms =
+    profile?.role === "admin" || profile?.can_build_programs === true;
 
   // Members must be approved by a coach before they can use the system, and lose
   // access if suspended. Staff are never gated.
@@ -83,7 +86,7 @@ export default async function AppLayout({
               >
                 Yfirlit
               </Link>
-              {isStaff && (
+              {canBuildPrograms && (
                 <>
                   <Link
                     href="/app/programs"

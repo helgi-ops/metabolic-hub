@@ -23,3 +23,27 @@ export async function requireStaff() {
 
   return { supabase, user, role: profile.role };
 }
+
+/**
+ * Guards the Program Builder (weekly plans / OptiSigns). Admins always pass;
+ * coaches only when an admin has granted them `can_build_programs`. Everyone
+ * else is sent back to their dashboard.
+ */
+export async function requireProgramBuilder() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, can_build_programs")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile || profile.role === "student") redirect("/app");
+  if (profile.role !== "admin" && !profile.can_build_programs) redirect("/app");
+
+  return { supabase, user, role: profile.role };
+}

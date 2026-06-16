@@ -1,4 +1,4 @@
-import { requireStaff } from "@/lib/auth/require-staff";
+import { requireProgramBuilder } from "@/lib/auth/require-staff";
 
 export const metadata = {
   title: "Æfingasafn · Metabolic",
@@ -16,7 +16,7 @@ const PATTERN_LABELS: Record<string, string> = {
 };
 
 export default async function LibraryPage() {
-  const { supabase } = await requireStaff();
+  const { supabase } = await requireProgramBuilder();
 
   const { data: exercises } = await supabase
     .from("exercises")

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireStaff } from "@/lib/auth/require-staff";
+import { requireProgramBuilder } from "@/lib/auth/require-staff";
 import { PrintButton } from "./print-button";
 import { PdfButton } from "./pdf-button";
 
@@ -31,7 +31,7 @@ export default async function WeekPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase } = await requireStaff();
+  const { supabase } = await requireProgramBuilder();
 
   const { data: week } = await supabase
     .from("weekly_plans")

@@ -34,9 +34,11 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role, created_at")
+    .select("full_name, role, created_at, can_build_programs")
     .eq("id", user!.id)
     .single();
+  const canBuildPrograms =
+    profile?.role === "admin" || profile?.can_build_programs === true;
 
   const { count: programCount } = await supabase
     .from("programs")
@@ -145,7 +147,7 @@ export default async function DashboardPage() {
           href="/app/afrek"
           cta="Sjá merkin →"
         />
-        {profile?.role !== "student" && (
+        {canBuildPrograms && (
           <Card
             title="Program Builder"
             description="Skoðaðu 752 æfinga-structures úr Metabolic kerfinu — síaðar eftir flokki."

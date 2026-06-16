@@ -548,6 +548,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           bio: string | null
+          can_build_programs: boolean
           coach_station_ids: string[]
           created_at: string
           full_name: string | null
@@ -561,6 +562,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           bio?: string | null
+          can_build_programs?: boolean
           coach_station_ids?: string[]
           created_at?: string
           full_name?: string | null
@@ -574,6 +576,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           bio?: string | null
+          can_build_programs?: boolean
           coach_station_ids?: string[]
           created_at?: string
           full_name?: string | null
@@ -1003,6 +1006,10 @@ export type Database = {
       }
       set_member_status: {
         Args: { member: string; new_status: string }
+        Returns: undefined
+      }
+      set_program_builder: {
+        Args: { member: string; allowed: boolean }
         Returns: undefined
       }
       shares_my_station: { Args: { target: string }; Returns: boolean }
