@@ -27,9 +27,9 @@ const PILLARS = [
 ];
 
 const LEVELS = [
-  { tag: "MB1", title: "Grunnur", body: "Fyrir þá sem eru að byrja eða vilja styrkja grunninn. Tækni og uppbygging í fyrirrúmi." },
-  { tag: "MB2", title: "Lengra komnir", body: "Meira álag og flóknari uppsetningar fyrir þá sem hafa náð grunntækni." },
-  { tag: "MB3", title: "Krefjandi", body: "Hámarks álag og afkastageta fyrir vana iðkendur sem vilja meira." },
+  { tag: "MB1", title: "Grunnur", body: "Fyrir þá sem eru að byrja eða vilja styrkja grunninn. Tækni og uppbygging í fyrirrúmi.", img: "/level-mb1.jpg" },
+  { tag: "MB2", title: "Lengra komnir", body: "Meira álag og flóknari uppsetningar fyrir þá sem hafa náð grunntækni.", img: "/level-mb2.jpg" },
+  { tag: "MB3", title: "Krefjandi", body: "Hámarks álag og afkastageta fyrir vana iðkendur sem vilja meira.", img: "/level-mb3.jpg" },
 ];
 
 export default async function LandingPage() {
@@ -145,13 +145,19 @@ export default async function LandingPage() {
             {LEVELS.map((l) => (
               <div
                 key={l.tag}
-                className="rounded-lg border border-border bg-muted p-6"
+                className="overflow-hidden rounded-lg border border-border bg-muted"
               >
-                <div className="font-mono text-xs tracking-widest text-accent">
-                  {l.tag}
+                <div
+                  className="h-40 bg-cover bg-center"
+                  style={{ backgroundImage: `url(${l.img})` }}
+                />
+                <div className="p-6">
+                  <div className="font-mono text-xs tracking-widest text-accent">
+                    {l.tag}
+                  </div>
+                  <h3 className="mt-3 text-xl font-bold">{l.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{l.body}</p>
                 </div>
-                <h3 className="mt-3 text-xl font-bold">{l.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{l.body}</p>
               </div>
             ))}
           </div>
