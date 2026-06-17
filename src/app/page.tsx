@@ -65,8 +65,14 @@ export default async function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="bg-grid relative">
-        <div className="mx-auto max-w-4xl px-6 py-28 sm:py-36 text-center">
+      <section className="relative overflow-hidden">
+        {/* Background photo + dark overlay for legible text */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url(/hero-metabolic.jpg)" }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/70 to-background" />
+        <div className="relative mx-auto max-w-4xl px-6 py-28 sm:py-36 text-center">
           <div className="inline-block rounded-full border border-border bg-muted px-4 py-1 text-xs font-mono tracking-widest text-muted-foreground uppercase mb-8">
             Þróað á Íslandi síðan 2011
           </div>
@@ -197,8 +203,13 @@ export default async function LandingPage() {
       </section>
 
       {/* Coach academy teaser */}
-      <section className="border-t border-border bg-muted">
-        <div className="mx-auto max-w-6xl px-6 py-16 flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
+      <section className="relative overflow-hidden border-t border-border">
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: "url(/metabolic-community.jpg)" }}
+        />
+        <div className="absolute inset-0 bg-background/80" />
+        <div className="relative mx-auto max-w-6xl px-6 py-16 flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="max-w-2xl">
             <div className="font-mono text-xs tracking-widest text-accent uppercase">
               Fyrir þjálfara
