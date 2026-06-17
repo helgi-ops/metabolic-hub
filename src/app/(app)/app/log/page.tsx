@@ -30,6 +30,7 @@ type Log = {
   calories: number | null;
   machine: string | null;
   notes: string | null;
+  activity: string | null;
   structure_source_id: string | null;
   scheduled_day: string | null;
   scheduled_category: string | null;
@@ -78,7 +79,7 @@ export default async function LogPage() {
   const { data: logs } = await supabase
     .from("workout_logs")
     .select(
-      "id, logged_on, rpe, weights, calories, machine, notes, structure_source_id, scheduled_day, scheduled_category",
+      "id, logged_on, rpe, weights, calories, machine, notes, activity, structure_source_id, scheduled_day, scheduled_category",
     )
     .eq("user_id", user!.id)
     .order("logged_on", { ascending: false })
@@ -239,7 +240,13 @@ export default async function LogPage() {
                       )}
                     </td>
                     <td className="px-4 py-2 text-muted-foreground">
-                      {l.weights ?? ""}
+                      {l.activity ? (
+                        <span className="inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs text-accent">
+                          🚲 {l.activity}
+                        </span>
+                      ) : (
+                        (l.weights ?? "")
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
                       {l.calories != null

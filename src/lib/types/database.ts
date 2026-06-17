@@ -893,6 +893,7 @@ export type Database = {
       }
       workout_logs: {
         Row: {
+          activity: string | null
           calories: number | null
           created_at: string
           id: string
@@ -908,6 +909,7 @@ export type Database = {
           weights: string | null
         }
         Insert: {
+          activity?: string | null
           calories?: number | null
           created_at?: string
           id?: string
@@ -923,6 +925,7 @@ export type Database = {
           weights?: string | null
         }
         Update: {
+          activity?: string | null
           calories?: number | null
           created_at?: string
           id?: string

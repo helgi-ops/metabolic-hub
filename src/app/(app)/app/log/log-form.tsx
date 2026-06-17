@@ -48,6 +48,9 @@ const CATEGORY_LABEL: Record<string, string> = {
   burn: "Burn",
 };
 
+// Sentinel for "logged an alternative activity instead of the day's workout".
+const OTHER = "__other__";
+
 export function LogForm({
   userId,
   today,
@@ -69,6 +72,7 @@ export function LogForm({
   const [workoutId, setWorkoutId] = useState<string>(
     scheduled?.source_id ?? "",
   );
+  const [activity, setActivity] = useState("");
   const [rpe, setRpe] = useState<number | null>(null);
   const [hoverRpe, setHoverRpe] = useState<number | null>(null);
   const [weights, setWeights] = useState("");
@@ -78,21 +82,25 @@ export function LogForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isOther = workoutId === OTHER;
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     const cal = calories.trim() ? parseFloat(calories.replace(",", ".")) : null;
-    if (!rpe && !weights.trim() && cal == null && !notes.trim()) {
+    const activityName = isOther ? activity.trim() : "";
+    if (!rpe && !weights.trim() && cal == null && !notes.trim() && !activityName) {
       setError("Skráðu að minnsta kosti eitt atriði.");
       return;
     }
     setSaving(true);
     const supabase = createClient();
     // Tag the log with the workout the member picked (from this week's plan) so
-    // it can be compared next time the same workout comes up.
-    const picked = weekWorkouts.find(
-      (w) => w.structure_source_id === workoutId,
-    );
+    // it can be compared next time the same workout comes up. "Önnur æfing"
+    // logs an alternative activity instead and is not tied to a plan workout.
+    const picked = isOther
+      ? undefined
+      : weekWorkouts.find((w) => w.structure_source_id === workoutId);
     const tag = picked
       ? {
           structure_source_id: picked.structure_source_id,
@@ -103,6 +111,7 @@ export function LogForm({
     const { error: insertError } = await supabase.from("workout_logs").insert({
       user_id: userId,
       logged_on: loggedOn,
+      activity: activityName || null,
       rpe: rpe,
       weights: weights.trim() || null,
       calories: cal,
@@ -116,6 +125,7 @@ export function LogForm({
       return;
     }
     setRpe(null);
+    setActivity("");
     setWeights("");
     setCalories("");
     setMachine("");
@@ -144,35 +154,56 @@ export function LogForm({
           />
         </label>
 
-        {weekWorkouts.length > 0 && (
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted-foreground">
-              Hvaða æfingu varstu að gera?
-            </span>
-            <select
-              value={workoutId}
-              onChange={(e) => setWorkoutId(e.target.value)}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              <option value="">— ekki tengt æfingu —</option>
-              {weekWorkouts.map((w) => {
-                const revealed = loggedSet.has(w.structure_source_id);
-                const prefix = `${w.day ? `${w.day} · ` : ""}${
-                  CATEGORY_LABEL[w.category] ?? w.category
-                }`;
-                return (
-                  <option key={w.slot} value={w.structure_source_id}>
-                    {revealed
-                      ? `${prefix} – ${w.name}`
-                      : `${prefix} · 🔒 (nafn birtist eftir skráningu)`}
-                  </option>
-                );
-              })}
-            </select>
+        <label className="block">
+          <span className="mb-1 block text-sm text-muted-foreground">
+            Hvaða æfingu varstu að gera?
+          </span>
+          <select
+            value={workoutId}
+            onChange={(e) => setWorkoutId(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+          >
+            <option value="">— ekki tengt æfingu —</option>
+            {weekWorkouts.map((w) => {
+              const revealed = loggedSet.has(w.structure_source_id);
+              const prefix = `${w.day ? `${w.day} · ` : ""}${
+                CATEGORY_LABEL[w.category] ?? w.category
+              }`;
+              return (
+                <option key={w.slot} value={w.structure_source_id}>
+                  {revealed
+                    ? `${prefix} – ${w.name}`
+                    : `${prefix} · 🔒 (nafn birtist eftir skráningu)`}
+                </option>
+              );
+            })}
+            <option value={OTHER}>
+              🚲 Önnur æfing / hreyfing (t.d. hjól, hlaup, sund)
+            </option>
+          </select>
+          {weekWorkouts.length > 0 && !isOther && (
             <span className="mt-1 block text-xs text-muted-foreground">
               Þú sérð ekki æfinguna fyrirfram — nafnið birtist fyrst eftir að þú
               hefur skráð hana og gefið RPE. Tengir líka skráninguna við æfinguna
               svo þú getir borið þig saman næst.
+            </span>
+          )}
+        </label>
+
+        {isOther && (
+          <label className="block">
+            <span className="mb-1 block text-sm text-muted-foreground">
+              Hvað gerðir þú?
+            </span>
+            <input
+              value={activity}
+              onChange={(e) => setActivity(e.target.value)}
+              placeholder="t.d. Hjól, Hlaup, Sund, Ganga, Heimaæfing"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+            <span className="mt-1 block text-xs text-muted-foreground">
+              Skráð sem aukaæfing í stað æfingar dagsins. Þú getur líka skráð RPE
+              og kaloríur fyrir hana hér að neðan.
             </span>
           </label>
         )}
