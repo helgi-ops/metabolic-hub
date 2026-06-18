@@ -40,6 +40,14 @@ export default async function DashboardPage() {
   const canBuildPrograms =
     profile?.role === "admin" || profile?.can_build_programs === true;
 
+  // Live count of the exercise library so the Program Builder card stays
+  // accurate as structures are added (only fetched for program builders).
+  const { count: structureCount } = canBuildPrograms
+    ? await supabase
+        .from("structures")
+        .select("*", { count: "exact", head: true })
+    : { count: null };
+
   const { count: programCount } = await supabase
     .from("programs")
     .select("*", { count: "exact", head: true })
@@ -150,7 +158,7 @@ export default async function DashboardPage() {
         {canBuildPrograms && (
           <Card
             title="Program Builder"
-            description="Skoðaðu 752 æfinga-structures úr Metabolic kerfinu — síaðar eftir flokki."
+            description={`Skoðaðu ${structureCount ?? 0} æfinga-structures úr Metabolic kerfinu — síaðar eftir flokki.`}
             href="/app/programs"
             cta="Opna safnið →"
           />

@@ -77,6 +77,28 @@ export default async function ProgramsPage({
     : { data: [] };
   const ownerName = new Map((owners ?? []).map((o) => [o.id, o.full_name]));
 
+  // Last time each structure was used in a week plan for this station, so the
+  // coach can avoid repeating the same setup inside a 4-week block. Scans ALL
+  // station weeks (not just the 8 shown above).
+  let usageQuery = supabase
+    .from("weekly_plans")
+    .select("week_starting, programs_json");
+  usageQuery = profile?.station_id
+    ? usageQuery.eq("station_id", profile.station_id)
+    : usageQuery.eq("owner_id", user.id);
+  const { data: usageWeeks } = await usageQuery;
+
+  const lastUsed = new Map<string, string>(); // source_id → latest week_starting
+  for (const w of usageWeeks ?? []) {
+    const slots = Array.isArray(w.programs_json) ? w.programs_json : [];
+    for (const slot of slots as { structure_source_id?: string }[]) {
+      const sid = slot?.structure_source_id;
+      if (!sid || !w.week_starting) continue;
+      const prev = lastUsed.get(sid);
+      if (!prev || w.week_starting > prev) lastUsed.set(sid, w.week_starting);
+    }
+  }
+
   // Total per category (for the filter counts) — cheap head counts.
   const counts = await Promise.all(
     CATEGORIES.map(async (c) => {
@@ -270,6 +292,7 @@ export default async function ProgramsPage({
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {list.map((s) => {
           const levels = (s.levels ?? {}) as Record<string, string>;
+          const used = lastUsedInfo(lastUsed.get(s.source_id));
           return (
             <article
               key={s.id}
@@ -297,6 +320,20 @@ export default async function ProgramsPage({
               <pre className="mt-3 flex-1 whitespace-pre-line font-sans text-xs leading-relaxed text-muted-foreground">
                 {s.preview}
               </pre>
+              {used && (
+                <div
+                  className={`mt-3 rounded px-2 py-1 text-[11px] ${
+                    used.recent
+                      ? "bg-red-500/15 text-red-400"
+                      : "text-muted-foreground"
+                  }`}
+                  title={`Síðast í vikuplani sem hófst ${used.date}`}
+                >
+                  {used.recent
+                    ? `⚠ Notað fyrir ${used.days} ${used.days === 1 ? "degi" : "dögum"} — innan 4-vikna lotu`
+                    : `Síðast notað ${used.date}`}
+                </div>
+              )}
             </article>
           );
         })}
@@ -336,6 +373,17 @@ export default async function ProgramsPage({
       )}
     </main>
   );
+}
+
+// How long ago a structure was last used in a week plan. "recent" means within
+// a 4-week (28-day) block — the window a coach should avoid repeating within.
+function lastUsedInfo(
+  date: string | undefined,
+): { date: string; days: number; recent: boolean } | null {
+  if (!date) return null;
+  const start = new Date(`${date}T00:00:00Z`).getTime();
+  const days = Math.max(0, Math.floor((Date.now() - start) / 86_400_000));
+  return { date, days, recent: days <= 28 };
 }
 
 function FilterChip({
