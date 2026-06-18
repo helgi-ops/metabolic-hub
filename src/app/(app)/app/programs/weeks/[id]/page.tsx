@@ -24,6 +24,7 @@ type Slot = {
   name: string;
   day?: string;
   focus?: string;
+  preview?: string; // per-week override of the workout's exercise list
 };
 
 export default async function WeekPage({
@@ -144,9 +145,9 @@ export default async function WeekPage({
                 </div>
               )}
               <h2 className="mt-1 font-semibold">{st?.name ?? slot.name}</h2>
-              {st?.preview && (
+              {(slot.preview ?? st?.preview) && (
                 <pre className="mt-3 whitespace-pre-line font-sans text-xs leading-relaxed text-muted-foreground">
-                  {st.preview}
+                  {slot.preview ?? st?.preview}
                 </pre>
               )}
             </article>

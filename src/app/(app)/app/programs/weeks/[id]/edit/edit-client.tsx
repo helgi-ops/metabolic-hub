@@ -20,6 +20,7 @@ type Slot = {
   name: string;
   day?: string;
   focus?: string;
+  preview?: string; // per-week override of the workout's exercise list
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -63,11 +64,26 @@ export function EditClient({
   }, [structures, level]);
 
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
+  // Editable exercise text per slot — starts from the saved override, else the
+  // structure's library preview.
+  const [previews, setPreviews] = useState<string[]>(() =>
+    initialSlots.map(
+      (s) =>
+        s.preview ??
+        structures.find((x) => x.source_id === s.structure_source_id)
+          ?.preview ??
+        "",
+    ),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function setSlot(i: number, patch: Partial<Slot>) {
     setSlots((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  }
+
+  function setPreview(i: number, text: string) {
+    setPreviews((prev) => prev.map((p, idx) => (idx === i ? text : p)));
   }
 
   function pickStructure(i: number, sourceId: string) {
@@ -76,12 +92,25 @@ export function EditClient({
       structure_source_id: sourceId,
       name: st?.name ?? slots[i].name,
     });
+    // Reset the editable text to the newly chosen structure's exercises.
+    setPreview(i, st?.preview ?? "");
   }
 
   async function save() {
     setError(null);
     setSaving(true);
-    const res = await updateWeekSlots(planId, slots);
+    // Store preview only when the coach actually changed it from the library
+    // version, so unedited slots keep tracking the structure library.
+    const payload: Slot[] = slots.map((s, i) => {
+      const lib = bySource.get(s.structure_source_id)?.preview ?? "";
+      const edited = previews[i] ?? "";
+      const { preview: _omit, ...rest } = s;
+      void _omit;
+      return edited.trim() && edited !== lib
+        ? { ...rest, preview: edited }
+        : rest;
+    });
+    const res = await updateWeekSlots(planId, payload);
     if (!res.ok) {
       setError(res.error ?? "Tókst ekki að vista.");
       setSaving(false);
@@ -141,13 +170,14 @@ export function EditClient({
                 </span>
                 <select
                   value={slot.category}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setSlot(i, {
                       category: e.target.value,
                       structure_source_id: "",
                       name: "",
-                    })
-                  }
+                    });
+                    setPreview(i, "");
+                  }}
                   className="rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 >
                   {Object.keys(CATEGORY_LABEL).map((c) => (
@@ -174,10 +204,28 @@ export function EditClient({
                   ))}
                 </select>
               </div>
-              {chosen?.preview && (
-                <pre className="mt-3 whitespace-pre-wrap pl-11 font-sans text-xs leading-relaxed text-muted-foreground">
-                  {chosen.preview}
-                </pre>
+              {slot.structure_source_id && (
+                <div className="mt-3 pl-11">
+                  <label className="mb-1 block text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Æfingar (breyttu frjálst — t.d. Kassahopp → KB hopp)
+                  </label>
+                  <textarea
+                    value={previews[i] ?? ""}
+                    onChange={(e) => setPreview(i, e.target.value)}
+                    rows={Math.max(4, (previews[i] ?? "").split("\n").length + 1)}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 font-sans text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                  {chosen &&
+                    (previews[i] ?? "") !== (chosen.preview ?? "") && (
+                      <button
+                        type="button"
+                        onClick={() => setPreview(i, chosen.preview ?? "")}
+                        className="mt-1 text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        ↺ Endurstilla á upprunalegu æfinguna
+                      </button>
+                    )}
+                </div>
               )}
             </div>
           );

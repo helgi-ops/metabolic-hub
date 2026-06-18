@@ -17,6 +17,7 @@ type Slot = {
   name: string;
   day?: string;
   focus?: string;
+  preview?: string;
 };
 
 export default async function EditWeekPage({
