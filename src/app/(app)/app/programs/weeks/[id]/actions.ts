@@ -1,5 +1,7 @@
 "use server";
 
+import { readFile } from "fs/promises";
+import nodePath from "path";
 import { revalidatePath } from "next/cache";
 import { requireProgramBuilder } from "@/lib/auth/require-staff";
 import {
@@ -249,10 +251,22 @@ export async function generatePlanPdf(
     };
   });
 
+  // Brand the header with the Metabolic logo (best-effort; PDF still renders
+  // if the asset can't be read).
+  let logoPng: Uint8Array | undefined;
+  try {
+    logoPng = new Uint8Array(
+      await readFile(nodePath.join(process.cwd(), "public", "icon-512.png")),
+    );
+  } catch {
+    logoPng = undefined;
+  }
+
   const bytes = await generateOptiSignsPdf({
     title: week.title ?? "",
     level: week.level,
     workouts,
+    logoPng,
   });
 
   // Upload to the owner's folder (storage RLS: auth.uid() = first path segment).

@@ -78,6 +78,12 @@ export default async function WeekPage({
 
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icon-512.png"
+            alt="Metabolic"
+            className="mb-3 h-12 w-12 rounded-lg"
+          />
           <div className="print-accent font-mono text-xs tracking-widest text-accent uppercase">
             Metabolic · {week.level} · Vika {week.week_starting}
           </div>
