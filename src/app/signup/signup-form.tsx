@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { siteUrl } from "@/lib/site-url";
+import Link from "next/link";
+import { registerMember } from "./actions";
 
 export function SignupForm({
   stations,
@@ -22,18 +22,15 @@ export function SignupForm({
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const result = await registerMember({
+      fullName,
       email,
       password,
-      options: {
-        data: { full_name: fullName, station_id: stationId || null },
-        emailRedirectTo: `${siteUrl()}/auth/callback`,
-      },
+      stationId,
     });
 
-    if (error) {
-      setError(error.message);
+    if (!result.ok) {
+      setError(result.message);
       setLoading(false);
       return;
     }
@@ -45,11 +42,17 @@ export function SignupForm({
   if (sent) {
     return (
       <div className="rounded-lg border border-accent/40 bg-accent/10 p-6 text-center">
-        <div className="text-accent font-semibold">Tékkaðu á netfanginu</div>
+        <div className="text-accent font-semibold">Aðgangur stofnaður!</div>
         <div className="mt-2 text-sm text-muted-foreground">
-          Við sendum þér staðfestingarpóst á {email}. Smelltu á hlekkinn til að
-          klára nýskráninguna.
+          Þjálfari þarf að samþykkja skráninguna þína áður en þú færð aðgang.
+          Þú getur skráð þig inn um leið og hún hefur verið samþykkt.
         </div>
+        <Link
+          href="/login"
+          className="mt-4 inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition"
+        >
+          Innskráning
+        </Link>
       </div>
     );
   }

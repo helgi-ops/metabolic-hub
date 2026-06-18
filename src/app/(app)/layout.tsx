@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { BackButton } from "./back-button";
 
 export default async function AppLayout({
   children,
@@ -72,7 +73,8 @@ export default async function AppLayout({
     <div className="flex flex-col flex-1">
       <header className="no-print border-b border-border">
         <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-4 sm:gap-8">
+            <BackButton />
             <Link
               href="/app"
               className="font-mono text-sm tracking-widest uppercase"
