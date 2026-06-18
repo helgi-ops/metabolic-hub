@@ -291,6 +291,45 @@ export type Database = {
           },
         ]
       }
+      exercise_videos: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration: number | null
+          embed_url: string | null
+          id: string
+          link: string | null
+          name: string
+          thumbnail_url: string | null
+          updated_at: string
+          vimeo_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          embed_url?: string | null
+          id?: string
+          link?: string | null
+          name: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          vimeo_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration?: number | null
+          embed_url?: string | null
+          id?: string
+          link?: string | null
+          name?: string
+          thumbnail_url?: string | null
+          updated_at?: string
+          vimeo_id?: string
+        }
+        Relationships: []
+      }
       exercises: {
         Row: {
           category: string | null

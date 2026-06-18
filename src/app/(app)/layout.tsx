@@ -123,6 +123,12 @@ export default async function AppLayout({
                 Leaderboard
               </Link>
               <Link
+                href="/app/videos"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Æfingabanki
+              </Link>
+              <Link
                 href="/app/afrek"
                 className="text-muted-foreground hover:text-foreground"
               >
