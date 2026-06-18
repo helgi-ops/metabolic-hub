@@ -20,17 +20,35 @@ const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
   CATEGORIES.map((c) => [c.key, c.label]),
 );
 
+// Level chips → the levels.l1 value stored on each structure.
+const LEVELS: { key: string; label: string; value: string }[] = [
+  { key: "MB1", label: "MB1", value: "Level 1" },
+  { key: "MB2", label: "MB2", value: "Level 2" },
+  { key: "MB3", label: "MB3", value: "Level 3" },
+];
+const LEVEL_VALUE: Record<string, string> = Object.fromEntries(
+  LEVELS.map((l) => [l.key, l.value]),
+);
+
 const PAGE_SIZE = 48;
 
 export default async function ProgramsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string }>;
+  searchParams: Promise<{
+    category?: string;
+    level?: string;
+    q?: string;
+    page?: string;
+  }>;
 }) {
-  const { category } = await searchParams;
+  const { category, level, q: qRaw, page: pageRaw } = await searchParams;
   const active = (
     CATEGORY_LABEL[category ?? ""] ? category : null
   ) as Category | null;
+  const activeLevel = LEVEL_VALUE[level ?? ""] ? level! : null;
+  const q = (qRaw ?? "").trim();
+  const page = Math.max(1, parseInt(pageRaw ?? "1", 10) || 1);
 
   const { supabase, user } = await requireProgramBuilder();
 
@@ -72,17 +90,41 @@ export default async function ProgramsPage({
   const countByCat = Object.fromEntries(counts);
   const total = counts.reduce((sum, [, n]) => sum + n, 0);
 
+  const from = (page - 1) * PAGE_SIZE;
   let query = supabase
     .from("structures")
     .select("id, source_id, name, category, group_key, levels, preview", {
       count: "exact",
     })
     .order("name", { ascending: true })
-    .limit(PAGE_SIZE);
+    .range(from, from + PAGE_SIZE - 1);
   if (active) query = query.eq("category", active);
+  if (activeLevel) query = query.eq("levels->>l1", LEVEL_VALUE[activeLevel]);
+  if (q) query = query.or(`name.ilike.%${q}%,preview.ilike.%${q}%`);
 
   const { data: structures, count: matchCount } = await query;
   const list = structures ?? [];
+  const totalPages = Math.max(1, Math.ceil((matchCount ?? 0) / PAGE_SIZE));
+
+  // Build a querystring for filter links / pagination, preserving the rest.
+  const buildHref = (next: {
+    category?: string | null;
+    level?: string | null;
+    q?: string | null;
+    page?: number | null;
+  }) => {
+    const p = new URLSearchParams();
+    const cat = next.category === undefined ? active : next.category;
+    const lvl = next.level === undefined ? activeLevel : next.level;
+    const qv = next.q === undefined ? q : next.q;
+    const pg = next.page === undefined ? page : next.page;
+    if (cat) p.set("category", cat);
+    if (lvl) p.set("level", lvl);
+    if (qv) p.set("q", qv);
+    if (pg && pg > 1) p.set("page", String(pg));
+    const s = p.toString();
+    return s ? `/app/programs?${s}` : "/app/programs";
+  };
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
@@ -148,13 +190,45 @@ export default async function ProgramsPage({
         )}
       </section>
 
+      {/* Search */}
+      <form method="get" action="/app/programs" className="mb-4 flex gap-2">
+        {active && <input type="hidden" name="category" value={active} />}
+        {activeLevel && <input type="hidden" name="level" value={activeLevel} />}
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="Leita að æfingu (nafn eða innihald)…"
+          className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+        />
+        <button
+          type="submit"
+          className="shrink-0 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition"
+        >
+          Leita
+        </button>
+        {q && (
+          <Link
+            href={buildHref({ q: null, page: 1 })}
+            className="shrink-0 rounded-md border border-border px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition"
+          >
+            Hreinsa
+          </Link>
+        )}
+      </form>
+
       {/* Category filter */}
-      <div className="mb-8 flex flex-wrap gap-2">
-        <FilterChip href="/app/programs" label="Allir" count={total} active={!active} />
+      <div className="mb-3 flex flex-wrap gap-2">
+        <FilterChip
+          href={buildHref({ category: null, page: 1 })}
+          label="Allir"
+          count={total}
+          active={!active}
+        />
         {CATEGORIES.map((c) => (
           <FilterChip
             key={c.key}
-            href={`/app/programs?category=${c.key}`}
+            href={buildHref({ category: c.key, page: 1 })}
             label={c.label}
             count={countByCat[c.key] ?? 0}
             active={active === c.key}
@@ -162,11 +236,36 @@ export default async function ProgramsPage({
         ))}
       </div>
 
-      <div className="mb-4 text-sm text-muted-foreground">
-        {active ? CATEGORY_LABEL[active] : "Allir flokkar"} ·{" "}
-        {matchCount ?? list.length} structures
-        {(matchCount ?? 0) > PAGE_SIZE && ` (sýni fyrstu ${PAGE_SIZE})`}
+      {/* Level filter */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        <FilterChip
+          href={buildHref({ level: null, page: 1 })}
+          label="Öll stig"
+          active={!activeLevel}
+        />
+        {LEVELS.map((l) => (
+          <FilterChip
+            key={l.key}
+            href={buildHref({ level: l.key, page: 1 })}
+            label={l.label}
+            active={activeLevel === l.key}
+          />
+        ))}
       </div>
+
+      <div className="mb-4 text-sm text-muted-foreground">
+        {active ? CATEGORY_LABEL[active] : "Allir flokkar"}
+        {activeLevel ? ` · ${activeLevel}` : ""}
+        {q ? ` · „${q}“` : ""} · {matchCount ?? list.length} structures
+        {totalPages > 1 && ` · síða ${page}/${totalPages}`}
+      </div>
+
+      {list.length === 0 && (
+        <p className="rounded-lg border border-border bg-muted p-6 text-sm text-muted-foreground">
+          Engin structure fannst{q ? ` fyrir „${q}“` : ""}. Prófaðu aðra leit eða
+          síu.
+        </p>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {list.map((s) => {
@@ -202,6 +301,39 @@ export default async function ProgramsPage({
           );
         })}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-8 flex items-center justify-center gap-3 text-sm">
+          {page > 1 ? (
+            <Link
+              href={buildHref({ page: page - 1 })}
+              className="rounded-md border border-border px-4 py-2 text-muted-foreground hover:text-foreground transition"
+            >
+              ← Fyrri
+            </Link>
+          ) : (
+            <span className="rounded-md border border-border px-4 py-2 text-muted-foreground/40">
+              ← Fyrri
+            </span>
+          )}
+          <span className="text-muted-foreground">
+            Síða {page} af {totalPages}
+          </span>
+          {page < totalPages ? (
+            <Link
+              href={buildHref({ page: page + 1 })}
+              className="rounded-md border border-border px-4 py-2 text-muted-foreground hover:text-foreground transition"
+            >
+              Næsta →
+            </Link>
+          ) : (
+            <span className="rounded-md border border-border px-4 py-2 text-muted-foreground/40">
+              Næsta →
+            </span>
+          )}
+        </div>
+      )}
     </main>
   );
 }
@@ -214,7 +346,7 @@ function FilterChip({
 }: {
   href: string;
   label: string;
-  count: number;
+  count?: number;
   active: boolean;
 }) {
   return (
@@ -227,9 +359,13 @@ function FilterChip({
       }`}
     >
       {label}
-      <span className={`ml-1.5 text-xs ${active ? "opacity-80" : "opacity-60"}`}>
-        {count}
-      </span>
+      {count != null && (
+        <span
+          className={`ml-1.5 text-xs ${active ? "opacity-80" : "opacity-60"}`}
+        >
+          {count}
+        </span>
+      )}
     </Link>
   );
 }
