@@ -49,6 +49,97 @@ function parsePreview(preview: string | null | undefined): LevelContent {
   return { intro, exercises };
 }
 
+const LEVEL_NUM: Record<string, number> = { MB1: 1, MB2: 2, MB3: 3 };
+const NUM_LEVEL: Record<number, string> = { 1: "MB1", 2: "MB2", 3: "MB3" };
+
+// Swap the level token anywhere it appears as a unit (-l1, -l1-var-a,
+// -l1-4-6-8 …). More permissive than levelId() above which only matched -var-/$.
+function mapToLevel(sourceId: string, lvl: number): string {
+  return sourceId.replace(/-l[123](?=-|$)/, `-l${lvl}`);
+}
+
+export async function deleteWeek(
+  planId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { supabase } = await requireProgramBuilder();
+  const { error } = await supabase
+    .from("weekly_plans")
+    .delete()
+    .eq("id", planId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/app/programs");
+  return { ok: true };
+}
+
+// Clone a saved week to the other two MB levels, mapping each chosen structure
+// to its sibling at the target level (same family/variant). Structures with no
+// level token (endurance/burn "ALL" picks) carry over unchanged; if a sibling
+// doesn't exist, the original pick is kept so no slot ends up empty.
+export async function cloneWeekToLevels(
+  planId: string,
+): Promise<{ ok: boolean; created?: number; error?: string }> {
+  const { supabase, user } = await requireProgramBuilder();
+
+  const { data: week, error } = await supabase
+    .from("weekly_plans")
+    .select("title, level, week_starting, programs_json, station_id")
+    .eq("id", planId)
+    .single();
+  if (error || !week) return { ok: false, error: "Vika fannst ekki." };
+
+  const srcLvl = LEVEL_NUM[week.level];
+  if (!srcLvl) return { ok: false, error: "Vikan er ekki á MB1/MB2/MB3 stigi." };
+
+  const slots = (Array.isArray(week.programs_json)
+    ? week.programs_json
+    : []) as Slot[];
+  const targets = [1, 2, 3].filter((l) => l !== srcLvl);
+
+  // Look up names + existence for every mapped sibling source_id.
+  const mappedIds = new Set<string>();
+  for (const s of slots)
+    for (const l of targets)
+      if (s.structure_source_id)
+        mappedIds.add(mapToLevel(s.structure_source_id, l));
+  const { data: structs } = mappedIds.size
+    ? await supabase
+        .from("structures")
+        .select("source_id, name")
+        .in("source_id", [...mappedIds])
+    : { data: [] as { source_id: string; name: string }[] };
+  const nameBy = new Map((structs ?? []).map((s) => [s.source_id, s.name]));
+
+  let created = 0;
+  for (const lvl of targets) {
+    const programs_json = slots.map((s) => {
+      const mapped = mapToLevel(s.structure_source_id, lvl);
+      const exists = nameBy.has(mapped);
+      return {
+        ...s,
+        structure_source_id: exists ? mapped : s.structure_source_id,
+        name: exists ? nameBy.get(mapped)! : s.name,
+      };
+    });
+    const hadToken = /\bMB[123]\b/.test(week.title ?? "");
+    const title = hadToken
+      ? (week.title ?? "").replace(/\bMB[123]\b/g, NUM_LEVEL[lvl])
+      : `${week.title || `Vika ${week.week_starting}`} – ${NUM_LEVEL[lvl]}`;
+
+    const { error: insErr } = await supabase.from("weekly_plans").insert({
+      owner_id: user.id,
+      station_id: week.station_id,
+      title,
+      level: NUM_LEVEL[lvl],
+      week_starting: week.week_starting,
+      programs_json,
+    });
+    if (!insErr) created++;
+  }
+
+  revalidatePath("/app/programs");
+  return { ok: true, created };
+}
+
 export async function generatePlanPdf(
   planId: string,
 ): Promise<{ ok: boolean; error?: string }> {

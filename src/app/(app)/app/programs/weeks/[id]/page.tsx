@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireProgramBuilder } from "@/lib/auth/require-staff";
 import { PrintButton } from "./print-button";
 import { PdfButton } from "./pdf-button";
+import { WeekActions } from "./week-actions";
 
 export const metadata = {
   title: "Vika · Metabolic",
@@ -91,6 +92,7 @@ export default async function WeekPage({
             <PrintButton />
             <PdfButton planId={week.id} />
           </div>
+          <WeekActions planId={week.id} level={week.level} />
           {week.optisigns_pushed_at && (
             <div className="text-xs text-muted-foreground">
               OptiSigns PDF ·{" "}
