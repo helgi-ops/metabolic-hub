@@ -89,6 +89,12 @@ export default async function WeekPage({
         </div>
         <div className="no-print flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
+            <Link
+              href={`/app/programs/weeks/${week.id}/edit`}
+              className="rounded-md border border-border bg-muted px-3 py-1.5 text-sm hover:border-accent transition"
+            >
+              Breyta
+            </Link>
             <PrintButton />
             <PdfButton planId={week.id} />
           </div>

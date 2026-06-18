@@ -68,6 +68,23 @@ function stripLevel(sourceId: string): string {
   return sourceId.replace(/-l[123](?=-|$)/, "");
 }
 
+// Save edited slots back onto a week (swap individual workouts without touching
+// the shared structure library).
+export async function updateWeekSlots(
+  planId: string,
+  slots: Slot[],
+): Promise<{ ok: boolean; error?: string }> {
+  const { supabase } = await requireProgramBuilder();
+  const { error } = await supabase
+    .from("weekly_plans")
+    .update({ programs_json: slots })
+    .eq("id", planId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/app/programs/weeks/${planId}`);
+  revalidatePath("/app/programs");
+  return { ok: true };
+}
+
 export async function deleteWeek(
   planId: string,
 ): Promise<{ ok: boolean; error?: string }> {
