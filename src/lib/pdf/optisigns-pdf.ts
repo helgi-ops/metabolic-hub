@@ -24,7 +24,6 @@ export type OptiSignsData = {
   title: string;
   level?: string | null;
   workouts: SlideWorkout[];
-  logoPng?: Uint8Array; // Metabolic logo, drawn in the header if provided
 };
 
 const ACCENT = rgb(0.976, 0.451, 0.086);
@@ -56,7 +55,6 @@ export async function generateOptiSignsPdf(
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const obl = await doc.embedFont(StandardFonts.HelveticaOblique);
-  const logo = data.logoPng ? await doc.embedPng(data.logoPng) : null;
 
   const centered = (
     page: PDFPage,
@@ -93,7 +91,6 @@ export async function generateOptiSignsPdf(
 
       // Header
       page.drawRectangle({ x: 0, y: H - 80, width: W, height: 80, color: GRAYBAR });
-      if (logo) page.drawImage(logo, { x: 22, y: H - 70, width: 56, height: 56 });
       centered(page, wk.title, W / 2, H - 48, 25, bold, DARK);
       centered(page, "METABOLIC  -  Markviss arangur", W / 2, H - 68, 9, font, MUTED);
       page.drawRectangle({ x: W / 2 - 60, y: H - 82, width: 120, height: 2.5, color: ACCENT });
