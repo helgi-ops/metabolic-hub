@@ -57,9 +57,15 @@ const NUM_LEVEL: Record<number, "MB1" | "MB2" | "MB3"> = {
 };
 
 // Swap the level token anywhere it appears as a unit (-l1, -l1-var-a,
-// -l1-4-6-8 …). More permissive than levelId() above which only matched -var-/$.
+// -l1-4-6-8 …). Fallback when a family has no group_key.
 function mapToLevel(sourceId: string, lvl: number): string {
   return sourceId.replace(/-l[123](?=-|$)/, `-l${lvl}`);
+}
+
+// Drop the level token so the same setup at different levels normalises to one
+// key — lets us preserve the variant (…-l1-var-b ↔ …-l2-var-b, base ↔ base).
+function stripLevel(sourceId: string): string {
+  return sourceId.replace(/-l[123](?=-|$)/, "");
 }
 
 export async function deleteWeek(
@@ -98,30 +104,73 @@ export async function cloneWeekToLevels(
     ? week.programs_json
     : []) as Slot[];
   const targets = [1, 2, 3].filter((l) => l !== srcLvl);
+  const sourceIds = slots.map((s) => s.structure_source_id).filter(Boolean);
 
-  // Look up names + existence for every mapped sibling source_id.
-  const mappedIds = new Set<string>();
-  for (const s of slots)
-    for (const l of targets)
-      if (s.structure_source_id)
-        mappedIds.add(mapToLevel(s.structure_source_id, l));
-  const { data: structs } = mappedIds.size
+  // The family (group_key) of each chosen structure — the authoritative link
+  // across levels (source_id naming is inconsistent, e.g. "french-contrast"
+  // for L1 base vs "french-contrast-l2").
+  const { data: srcRows } = sourceIds.length
     ? await supabase
         .from("structures")
-        .select("source_id, name")
-        .in("source_id", [...mappedIds])
-    : { data: [] as { source_id: string; name: string }[] };
-  const nameBy = new Map((structs ?? []).map((s) => [s.source_id, s.name]));
+        .select("source_id, group_key")
+        .in("source_id", sourceIds)
+    : { data: [] as { source_id: string; group_key: string | null }[] };
+  const groupBySource = new Map(
+    (srcRows ?? []).map((r) => [r.source_id, r.group_key]),
+  );
+
+  // All structures in those families, so we can pick the right level + variant.
+  const groupKeys = [
+    ...new Set((srcRows ?? []).map((r) => r.group_key).filter(Boolean)),
+  ] as string[];
+  const { data: famRows } = groupKeys.length
+    ? await supabase
+        .from("structures")
+        .select("source_id, group_key, levels, name")
+        .in("group_key", groupKeys)
+    : {
+        data: [] as {
+          source_id: string;
+          group_key: string;
+          levels: { l1?: string } | null;
+          name: string;
+        }[],
+      };
+  const nameBy = new Map((famRows ?? []).map((r) => [r.source_id, r.name]));
+
+  // Resolve a slot's structure to the equivalent at the target level.
+  function resolve(sid: string, lvl: number): { id: string; name: string } {
+    const gk = groupBySource.get(sid);
+    if (gk) {
+      const wantLvl = `Level ${lvl}`;
+      const cands = (famRows ?? []).filter(
+        (r) =>
+          r.group_key === gk &&
+          ((r.levels as { l1?: string } | null)?.l1 ?? "") === wantLvl,
+      );
+      if (cands.length) {
+        const want = stripLevel(sid);
+        const exact = cands.find((c) => stripLevel(c.source_id) === want);
+        const pick = exact ?? cands[0];
+        return { id: pick.source_id, name: pick.name };
+      }
+    }
+    // No family match (standalone / ALL-level pick, or level not built):
+    // try a plain token swap, else keep the original so no slot is empty.
+    const swapped = mapToLevel(sid, lvl);
+    if (swapped !== sid && nameBy.has(swapped))
+      return { id: swapped, name: nameBy.get(swapped)! };
+    return { id: sid, name: "" };
+  }
 
   let created = 0;
   for (const lvl of targets) {
     const programs_json = slots.map((s) => {
-      const mapped = mapToLevel(s.structure_source_id, lvl);
-      const exists = nameBy.has(mapped);
+      const r = resolve(s.structure_source_id, lvl);
       return {
         ...s,
-        structure_source_id: exists ? mapped : s.structure_source_id,
-        name: exists ? nameBy.get(mapped)! : s.name,
+        structure_source_id: r.id,
+        name: r.name || s.name,
       };
     });
     const hadToken = /\bMB[123]\b/.test(week.title ?? "");
