@@ -50,7 +50,11 @@ function parsePreview(preview: string | null | undefined): LevelContent {
 }
 
 const LEVEL_NUM: Record<string, number> = { MB1: 1, MB2: 2, MB3: 3 };
-const NUM_LEVEL: Record<number, string> = { 1: "MB1", 2: "MB2", 3: "MB3" };
+const NUM_LEVEL: Record<number, "MB1" | "MB2" | "MB3"> = {
+  1: "MB1",
+  2: "MB2",
+  3: "MB3",
+};
 
 // Swap the level token anywhere it appears as a unit (-l1, -l1-var-a,
 // -l1-4-6-8 …). More permissive than levelId() above which only matched -var-/$.
