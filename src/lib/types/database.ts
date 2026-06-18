@@ -553,6 +553,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          leaderboard_opt_out: boolean
           role: Database["public"]["Enums"]["user_role"]
           share_pbs: boolean
           station_id: string | null
@@ -567,6 +568,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id: string
+          leaderboard_opt_out?: boolean
           role?: Database["public"]["Enums"]["user_role"]
           share_pbs?: boolean
           station_id?: string | null
@@ -581,6 +583,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          leaderboard_opt_out?: boolean
           role?: Database["public"]["Enums"]["user_role"]
           share_pbs?: boolean
           station_id?: string | null

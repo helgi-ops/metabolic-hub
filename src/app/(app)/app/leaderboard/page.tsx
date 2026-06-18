@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { OptOutToggle } from "./opt-out-toggle";
 
 export const metadata = { title: "Kcal Leaderboard · Metabolic" };
 
@@ -33,7 +34,7 @@ export default async function LeaderboardPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, station_id")
+    .select("role, station_id, leaderboard_opt_out")
     .eq("id", user.id)
     .single();
   const isAdmin = profile?.role === "admin";
@@ -97,6 +98,8 @@ export default async function LeaderboardPage({
         {period === "month" ? "Kaloríur þennan mánuð" : "Uppsafnaðar kaloríur"} á
         Assault Airbike og Concept2. {!isAdmin && "Þín stöð."}
       </p>
+
+      <OptOutToggle initialOptOut={profile?.leaderboard_opt_out ?? false} />
 
       {/* Period filter */}
       <div className="mt-6 flex flex-wrap gap-2">
