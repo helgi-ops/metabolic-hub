@@ -293,6 +293,7 @@ export type Database = {
       }
       exercise_videos: {
         Row: {
+          category: string | null
           created_at: string
           description: string | null
           duration: number | null
@@ -305,6 +306,7 @@ export type Database = {
           vimeo_id: string
         }
         Insert: {
+          category?: string | null
           created_at?: string
           description?: string | null
           duration?: number | null
@@ -317,6 +319,7 @@ export type Database = {
           vimeo_id: string
         }
         Update: {
+          category?: string | null
           created_at?: string
           description?: string | null
           duration?: number | null

@@ -20,7 +20,7 @@ export default async function VideosPage() {
 
   const { data: videos } = await supabase
     .from("exercise_videos")
-    .select("id, name, thumbnail_url, embed_url, link, duration")
+    .select("id, name, category, thumbnail_url, embed_url, link, duration")
     .order("name", { ascending: true });
 
   return (

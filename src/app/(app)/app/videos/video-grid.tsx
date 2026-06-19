@@ -7,6 +7,7 @@ import { syncVimeoLibrary } from "./actions";
 type Video = {
   id: string;
   name: string;
+  category: string | null;
   thumbnail_url: string | null;
   embed_url: string | null;
   link: string | null;
@@ -29,15 +30,25 @@ export function VideoGrid({
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
+  const [cat, setCat] = useState<string>("");
   const [active, setActive] = useState<Video | null>(null);
   const [pending, startTransition] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
 
+  const categories = useMemo(
+    () =>
+      [...new Set(videos.map((v) => v.category).filter(Boolean))].sort() as string[],
+    [videos],
+  );
+
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
-    if (!t) return videos;
-    return videos.filter((v) => v.name.toLowerCase().includes(t));
-  }, [videos, q]);
+    return videos.filter(
+      (v) =>
+        (!cat || v.category === cat) &&
+        (!t || v.name.toLowerCase().includes(t)),
+    );
+  }, [videos, q, cat]);
 
   function sync() {
     setMsg(null);
@@ -75,6 +86,34 @@ export function VideoGrid({
           </button>
         )}
       </div>
+      {categories.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          <button
+            onClick={() => setCat("")}
+            className={`rounded-full border px-3 py-1.5 text-sm transition ${
+              !cat
+                ? "border-accent bg-accent text-accent-foreground"
+                : "border-border bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Allir flokkar
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCat(c)}
+              className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                cat === c
+                  ? "border-accent bg-accent text-accent-foreground"
+                  : "border-border bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+
       {msg && <div className="mb-4 text-sm text-muted-foreground">{msg}</div>}
 
       {videos.length === 0 ? (
