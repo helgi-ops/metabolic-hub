@@ -36,6 +36,14 @@ type Log = {
   scheduled_category: string | null;
 };
 
+type WeekWorkout = {
+  slot: number;
+  structure_source_id: string;
+  category: string;
+  name: string;
+  day: string | null;
+};
+
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
@@ -51,29 +59,24 @@ export default async function LogPage() {
   if (!user) redirect("/login");
 
   const today = todayISO();
+  const DAYS_IS = [
+    "Sunnudagur", "Mánudagur", "Þriðjudagur", "Miðvikudagur",
+    "Fimmtudagur", "Föstudagur", "Laugardagur",
+  ];
+  const todayDay = DAYS_IS[new Date(`${today}T00:00:00`).getDay()];
 
-  // Today's scheduled workout for the member's station (identity only — never the
-  // prescription). Lets us tag the log and compare against past attempts.
-  const { data: sched } = await supabase.rpc("scheduled_structure_for", {
-    d: today,
-  });
-  const scheduled = sched?.[0] ?? null;
-
-  // All workouts in this week's plan, so the member can pick exactly which one
-  // they did (the log is then tied to that workout for comparison over time).
-  const { data: weekWorkouts } = await supabase.rpc("current_week_workouts");
-
-  // Previous attempt at the same workout, for "last time" comparison.
-  let lastSame: { logged_on: string; rpe: number | null; calories: number | null } | null = null;
-  if (scheduled?.source_id) {
-    const { data } = await supabase
-      .from("workout_logs")
-      .select("logged_on, rpe, calories")
-      .eq("user_id", user!.id)
-      .eq("structure_source_id", scheduled.source_id)
-      .order("logged_on", { ascending: false })
-      .limit(1);
-    lastSame = data?.[0] ?? null;
+  // This week's plan for every level at the member's station — the member picks
+  // which level they actually did (they can move between MB1/MB2/MB3 per session).
+  const { data: planRows } = await supabase.rpc("current_week_plans_by_level");
+  const weekByLevel: Record<string, WeekWorkout[]> = {};
+  for (const r of (planRows ?? []) as (WeekWorkout & { level: string })[]) {
+    (weekByLevel[r.level] ??= []).push({
+      slot: r.slot,
+      structure_source_id: r.structure_source_id,
+      category: r.category,
+      name: r.name,
+      day: r.day,
+    });
   }
 
   const { data: logs } = await supabase
@@ -146,29 +149,12 @@ export default async function LogPage() {
         </div>
       )}
 
-      {scheduled && (
-        <div className="mb-4 rounded-lg border border-accent/40 bg-accent/10 p-4">
-          <div className="text-sm">
-            <span className="font-medium">Æfing dagsins:</span>{" "}
-            {scheduled.scheduled_day} ·{" "}
-            {CATEGORY_LABEL[scheduled.category] ?? scheduled.category}
-          </div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {lastSame
-              ? `Síðast þegar þú tókst þessa æfingu (${lastSame.logged_on}): ${
-                  lastSame.rpe != null ? `RPE ${lastSame.rpe}/10` : "ekkert RPE"
-                }${lastSame.calories != null ? ` · ${lastSame.calories} kcal` : ""}.`
-              : "Fyrsta skiptið sem þú skráir þessa æfingu — næst geturðu borið saman."}
-          </div>
-        </div>
-      )}
-
       <div className="mb-8">
         <LogForm
           userId={user!.id}
           today={today}
-          scheduled={scheduled}
-          weekWorkouts={weekWorkouts ?? []}
+          todayDay={todayDay}
+          weekByLevel={weekByLevel}
           loggedSourceIds={loggedSourceIds}
         />
       </div>

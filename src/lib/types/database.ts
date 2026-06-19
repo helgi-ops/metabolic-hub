@@ -942,6 +942,7 @@ export type Database = {
           calories: number | null
           created_at: string
           id: string
+          level: string | null
           logged_on: string
           machine: string | null
           notes: string | null
@@ -958,6 +959,7 @@ export type Database = {
           calories?: number | null
           created_at?: string
           id?: string
+          level?: string | null
           logged_on?: string
           machine?: string | null
           notes?: string | null
@@ -975,6 +977,7 @@ export type Database = {
           created_at?: string
           id?: string
           logged_on?: string
+          level?: string | null
           machine?: string | null
           notes?: string | null
           rpe?: number | null
@@ -999,6 +1002,17 @@ export type Database = {
       current_week_workouts: {
         Args: never
         Returns: {
+          slot: number
+          structure_source_id: string
+          category: string
+          name: string
+          day: string | null
+        }[]
+      }
+      current_week_plans_by_level: {
+        Args: never
+        Returns: {
+          level: string
           slot: number
           structure_source_id: string
           category: string

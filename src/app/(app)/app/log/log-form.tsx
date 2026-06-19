@@ -26,12 +26,6 @@ const RPE_LABELS: Record<number, string> = {
   10: "Hámark — get ekki meira",
 };
 
-type Scheduled = {
-  source_id: string;
-  scheduled_day: string;
-  category: string;
-} | null;
-
 type WeekWorkout = {
   slot: number;
   structure_source_id: string;
@@ -48,30 +42,49 @@ const CATEGORY_LABEL: Record<string, string> = {
   burn: "Burn",
 };
 
+const LEVELS = ["MB1", "MB2", "MB3"] as const;
+
 // Sentinel for "logged an alternative activity instead of the day's workout".
 const OTHER = "__other__";
 
 export function LogForm({
   userId,
   today,
-  scheduled,
-  weekWorkouts,
+  todayDay,
+  weekByLevel,
   loggedSourceIds,
 }: {
   userId: string;
   today: string;
-  scheduled: Scheduled;
-  weekWorkouts: WeekWorkout[];
+  todayDay: string;
+  weekByLevel: Record<string, WeekWorkout[]>;
   loggedSourceIds: string[];
 }) {
   const router = useRouter();
   // Names of workouts the member hasn't logged yet stay hidden — you only find
   // out what the workout was after you've done it and given it an RPE.
   const loggedSet = new Set(loggedSourceIds);
+
+  // The member chooses which level they did today (they can move between
+  // MB1/MB2/MB3 each session). Default to the first level that has a plan.
+  const availableLevels = LEVELS.filter(
+    (l) => (weekByLevel[l]?.length ?? 0) > 0,
+  );
+  const [level, setLevel] = useState<string>(availableLevels[0] ?? "MB1");
+  const workouts = weekByLevel[level] ?? [];
+  const todays = workouts.find((w) => w.day === todayDay) ?? null;
+
   const [loggedOn, setLoggedOn] = useState(today);
   const [workoutId, setWorkoutId] = useState<string>(
-    scheduled?.source_id ?? "",
+    todays?.structure_source_id ?? "",
   );
+
+  function changeLevel(l: string) {
+    setLevel(l);
+    const t = (weekByLevel[l] ?? []).find((w) => w.day === todayDay) ?? null;
+    setWorkoutId(t?.structure_source_id ?? "");
+  }
+
   const [activity, setActivity] = useState("");
   const [rpe, setRpe] = useState<number | null>(null);
   const [hoverRpe, setHoverRpe] = useState<number | null>(null);
@@ -100,12 +113,13 @@ export function LogForm({
     // logs an alternative activity instead and is not tied to a plan workout.
     const picked = isOther
       ? undefined
-      : weekWorkouts.find((w) => w.structure_source_id === workoutId);
+      : workouts.find((w) => w.structure_source_id === workoutId);
     const tag = picked
       ? {
           structure_source_id: picked.structure_source_id,
-          scheduled_day: picked.day ?? scheduled?.scheduled_day ?? null,
+          scheduled_day: picked.day ?? null,
           scheduled_category: picked.category,
+          level,
         }
       : {};
     const { error: insertError } = await supabase.from("workout_logs").insert({
@@ -154,6 +168,43 @@ export function LogForm({
           />
         </label>
 
+        <div>
+          <span className="mb-1 block text-sm text-muted-foreground">
+            Hvaða stig tókstu?
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {LEVELS.map((l) => {
+              const has = (weekByLevel[l]?.length ?? 0) > 0;
+              return (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => changeLevel(l)}
+                  className={`rounded-full border px-4 py-1.5 text-sm transition ${
+                    level === l
+                      ? "border-accent bg-accent text-accent-foreground"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {l}
+                  {!has && (
+                    <span className="ml-1 text-[10px] opacity-60">(ekkert plan)</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {todays && !isOther && (
+            <div className="mt-2 rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs">
+              <span className="font-medium">Æfing dagsins ({level}):</span>{" "}
+              {todayDay} ·{" "}
+              {CATEGORY_LABEL[todays.category] ?? todays.category}
+              {!loggedSet.has(todays.structure_source_id) &&
+                " · 🔒 nafn birtist eftir skráningu"}
+            </div>
+          )}
+        </div>
+
         <label className="block">
           <span className="mb-1 block text-sm text-muted-foreground">
             Hvaða æfingu varstu að gera?
@@ -164,7 +215,7 @@ export function LogForm({
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           >
             <option value="">— ekki tengt æfingu —</option>
-            {weekWorkouts.map((w) => {
+            {workouts.map((w) => {
               const revealed = loggedSet.has(w.structure_source_id);
               const prefix = `${w.day ? `${w.day} · ` : ""}${
                 CATEGORY_LABEL[w.category] ?? w.category
@@ -181,7 +232,7 @@ export function LogForm({
               🚲 Önnur æfing / hreyfing (t.d. hjól, hlaup, sund)
             </option>
           </select>
-          {weekWorkouts.length > 0 && !isOther && (
+          {workouts.length > 0 && !isOther && (
             <span className="mt-1 block text-xs text-muted-foreground">
               Þú sérð ekki æfinguna fyrirfram — nafnið birtist fyrst eftir að þú
               hefur skráð hana og gefið RPE. Tengir líka skráninguna við æfinguna
