@@ -96,14 +96,14 @@ export default async function AppLayout({
                   >
                     Æfingaplön
                   </Link>
-                  <Link
-                    href="/app/library"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    Æfingasafn
-                  </Link>
                 </>
               )}
+              <Link
+                href="/app/videos"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Æfingabanki
+              </Link>
               <Link
                 href="/app/personal-bests"
                 className="text-muted-foreground hover:text-foreground"
@@ -121,12 +121,6 @@ export default async function AppLayout({
                 className="text-muted-foreground hover:text-foreground"
               >
                 Leaderboard
-              </Link>
-              <Link
-                href="/app/videos"
-                className="text-muted-foreground hover:text-foreground"
-              >
-                Æfingabanki
               </Link>
               <Link
                 href="/app/afrek"
