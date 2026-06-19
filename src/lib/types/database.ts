@@ -953,6 +953,7 @@ export type Database = {
           updated_at: string
           user_id: string
           weights: string | null
+          weights_json: Json | null
         }
         Insert: {
           activity?: string | null
@@ -970,6 +971,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           weights?: string | null
+          weights_json?: Json | null
         }
         Update: {
           activity?: string | null
@@ -987,6 +989,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           weights?: string | null
+          weights_json?: Json | null
         }
         Relationships: []
       }
@@ -1018,6 +1021,7 @@ export type Database = {
           category: string
           name: string
           day: string | null
+          preview: string | null
         }[]
       }
       delete_member: { Args: { member: string }; Returns: undefined }

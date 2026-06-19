@@ -27,6 +27,8 @@ type Log = {
   logged_on: string;
   rpe: number | null;
   weights: string | null;
+  weights_json: Record<string, string> | null;
+  level: string | null;
   calories: number | null;
   machine: string | null;
   notes: string | null;
@@ -42,6 +44,7 @@ type WeekWorkout = {
   category: string;
   name: string;
   day: string | null;
+  preview: string;
 };
 
 function todayISO() {
@@ -68,21 +71,46 @@ export default async function LogPage() {
   // This week's plan for every level at the member's station — the member picks
   // which level they actually did (they can move between MB1/MB2/MB3 per session).
   const { data: planRows } = await supabase.rpc("current_week_plans_by_level");
+  const rows = (planRows ?? []) as {
+    level: string;
+    slot: number;
+    structure_source_id: string;
+    category: string;
+    name: string;
+    day: string | null;
+    preview: string | null;
+  }[];
+
+  // Fall back to the library prescription when a slot has no per-week override.
+  const planSourceIds = [
+    ...new Set(rows.map((r) => r.structure_source_id).filter(Boolean)),
+  ];
+  const { data: structPreviews } = planSourceIds.length
+    ? await supabase
+        .from("structures")
+        .select("source_id, preview")
+        .in("source_id", planSourceIds)
+    : { data: [] as { source_id: string; preview: string | null }[] };
+  const previewBySource = new Map(
+    (structPreviews ?? []).map((s) => [s.source_id, s.preview ?? ""]),
+  );
+
   const weekByLevel: Record<string, WeekWorkout[]> = {};
-  for (const r of (planRows ?? []) as (WeekWorkout & { level: string })[]) {
+  for (const r of rows) {
     (weekByLevel[r.level] ??= []).push({
       slot: r.slot,
       structure_source_id: r.structure_source_id,
       category: r.category,
       name: r.name,
       day: r.day,
+      preview: r.preview || previewBySource.get(r.structure_source_id) || "",
     });
   }
 
   const { data: logs } = await supabase
     .from("workout_logs")
     .select(
-      "id, logged_on, rpe, weights, calories, machine, notes, activity, structure_source_id, scheduled_day, scheduled_category",
+      "id, logged_on, rpe, weights, weights_json, level, calories, machine, notes, activity, structure_source_id, scheduled_day, scheduled_category",
     )
     .eq("user_id", user!.id)
     .order("logged_on", { ascending: false })
@@ -156,6 +184,16 @@ export default async function LogPage() {
           todayDay={todayDay}
           weekByLevel={weekByLevel}
           loggedSourceIds={loggedSourceIds}
+          recent={list
+            .filter((l) => l.structure_source_id)
+            .map((l) => ({
+              structure_source_id: l.structure_source_id!,
+              level: l.level,
+              logged_on: l.logged_on,
+              rpe: l.rpe,
+              calories: l.calories,
+              weights: l.weights,
+            }))}
         />
       </div>
 

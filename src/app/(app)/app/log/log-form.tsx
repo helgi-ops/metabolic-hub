@@ -32,7 +32,44 @@ type WeekWorkout = {
   category: string;
   name: string;
   day: string | null;
+  preview: string;
 };
+
+type RecentLog = {
+  structure_source_id: string;
+  level: string | null;
+  logged_on: string;
+  rpe: number | null;
+  calories: number | null;
+  weights: string | null;
+};
+
+// Pull the individual movements out of a structure's prescription text so the
+// member can log a weight per exercise instead of typing them into a comment.
+// Exercise lines start with an enumerator (1, 1a, 2b …); we strip that and the
+// trailing rep/set scheme to get a clean movement name.
+function parseExercises(preview: string): string[] {
+  const text = preview ?? "";
+  // Drop the intro paragraph (the first block); exercises live in later blocks.
+  const blocks = text.split(/\n\s*\n/);
+  const body = (blocks.length > 1 ? blocks.slice(1) : blocks).join("\n");
+  const names: string[] = [];
+  // Section/structure headers and pure-conditioning lines aren't weightable.
+  const SKIP = /^(mín|min|sek|kcal|sett|umfer|tímaramm|hringur|supersett|þrísett|reps?|þol)/i;
+  for (const raw of body.split("\n")) {
+    const line = raw.trim();
+    const m = line.match(/^\d+[a-z]?[.)]?\s+(.*)$/i);
+    if (!m) continue;
+    let name = m[1].split(/\s[–—-]\s/)[0]; // cut a " – scheme" suffix
+    // Cut from the first rep/set/kcal/time number onward.
+    name = name
+      .replace(/\s+\d[\d/.,x×:-]*\s*(reps?|sett|sek|kcal|mín|min|kg)?.*$/i, "")
+      .trim();
+    if (!name || SKIP.test(name)) continue;
+    if (!names.includes(name)) names.push(name);
+  }
+  return names;
+}
 
 const CATEGORY_LABEL: Record<string, string> = {
   strength: "Strength",
@@ -53,12 +90,14 @@ export function LogForm({
   todayDay,
   weekByLevel,
   loggedSourceIds,
+  recent,
 }: {
   userId: string;
   today: string;
   todayDay: string;
   weekByLevel: Record<string, WeekWorkout[]>;
   loggedSourceIds: string[];
+  recent: RecentLog[];
 }) {
   const router = useRouter();
   // Names of workouts the member hasn't logged yet stay hidden — you only find
@@ -83,9 +122,12 @@ export function LogForm({
     setLevel(l);
     const t = (weekByLevel[l] ?? []).find((w) => w.day === todayDay) ?? null;
     setWorkoutId(t?.structure_source_id ?? "");
+    setPerExercise({});
   }
 
   const [activity, setActivity] = useState("");
+  // kg per exercise, keyed by movement name (parsed from the prescription).
+  const [perExercise, setPerExercise] = useState<Record<string, string>>({});
   const [rpe, setRpe] = useState<number | null>(null);
   const [hoverRpe, setHoverRpe] = useState<number | null>(null);
   const [weights, setWeights] = useState("");
@@ -96,13 +138,43 @@ export function LogForm({
   const [error, setError] = useState<string | null>(null);
 
   const isOther = workoutId === OTHER;
+  const selected =
+    !isOther && workoutId
+      ? workouts.find((w) => w.structure_source_id === workoutId)
+      : undefined;
+  const exercises = selected ? parseExercises(selected.preview) : [];
+  // "Last time" = most recent prior log of this workout, preferring the same level.
+  const last =
+    !isOther && workoutId
+      ? (recent.find(
+          (r) => r.structure_source_id === workoutId && r.level === level,
+        ) ?? recent.find((r) => r.structure_source_id === workoutId))
+      : undefined;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     const cal = calories.trim() ? parseFloat(calories.replace(",", ".")) : null;
     const activityName = isOther ? activity.trim() : "";
-    if (!rpe && !weights.trim() && cal == null && !notes.trim() && !activityName) {
+
+    // Per-exercise weights → a json map + a readable summary string.
+    const filled = Object.entries(perExercise)
+      .map(([k, v]) => [k, v.trim()] as const)
+      .filter(([, v]) => v);
+    const weightsJson = filled.length
+      ? Object.fromEntries(filled.map(([k, v]) => [k, v]))
+      : null;
+    const composed = filled.map(([k, v]) => `${k} ${v}kg`).join(", ");
+    const weightsText =
+      [composed, weights.trim()].filter(Boolean).join(" · ") || null;
+
+    if (
+      !rpe &&
+      !weightsText &&
+      cal == null &&
+      !notes.trim() &&
+      !activityName
+    ) {
       setError("Skráðu að minnsta kosti eitt atriði.");
       return;
     }
@@ -127,7 +199,8 @@ export function LogForm({
       logged_on: loggedOn,
       activity: activityName || null,
       rpe: rpe,
-      weights: weights.trim() || null,
+      weights: weightsText,
+      weights_json: weightsJson,
       calories: cal,
       machine: cal != null && machine ? machine : null,
       notes: notes.trim() || null,
@@ -140,6 +213,7 @@ export function LogForm({
     }
     setRpe(null);
     setActivity("");
+    setPerExercise({});
     setWeights("");
     setCalories("");
     setMachine("");
@@ -211,7 +285,10 @@ export function LogForm({
           </span>
           <select
             value={workoutId}
-            onChange={(e) => setWorkoutId(e.target.value)}
+            onChange={(e) => {
+              setWorkoutId(e.target.value);
+              setPerExercise({});
+            }}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           >
             <option value="">— ekki tengt æfingu —</option>
@@ -240,6 +317,45 @@ export function LogForm({
             </span>
           )}
         </label>
+
+        {last && (
+          <div className="rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Síðast</span> (
+            {last.logged_on}
+            {last.level ? ` · ${last.level}` : ""}):{" "}
+            {last.rpe != null ? `RPE ${last.rpe}/10` : "ekkert RPE"}
+            {last.calories != null ? ` · ${last.calories} kcal` : ""}
+            {last.weights ? ` · ${last.weights}` : ""}
+          </div>
+        )}
+
+        {selected && exercises.length > 0 && (
+          <div>
+            <span className="mb-1 block text-sm text-muted-foreground">
+              Þyngdir í æfingunni (kg) — fylltu inn það sem þú notaðir
+            </span>
+            <div className="space-y-1.5">
+              {exercises.map((ex) => (
+                <div key={ex} className="flex items-center gap-2">
+                  <span className="flex-1 text-sm">{ex}</span>
+                  <input
+                    inputMode="decimal"
+                    value={perExercise[ex] ?? ""}
+                    onChange={(e) =>
+                      setPerExercise((p) => ({ ...p, [ex]: e.target.value }))
+                    }
+                    placeholder="kg"
+                    className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+              ))}
+            </div>
+            <span className="mt-1 block text-xs text-muted-foreground">
+              Þarft ekki að skrifa æfingarnar — bara þyngdina. Geymist með
+              skráningunni svo þú getir borið saman næst.
+            </span>
+          </div>
+        )}
 
         {isOther && (
           <label className="block">
@@ -318,7 +434,9 @@ export function LogForm({
 
         <label className="block">
           <span className="mb-1 block text-sm text-muted-foreground">
-            Þyngdir sem þú notaðir
+            {exercises.length > 0
+              ? "Aðrar þyngdir / nótur (valfrjálst)"
+              : "Þyngdir sem þú notaðir"}
           </span>
           <input
             value={weights}
