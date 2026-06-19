@@ -291,6 +291,36 @@ export type Database = {
           },
         ]
       }
+      exercise_bests: {
+        Row: {
+          achieved_on: string
+          best_value: number
+          exercise: string
+          id: string
+          log_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          achieved_on: string
+          best_value: number
+          exercise: string
+          id?: string
+          log_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          achieved_on?: string
+          best_value?: number
+          exercise?: string
+          id?: string
+          log_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       exercise_videos: {
         Row: {
           category: string | null

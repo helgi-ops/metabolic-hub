@@ -8,6 +8,7 @@ export type BadgeStats = {
   pbCount: number; // personal_bests entries
   pbBenchmarks: number; // distinct exercises with a PB
   pbImprovements: number; // exercises improved at least once
+  exerciseBests: number; // distinct exercises with an auto-tracked weight best
   lessonsDone: number; // completed course lessons
   coursesDone: number; // fully completed courses
 };
@@ -35,6 +36,10 @@ export const BADGES: BadgeDef[] = [
   { id: "firstpb", group: "Met", icon: "📌", title: "Fyrsta met", desc: "Skráðu fyrsta Personal Best", metric: "pbCount", target: 1 },
   { id: "pbimprove", group: "Met", icon: "📈", title: "Bætt met", desc: "Bættu met í æfingu", metric: "pbImprovements", target: 1 },
   { id: "pb5", group: "Met", icon: "🏅", title: "Fjölhæfni", desc: "Skráðu met í 5 mismunandi æfingum", metric: "pbBenchmarks", target: 5 },
+
+  { id: "exbest1", group: "Æfingamet", icon: "🏋️", title: "Fyrsta æfingametið", desc: "Fáðu þyngdarmet í æfingu úr dagbókinni", metric: "exerciseBests", target: 1 },
+  { id: "exbest5", group: "Æfingamet", icon: "💯", title: "Fimm æfingamet", desc: "Fáðu met í 5 mismunandi æfingum úr dagbókinni", metric: "exerciseBests", target: 5 },
+  { id: "exbest15", group: "Æfingamet", icon: "🥇", title: "Meistari", desc: "Fáðu met í 15 mismunandi æfingum úr dagbókinni", metric: "exerciseBests", target: 15 },
 
   { id: "weeks4", group: "Samfellni", icon: "📅", title: "Mánuður í röð", desc: "Æfðu í 4 mismunandi vikum", metric: "activeWeeks", target: 4 },
   { id: "weeks12", group: "Samfellni", icon: "🗓️", title: "Ársfjórðungur", desc: "Æfðu í 12 mismunandi vikum", metric: "activeWeeks", target: 12 },

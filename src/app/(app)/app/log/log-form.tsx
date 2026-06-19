@@ -90,6 +90,7 @@ export function LogForm({
   todayDay,
   weekByLevel,
   loggedSourceIds,
+  exerciseBests,
   recent,
 }: {
   userId: string;
@@ -97,6 +98,7 @@ export function LogForm({
   todayDay: string;
   weekByLevel: Record<string, WeekWorkout[]>;
   loggedSourceIds: string[];
+  exerciseBests: Record<string, number>;
   recent: RecentLog[];
 }) {
   const router = useRouter();
@@ -335,20 +337,44 @@ export function LogForm({
               Þyngdir í æfingunni (kg) — fylltu inn það sem þú notaðir
             </span>
             <div className="space-y-1.5">
-              {exercises.map((ex) => (
-                <div key={ex} className="flex items-center gap-2">
-                  <span className="flex-1 text-sm">{ex}</span>
-                  <input
-                    inputMode="decimal"
-                    value={perExercise[ex] ?? ""}
-                    onChange={(e) =>
-                      setPerExercise((p) => ({ ...p, [ex]: e.target.value }))
-                    }
-                    placeholder="kg"
-                    className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </div>
-              ))}
+              {exercises.map((ex) => {
+                const best = exerciseBests[ex];
+                const entered = parseFloat(
+                  (perExercise[ex] ?? "").replace(",", "."),
+                );
+                const isPr =
+                  !Number.isNaN(entered) &&
+                  entered > 0 &&
+                  (best == null || entered > best);
+                return (
+                  <div key={ex} className="flex items-center gap-2">
+                    <span className="flex-1 text-sm">
+                      {ex}
+                      {best != null && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          met: {best} kg
+                        </span>
+                      )}
+                      {isPr && (
+                        <span className="ml-2 text-xs font-medium text-accent">
+                          🎉 Nýtt met!
+                        </span>
+                      )}
+                    </span>
+                    <input
+                      inputMode="decimal"
+                      value={perExercise[ex] ?? ""}
+                      onChange={(e) =>
+                        setPerExercise((p) => ({ ...p, [ex]: e.target.value }))
+                      }
+                      placeholder="kg"
+                      className={`w-24 rounded-md border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent ${
+                        isPr ? "border-accent" : "border-border"
+                      }`}
+                    />
+                  </div>
+                );
+              })}
             </div>
             <span className="mt-1 block text-xs text-muted-foreground">
               Þarft ekki að skrifa æfingarnar — bara þyngdina. Geymist með

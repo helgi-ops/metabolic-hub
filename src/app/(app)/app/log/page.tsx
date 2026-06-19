@@ -119,6 +119,16 @@ export default async function LogPage() {
 
   const list = (logs ?? []) as Log[];
 
+  // Auto-tracked best working weight per exercise (maintained by a DB trigger
+  // from weights_json). Lets the form flag a new PR per movement as you type.
+  const { data: exBests } = await supabase
+    .from("exercise_bests")
+    .select("exercise, best_value")
+    .eq("user_id", user!.id);
+  const exerciseBests: Record<string, number> = Object.fromEntries(
+    (exBests ?? []).map((b) => [b.exercise, Number(b.best_value)]),
+  );
+
   // Group tagged logs by the workout they belong to, for side-by-side comparison.
   const groups = new Map<
     string,
@@ -184,6 +194,7 @@ export default async function LogPage() {
           todayDay={todayDay}
           weekByLevel={weekByLevel}
           loggedSourceIds={loggedSourceIds}
+          exerciseBests={exerciseBests}
           recent={list
             .filter((l) => l.structure_source_id)
             .map((l) => ({

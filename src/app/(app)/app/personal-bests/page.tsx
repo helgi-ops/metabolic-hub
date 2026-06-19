@@ -73,6 +73,20 @@ export default async function PersonalBestsPage({
   const stationName =
     (profile?.station as { name: string } | null)?.name ?? null;
 
+  // Auto-tracked best working weight per exercise, derived from the Dagbók log
+  // (heaviest weight you've actually used in a session) — distinct from the
+  // explicit 1RM benchmarks above.
+  const { data: exBestRows } = await supabase
+    .from("exercise_bests")
+    .select("exercise, best_value, achieved_on")
+    .eq("user_id", user!.id)
+    .order("best_value", { ascending: false });
+  const exBests = (exBestRows ?? []) as {
+    exercise: string;
+    best_value: number;
+    achieved_on: string;
+  }[];
+
   // Best entry per benchmark (respecting higher_is_better).
   const bestByBenchmark = new Map<string, Pb>();
   for (const e of entries) {
@@ -174,6 +188,36 @@ export default async function PersonalBestsPage({
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Auto-tracked exercise bests from the workout log */}
+      {exBests.length > 0 && (
+        <div className="mb-8">
+          <h2 className="mb-1 font-semibold">Æfingamet</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Þyngsta þyngd sem þú hefur notað í hverri æfingu — skráist sjálfkrafa
+            úr dagbókinni.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {exBests.map((b) => (
+              <div
+                key={b.exercise}
+                className="rounded-lg border border-border bg-muted p-4"
+              >
+                <div className="text-xs text-muted-foreground">{b.exercise}</div>
+                <div className="mt-1 text-2xl font-bold">
+                  {b.best_value}{" "}
+                  <span className="text-base font-normal text-muted-foreground">
+                    kg
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {b.achieved_on}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

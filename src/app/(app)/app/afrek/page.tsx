@@ -20,19 +20,25 @@ export default async function AchievementsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: logs }, { data: pbs }, { data: prog }, { data: enrolls }] =
-    await Promise.all([
-      supabase
-        .from("workout_logs")
-        .select("logged_on, calories, machine")
-        .eq("user_id", user.id),
-      supabase.from("personal_bests").select("benchmark_id").eq("user_id", user.id),
-      supabase
-        .from("lesson_progress")
-        .select("lesson_id, completed_at")
-        .eq("user_id", user.id),
-      supabase.from("enrollments").select("course_id").eq("user_id", user.id),
-    ]);
+  const [
+    { data: logs },
+    { data: pbs },
+    { data: prog },
+    { data: enrolls },
+    { data: exBests },
+  ] = await Promise.all([
+    supabase
+      .from("workout_logs")
+      .select("logged_on, calories, machine")
+      .eq("user_id", user.id),
+    supabase.from("personal_bests").select("benchmark_id").eq("user_id", user.id),
+    supabase
+      .from("lesson_progress")
+      .select("lesson_id, completed_at")
+      .eq("user_id", user.id),
+    supabase.from("enrollments").select("course_id").eq("user_id", user.id),
+    supabase.from("exercise_bests").select("exercise").eq("user_id", user.id),
+  ]);
 
   const logList = logs ?? [];
   const kcal = logList
@@ -84,6 +90,7 @@ export default async function AchievementsPage() {
     pbCount: pbList.length,
     pbBenchmarks: pbByBench.size,
     pbImprovements,
+    exerciseBests: (exBests ?? []).length,
     lessonsDone: completedLessons.size,
     coursesDone,
   };
