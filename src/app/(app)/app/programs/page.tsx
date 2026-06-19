@@ -30,6 +30,34 @@ const LEVEL_VALUE: Record<string, string> = Object.fromEntries(
   LEVELS.map((l) => [l.key, l.value]),
 );
 
+// Name-based "type" facet: each chip matches structures whose name contains the
+// pattern (case-insensitive). Some are families (Base, On The Min, Wave) and
+// some are cross-cutting tags (Cluster, Partner, Contrast) — a setup can match
+// more than one. Order roughly: main protocols, then tags.
+const FAMILIES: { label: string; match: string }[] = [
+  { label: "Base", match: "Base " },
+  { label: "On The Min", match: "On The Min" },
+  { label: "Wave", match: "Wave" },
+  { label: "Combine", match: "Combine" },
+  { label: "Duplus", match: "Duplus" },
+  { label: "Centum", match: "Centum" },
+  { label: "Charge", match: "Charge" },
+  { label: "Imperium", match: "Imperium" },
+  { label: "Omnis", match: "Omnis" },
+  { label: "Density", match: "Density" },
+  { label: "Ladder", match: "Ladder" },
+  { label: "Countdown", match: "Countdown" },
+  { label: "5-4-3-2-1", match: "5-4-3-2-1" },
+  { label: "Contrast", match: "Contrast" },
+  { label: "Complex", match: "Complex" },
+  { label: "Cluster", match: "Cluster" },
+  { label: "Rest-Pause", match: "Rest-Pause" },
+  { label: "Partner", match: "Partner" },
+];
+const FAMILY_MATCH: Record<string, string> = Object.fromEntries(
+  FAMILIES.map((f) => [f.label, f.match]),
+);
+
 const PAGE_SIZE = 48;
 
 export default async function ProgramsPage({
@@ -38,15 +66,18 @@ export default async function ProgramsPage({
   searchParams: Promise<{
     category?: string;
     level?: string;
+    family?: string;
     q?: string;
     page?: string;
   }>;
 }) {
-  const { category, level, q: qRaw, page: pageRaw } = await searchParams;
+  const { category, level, family: familyRaw, q: qRaw, page: pageRaw } =
+    await searchParams;
   const active = (
     CATEGORY_LABEL[category ?? ""] ? category : null
   ) as Category | null;
   const activeLevel = LEVEL_VALUE[level ?? ""] ? level! : null;
+  const activeFamily = FAMILY_MATCH[familyRaw ?? ""] ? familyRaw! : null;
   const q = (qRaw ?? "").trim();
   const page = Math.max(1, parseInt(pageRaw ?? "1", 10) || 1);
 
@@ -122,6 +153,8 @@ export default async function ProgramsPage({
     .range(from, from + PAGE_SIZE - 1);
   if (active) query = query.eq("category", active);
   if (activeLevel) query = query.eq("levels->>l1", LEVEL_VALUE[activeLevel]);
+  if (activeFamily)
+    query = query.ilike("name", `%${FAMILY_MATCH[activeFamily]}%`);
   if (q) query = query.or(`name.ilike.%${q}%,preview.ilike.%${q}%`);
 
   const { data: structures, count: matchCount } = await query;
@@ -132,16 +165,19 @@ export default async function ProgramsPage({
   const buildHref = (next: {
     category?: string | null;
     level?: string | null;
+    family?: string | null;
     q?: string | null;
     page?: number | null;
   }) => {
     const p = new URLSearchParams();
     const cat = next.category === undefined ? active : next.category;
     const lvl = next.level === undefined ? activeLevel : next.level;
+    const fam = next.family === undefined ? activeFamily : next.family;
     const qv = next.q === undefined ? q : next.q;
     const pg = next.page === undefined ? page : next.page;
     if (cat) p.set("category", cat);
     if (lvl) p.set("level", lvl);
+    if (fam) p.set("family", fam);
     if (qv) p.set("q", qv);
     if (pg && pg > 1) p.set("page", String(pg));
     const s = p.toString();
@@ -216,6 +252,9 @@ export default async function ProgramsPage({
       <form method="get" action="/app/programs" className="mb-4 flex gap-2">
         {active && <input type="hidden" name="category" value={active} />}
         {activeLevel && <input type="hidden" name="level" value={activeLevel} />}
+        {activeFamily && (
+          <input type="hidden" name="family" value={activeFamily} />
+        )}
         <input
           type="search"
           name="q"
@@ -275,9 +314,27 @@ export default async function ProgramsPage({
         ))}
       </div>
 
+      {/* Type / family filter (by name) */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        <FilterChip
+          href={buildHref({ family: null, page: 1 })}
+          label="Allar tegundir"
+          active={!activeFamily}
+        />
+        {FAMILIES.map((f) => (
+          <FilterChip
+            key={f.label}
+            href={buildHref({ family: f.label, page: 1 })}
+            label={f.label}
+            active={activeFamily === f.label}
+          />
+        ))}
+      </div>
+
       <div className="mb-4 text-sm text-muted-foreground">
         {active ? CATEGORY_LABEL[active] : "Allir flokkar"}
         {activeLevel ? ` · ${activeLevel}` : ""}
+        {activeFamily ? ` · ${activeFamily}` : ""}
         {q ? ` · „${q}“` : ""} · {matchCount ?? list.length} structures
         {totalPages > 1 && ` · síða ${page}/${totalPages}`}
       </div>
