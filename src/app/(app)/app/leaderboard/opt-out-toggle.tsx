@@ -1,9 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { setLeaderboardOptOut } from "./actions";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
-export function OptOutToggle({ initialOptOut }: { initialOptOut: boolean }) {
+export function OptOutToggle({
+  userId,
+  initialOptOut,
+}: {
+  userId: string;
+  initialOptOut: boolean;
+}) {
+  const router = useRouter();
   const [optOut, setOptOut] = useState(initialOptOut);
   const [pending, startTransition] = useTransition();
 
@@ -11,8 +19,15 @@ export function OptOutToggle({ initialOptOut }: { initialOptOut: boolean }) {
     const next = !optOut;
     setOptOut(next); // optimistic
     startTransition(async () => {
-      const res = await setLeaderboardOptOut(next);
-      if (!res.ok) setOptOut(!next); // revert on failure
+      // Write directly from the browser (the user's own session) — the same
+      // proven path SharePbToggle uses. The server action failed to persist.
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("profiles")
+        .update({ leaderboard_opt_out: next })
+        .eq("id", userId);
+      if (error) setOptOut(!next); // revert on failure
+      else router.refresh();
     });
   }
 

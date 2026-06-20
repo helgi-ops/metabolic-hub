@@ -99,7 +99,10 @@ export default async function LeaderboardPage({
         Assault Airbike og Concept2. {!isAdmin && "Þín stöð."}
       </p>
 
-      <OptOutToggle initialOptOut={profile?.leaderboard_opt_out ?? false} />
+      <OptOutToggle
+        userId={user.id}
+        initialOptOut={profile?.leaderboard_opt_out ?? false}
+      />
 
       {/* Period filter */}
       <div className="mt-6 flex flex-wrap gap-2">
