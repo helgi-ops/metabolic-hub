@@ -56,9 +56,15 @@ export default async function LandingPage() {
             </Link>
             <Link
               href="/login"
-              className="rounded-md bg-accent px-4 py-1.5 font-medium text-accent-foreground hover:opacity-90 transition"
+              className="text-muted-foreground hover:text-foreground transition"
             >
               Innskráning
+            </Link>
+            <Link
+              href="/signup"
+              className="rounded-md bg-accent px-4 py-1.5 font-medium text-accent-foreground hover:opacity-90 transition"
+            >
+              Nýskráning
             </Link>
           </div>
         </div>
@@ -86,8 +92,14 @@ export default async function LandingPage() {
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Link
-              href="/login"
+              href="/signup"
               className="rounded-md bg-accent px-6 py-3 text-sm font-medium text-accent-foreground hover:opacity-90 transition"
+            >
+              Nýskráning
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-md border border-border px-6 py-3 text-sm text-muted-foreground hover:text-foreground transition"
             >
               Innskráning iðkenda
             </Link>
