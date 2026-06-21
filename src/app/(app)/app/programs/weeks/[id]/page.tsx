@@ -98,7 +98,7 @@ export default async function WeekPage({
                 Breyta
               </Link>
             )}
-            <PrintButton />
+            {canBuild && <PrintButton />}
             {canBuild && <PdfButton planId={week.id} />}
           </div>
           {canBuild && <WeekActions planId={week.id} level={week.level} />}
