@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireProgramBuilder } from "@/lib/auth/require-staff";
+import { requireProgramViewer } from "@/lib/auth/require-staff";
 import { PrintButton } from "./print-button";
 import { PdfButton } from "./pdf-button";
 import { WeekActions } from "./week-actions";
@@ -33,7 +33,7 @@ export default async function WeekPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase } = await requireProgramBuilder();
+  const { supabase, canBuild } = await requireProgramViewer();
 
   const { data: week } = await supabase
     .from("weekly_plans")
@@ -90,17 +90,19 @@ export default async function WeekPage({
         </div>
         <div className="no-print flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
-            <Link
-              href={`/app/programs/weeks/${week.id}/edit`}
-              className="rounded-md border border-border bg-muted px-3 py-1.5 text-sm hover:border-accent transition"
-            >
-              Breyta
-            </Link>
+            {canBuild && (
+              <Link
+                href={`/app/programs/weeks/${week.id}/edit`}
+                className="rounded-md border border-border bg-muted px-3 py-1.5 text-sm hover:border-accent transition"
+              >
+                Breyta
+              </Link>
+            )}
             <PrintButton />
-            <PdfButton planId={week.id} />
+            {canBuild && <PdfButton planId={week.id} />}
           </div>
-          <WeekActions planId={week.id} level={week.level} />
-          {week.optisigns_pushed_at && (
+          {canBuild && <WeekActions planId={week.id} level={week.level} />}
+          {canBuild && week.optisigns_pushed_at && (
             <div className="text-xs text-muted-foreground">
               OptiSigns PDF ·{" "}
               {new Date(week.optisigns_pushed_at).toLocaleDateString("is-IS")}

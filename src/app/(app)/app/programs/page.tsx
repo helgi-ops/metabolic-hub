@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireProgramBuilder } from "@/lib/auth/require-staff";
+import { requireProgramViewer } from "@/lib/auth/require-staff";
 import type { Database } from "@/lib/types/database";
 
 export const metadata = {
@@ -81,7 +81,7 @@ export default async function ProgramsPage({
   const q = (qRaw ?? "").trim();
   const page = Math.max(1, parseInt(pageRaw ?? "1", 10) || 1);
 
-  const { supabase, user } = await requireProgramBuilder();
+  const { supabase, user, canBuild } = await requireProgramViewer();
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -188,12 +188,24 @@ export default async function ProgramsPage({
     <main className="mx-auto max-w-6xl px-6 py-12">
       <div className="mb-8">
         <div className="font-mono text-xs tracking-widest text-accent uppercase">
-          Program Builder
+          {canBuild ? "Program Builder" : "Æfingaplön"}
         </div>
-        <h1 className="mt-2 text-3xl font-bold">Æfingasafn — structures</h1>
+        <h1 className="mt-2 text-3xl font-bold">
+          {canBuild ? "Æfingasafn — structures" : "Æfingavikan"}
+        </h1>
         <p className="mt-2 text-muted-foreground">
-          {total} æfinga-structures úr Metabolic kerfinu, núna í gagnagrunninum.
-          Sía eftir flokki; hver structure er heill tími tilbúinn í vikuplan.
+          {canBuild ? (
+            <>
+              {total} æfinga-structures úr Metabolic kerfinu, núna í
+              gagnagrunninum. Sía eftir flokki; hver structure er heill tími
+              tilbúinn í vikuplan.
+            </>
+          ) : (
+            <>
+              Skoðunarhamur — hér sérðu æfingavikurnar sem hafa verið settar upp
+              fyrir stöðina þína.
+            </>
+          )}
         </p>
       </div>
 
@@ -203,12 +215,14 @@ export default async function ProgramsPage({
           <h2 className="font-semibold">
             Vikur{stationName ? ` — ${stationName}` : ""}
           </h2>
-          <Link
-            href="/app/programs/new"
-            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition"
-          >
-            + Smíða viku
-          </Link>
+          {canBuild && (
+            <Link
+              href="/app/programs/new"
+              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition"
+            >
+              + Smíða viku
+            </Link>
+          )}
         </div>
         {myWeeks && myWeeks.length > 0 ? (
           <ul className="mt-4 divide-y divide-border">
@@ -243,11 +257,16 @@ export default async function ProgramsPage({
           </ul>
         ) : (
           <p className="mt-3 text-sm text-muted-foreground">
-            Engar vistaðar vikur enn. Smelltu á „Smíða viku“ til að byrja.
+            {canBuild
+              ? "Engar vistaðar vikur enn. Smelltu á „Smíða viku“ til að byrja."
+              : "Engin æfingavika hefur verið sett upp fyrir stöðina þína enn."}
           </p>
         )}
       </section>
 
+      {/* Structures library — building surface, hidden in view-only mode */}
+      {canBuild && (
+        <>
       {/* Search */}
       <form method="get" action="/app/programs" className="mb-4 flex gap-2">
         {active && <input type="hidden" name="category" value={active} />}
@@ -427,6 +446,8 @@ export default async function ProgramsPage({
             </span>
           )}
         </div>
+      )}
+        </>
       )}
     </main>
   );

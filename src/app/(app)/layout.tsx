@@ -24,9 +24,6 @@ export default async function AppLayout({
     .single();
 
   const isStaff = profile?.role === "coach" || profile?.role === "admin";
-  // Program Builder / exercise library: admins always; coaches only when granted.
-  const canBuildPrograms =
-    profile?.role === "admin" || profile?.can_build_programs === true;
 
   // Members must be approved by a coach before they can use the system, and lose
   // access if suspended. Staff are never gated.
@@ -88,15 +85,14 @@ export default async function AppLayout({
               >
                 Yfirlit
               </Link>
-              {canBuildPrograms && (
-                <>
-                  <Link
-                    href="/app/programs"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    Æfingaplön
-                  </Link>
-                </>
+              {/* All staff can view the week; only builders see the builder UI. */}
+              {isStaff && (
+                <Link
+                  href="/app/programs"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Æfingaplön
+                </Link>
               )}
               <Link
                 href="/app/videos"

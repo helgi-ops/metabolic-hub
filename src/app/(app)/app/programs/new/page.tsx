@@ -1,4 +1,4 @@
-import { requireStaff } from "@/lib/auth/require-staff";
+import { requireProgramBuilder } from "@/lib/auth/require-staff";
 import { BuilderClient } from "./builder-client";
 
 export const metadata = {
@@ -6,7 +6,7 @@ export const metadata = {
 };
 
 export default async function NewProgramPage() {
-  const { supabase, user } = await requireStaff();
+  const { supabase, user } = await requireProgramBuilder();
 
   const { data: profile } = await supabase
     .from("profiles")
