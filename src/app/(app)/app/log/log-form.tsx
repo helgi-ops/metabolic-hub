@@ -58,13 +58,19 @@ function parseExercises(preview: string): string[] {
   const SKIP = /^(mín|min|sek|kcal|sett|umfer|tímaramm|hringur|supersett|þrísett|reps?|þol)/i;
   for (const raw of body.split("\n")) {
     const line = raw.trim();
-    const m = line.match(/^\d+[a-z]?[.)]?\s+(.*)$/i);
+    // Exercise lines are either enumerated ("1 …", "2a …") or a labelled main
+    // lift ("Base: …" / "Grunnur: …") that carries no leading number.
+    const m =
+      line.match(/^\d+[a-z]?[.)]?\s+(.*)$/i) ||
+      line.match(/^(?:base|grunnur)\s*[:\-]\s*(.*)$/i);
     if (!m) continue;
     let name = m[1].split(/\s[–—-]\s/)[0]; // cut a " – scheme" suffix
     // Cut from the first rep/set/kcal/time number onward.
     name = name
       .replace(/\s+\d[\d/.,x×:-]*\s*(reps?|sett|sek|kcal|mín|min|kg)?.*$/i, "")
       .trim();
+    // Drop a trailing gender tag left on machine lines ("Assault Airbike KK").
+    name = name.replace(/\s+(kk|kvk)$/i, "").trim();
     if (!name || SKIP.test(name)) continue;
     if (!names.includes(name)) names.push(name);
   }
