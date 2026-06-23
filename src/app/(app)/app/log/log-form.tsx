@@ -467,13 +467,13 @@ export function LogForm({
         <label className="block">
           <span className="mb-1 block text-sm text-muted-foreground">
             {exercises.length > 0
-              ? "Aðrar þyngdir / nótur (valfrjálst)"
+              ? "Aðrar þyngdir (valfrjálst)"
               : "Þyngdir sem þú notaðir"}
           </span>
           <input
             value={weights}
             onChange={(e) => setWeights(e.target.value)}
-            placeholder="t.d. Goblet 24kg, Deadlift 80kg, KB swing 32kg"
+            placeholder="Aðeins þyngdir — t.d. Goblet 24kg, Deadlift 80kg"
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
@@ -510,12 +510,12 @@ export function LogForm({
 
         <label className="block">
           <span className="mb-1 block text-sm text-muted-foreground">
-            Athugasemd (valfrjálst)
+            Athugasemd / aukaæfing (valfrjálst)
           </span>
           <input
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="t.d. góð orka í dag, vinstri öxl aðeins aum"
+            placeholder="t.d. góð orka í dag · tók líka 3×10 upphífingar"
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
