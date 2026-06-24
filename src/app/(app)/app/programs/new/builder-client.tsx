@@ -161,6 +161,11 @@ export function BuilderClient({
   const [slots, setSlots] = useState<Slot[]>(
     DEFAULT_SLOT_CATEGORIES.map((category) => ({ category, structureId: "" })),
   );
+  // Editable exercise text per slot (per-week override). Empty = use the
+  // structure's library preview. Kept index-aligned with `slots`.
+  const [previews, setPreviews] = useState<string[]>(() =>
+    DEFAULT_SLOT_CATEGORIES.map(() => ""),
+  );
   const [cycleWeek, setCycleWeek] = useState("");
   const [variant, setVariant] = useState<"A" | "B">("A");
   const cycleDays = cycleWeek ? PERIODIZATION[cycleWeek].days : null;
@@ -173,10 +178,23 @@ export function BuilderClient({
     );
   }
 
+  function setPreview(i: number, text: string) {
+    setPreviews((prev) => prev.map((p, idx) => (idx === i ? text : p)));
+  }
+
+  // Pick a structure for a slot and seed its editable text from the library, so
+  // the coach can tweak individual exercises right here before saving.
+  function pickStructure(i: number, structureId: string) {
+    const st = structureId ? byId.get(structureId) : null;
+    setSlot(i, { structureId });
+    setPreview(i, st?.preview ?? "");
+  }
+
   function changeLevel(next: (typeof LEVELS)[number]) {
     setLevel(next);
-    // Picked structures were for the previous level — clear them.
+    // Picked structures were for the previous level — clear them and their text.
     setSlots((prev) => prev.map((s) => ({ ...s, structureId: "" })));
+    setPreviews((prev) => prev.map(() => ""));
   }
 
   function applyCycle(week: string, v: "A" | "B" = variant) {
@@ -190,12 +208,14 @@ export function BuilderClient({
           structureId: "",
         })),
       );
+      setPreviews(DEFAULT_SLOT_CATEGORIES.map(() => ""));
       return;
     }
     // Fill the 6 slot categories from the chosen variant's pattern.
     setSlots(
       PERIODIZATION[week][v].map((category) => ({ category, structureId: "" })),
     );
+    setPreviews(PERIODIZATION[week][v].map(() => ""));
   }
 
   function changeVariant(v: "A" | "B") {
@@ -208,23 +228,25 @@ export function BuilderClient({
     if (!pool.length) return;
     const pick = pool[Math.floor(Math.random() * pool.length)];
     setSlot(i, { structureId: pick.id });
+    setPreview(i, pick.preview ?? "");
   }
 
   function randomizeAll() {
+    const picks = slots.map((s) => {
+      const pool = byCategory.get(s.category) ?? [];
+      return pool.length
+        ? pool[Math.floor(Math.random() * pool.length)]
+        : null;
+    });
     setSlots((prev) =>
-      prev.map((s) => {
-        const pool = byCategory.get(s.category) ?? [];
-        if (!pool.length) return { ...s, structureId: "" };
-        return {
-          ...s,
-          structureId: pool[Math.floor(Math.random() * pool.length)].id,
-        };
-      }),
+      prev.map((s, i) => ({ ...s, structureId: picks[i]?.id ?? "" })),
     );
+    setPreviews(picks.map((p) => p?.preview ?? ""));
   }
 
   function clearAll() {
     setSlots((prev) => prev.map((s) => ({ ...s, structureId: "" })));
+    setPreviews((prev) => prev.map(() => ""));
   }
 
   const filledCount = slots.filter((s) => s.structureId).length;
@@ -242,12 +264,17 @@ export function BuilderClient({
         const st = byId.get(s.structureId);
         if (!st) return null;
         const cd = cycleDays?.[i];
+        // Save the edited exercise text only when it differs from the library
+        // preview, so untouched slots keep tracking the structure library.
+        const edited = (previews[i] ?? "").trim();
+        const lib = st.preview ?? "";
         return {
           slot: i + 1,
           category: s.category,
           structure_source_id: st.source_id,
           name: st.name,
           ...(cd ? { day: cd.day, focus: cd.focus } : {}),
+          ...(edited && previews[i] !== lib ? { preview: previews[i] } : {}),
         };
       })
       .filter(Boolean);
@@ -288,8 +315,9 @@ export function BuilderClient({
         </div>
         <h1 className="mt-2 text-3xl font-bold">Smíða viku</h1>
         <p className="mt-2 text-muted-foreground">
-          Veldu structure í hvern tíma vikunnar og vistaðu. Vikan geymist í
-          gagnagrunninum — það sem netlify-útgáfan gat aldrei.
+          Veldu structure í hvern tíma vikunnar — og breyttu stökum æfingum
+          beint ef þú vilt (það breytir aðeins vikunni, ekki safninu). Vistaðu
+          þegar þú ert tilbúin(n).
         </p>
       </div>
 
@@ -434,9 +462,10 @@ export function BuilderClient({
                 </span>
                 <select
                   value={slot.category}
-                  onChange={(e) =>
-                    setSlot(i, { category: e.target.value, structureId: "" })
-                  }
+                  onChange={(e) => {
+                    setSlot(i, { category: e.target.value, structureId: "" });
+                    setPreview(i, "");
+                  }}
                   className="rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 >
                   {Object.keys(CATEGORY_LABEL).map((c) => (
@@ -447,7 +476,7 @@ export function BuilderClient({
                 </select>
                 <select
                   value={slot.structureId}
-                  onChange={(e) => setSlot(i, { structureId: e.target.value })}
+                  onChange={(e) => pickStructure(i, e.target.value)}
                   className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                 >
                   <option value="">— veldu structure ({pool.length}) —</option>
@@ -467,13 +496,23 @@ export function BuilderClient({
               </div>
               {chosen && (
                 <div className="mt-3 pl-11">
-                  <div className="text-xs font-medium text-accent">
-                    {chosen.name}
-                  </div>
-                  {chosen.preview && (
-                    <pre className="mt-1 whitespace-pre-wrap font-sans text-xs leading-relaxed text-muted-foreground">
-                      {chosen.preview}
-                    </pre>
+                  <label className="mb-1 block text-[11px] uppercase tracking-wide text-muted-foreground">
+                    Æfingar (breyttu frjálst — t.d. Kassahopp → KB hopp)
+                  </label>
+                  <textarea
+                    value={previews[i] ?? ""}
+                    onChange={(e) => setPreview(i, e.target.value)}
+                    rows={Math.max(4, (previews[i] ?? "").split("\n").length + 1)}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 font-sans text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                  {(previews[i] ?? "") !== (chosen.preview ?? "") && (
+                    <button
+                      type="button"
+                      onClick={() => setPreview(i, chosen.preview ?? "")}
+                      className="mt-1 text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      ↺ Endurstilla á upprunalegu æfinguna
+                    </button>
                   )}
                 </div>
               )}
