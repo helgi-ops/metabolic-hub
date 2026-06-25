@@ -160,6 +160,65 @@ export default async function AppLayout({
             </form>
           </div>
         </div>
+        {/* Mobile nav — the desktop nav above is hidden on phones, so the same
+            links live here as a horizontally scrollable strip. */}
+        <nav className="flex gap-4 overflow-x-auto border-t border-border px-6 py-2 text-sm sm:hidden">
+          <Link href="/app" className="whitespace-nowrap text-muted-foreground">
+            Yfirlit
+          </Link>
+          {isStaff && (
+            <Link
+              href="/app/programs"
+              className="whitespace-nowrap text-muted-foreground"
+            >
+              Æfingaplön
+            </Link>
+          )}
+          <Link
+            href="/app/videos"
+            className="whitespace-nowrap text-muted-foreground"
+          >
+            Æfingabanki
+          </Link>
+          <Link
+            href="/app/personal-bests"
+            className="whitespace-nowrap text-muted-foreground"
+          >
+            Mín met
+          </Link>
+          <Link
+            href="/app/log"
+            className="whitespace-nowrap text-muted-foreground"
+          >
+            Dagbók
+          </Link>
+          <Link
+            href="/app/leaderboard"
+            className="whitespace-nowrap text-muted-foreground"
+          >
+            Leaderboard
+          </Link>
+          <Link
+            href="/app/afrek"
+            className="whitespace-nowrap text-muted-foreground"
+          >
+            Afrek
+          </Link>
+          <Link
+            href="/app/akademia"
+            className="whitespace-nowrap text-muted-foreground"
+          >
+            Akademía
+          </Link>
+          {isStaff && (
+            <Link
+              href="/app/station"
+              className="whitespace-nowrap text-muted-foreground"
+            >
+              Stöðin
+            </Link>
+          )}
+        </nav>
       </header>
       <div className="flex-1">{children}</div>
     </div>
