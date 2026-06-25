@@ -191,7 +191,7 @@ export default async function ProgramsPage({
           {canBuild ? "Program Builder" : "Æfingaplön"}
         </div>
         <h1 className="mt-2 text-3xl font-bold">
-          {canBuild ? "Æfingasafn — structures" : "Æfingavikan"}
+          {canBuild ? "Æfingasafn — structures" : "Æfingavika & uppsetningar"}
         </h1>
         <p className="mt-2 text-muted-foreground">
           {canBuild ? (
@@ -202,8 +202,9 @@ export default async function ProgramsPage({
             </>
           ) : (
             <>
-              Skoðunarhamur — hér sérðu æfingavikurnar sem hafa verið settar upp
-              fyrir stöðina þína.
+              Skoðunarhamur — hér sérðu æfingavikurnar fyrir stöðina þína og
+              allar {total} uppsetningarnar í kerfinu. Þú getur ekki breytt eða
+              smíðað.
             </>
           )}
         </p>
@@ -264,9 +265,7 @@ export default async function ProgramsPage({
         )}
       </section>
 
-      {/* Structures library — building surface, hidden in view-only mode */}
-      {canBuild && (
-        <>
+      {/* Structures library — all setups, browsable read-only by every coach */}
       {/* Search */}
       <form method="get" action="/app/programs" className="mb-4 flex gap-2">
         {active && <input type="hidden" name="category" value={active} />}
@@ -446,8 +445,6 @@ export default async function ProgramsPage({
             </span>
           )}
         </div>
-      )}
-        </>
       )}
     </main>
   );
