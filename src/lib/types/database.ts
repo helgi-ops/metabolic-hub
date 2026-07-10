@@ -975,6 +975,7 @@ export type Database = {
           level: string | null
           logged_on: string
           machine: string | null
+          machines_json: Json | null
           notes: string | null
           rpe: number | null
           scheduled_category: string | null
@@ -993,6 +994,7 @@ export type Database = {
           level?: string | null
           logged_on?: string
           machine?: string | null
+          machines_json?: Json | null
           notes?: string | null
           rpe?: number | null
           scheduled_category?: string | null
@@ -1011,6 +1013,7 @@ export type Database = {
           logged_on?: string
           level?: string | null
           machine?: string | null
+          machines_json?: Json | null
           notes?: string | null
           rpe?: number | null
           scheduled_category?: string | null

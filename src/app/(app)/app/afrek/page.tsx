@@ -29,7 +29,7 @@ export default async function AchievementsPage() {
   ] = await Promise.all([
     supabase
       .from("workout_logs")
-      .select("logged_on, calories, machine")
+      .select("logged_on, calories, machine, machines_json")
       .eq("user_id", user.id),
     supabase.from("personal_bests").select("benchmark_id").eq("user_id", user.id),
     supabase
@@ -41,9 +41,20 @@ export default async function AchievementsPage() {
   ]);
 
   const logList = logs ?? [];
-  const kcal = logList
-    .filter((l) => l.machine && CARDIO.includes(l.machine) && l.calories != null)
-    .reduce((a, l) => a + Number(l.calories), 0);
+  const kcal = logList.reduce((a, l) => {
+    // Legacy single-machine cardio logs.
+    if (l.machine && CARDIO.includes(l.machine) && l.calories != null) {
+      return a + Number(l.calories);
+    }
+    // New per-machine breakdown (endurance): sum the cardio machine values.
+    const mj = l.machines_json as unknown as Record<string, string> | null;
+    if (mj) {
+      for (const [k, v] of Object.entries(mj)) {
+        if (CARDIO.includes(k)) a += Number(v) || 0;
+      }
+    }
+    return a;
+  }, 0);
   const activeWeeks = new Set(logList.map((l) => weekKey(l.logged_on))).size;
 
   const pbList = pbs ?? [];

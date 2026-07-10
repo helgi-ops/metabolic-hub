@@ -131,11 +131,15 @@ export function LogForm({
     const t = (weekByLevel[l] ?? []).find((w) => w.day === todayDay) ?? null;
     setWorkoutId(t?.structure_source_id ?? "");
     setPerExercise({});
+    setMachineKcal({});
   }
 
   const [activity, setActivity] = useState("");
   // kg per exercise, keyed by movement name (parsed from the prescription).
   const [perExercise, setPerExercise] = useState<Record<string, string>>({});
+  // kcal per machine (endurance): member rotates through the ergs, keyed by
+  // machine value (assault_airbike, concept2_row, …).
+  const [machineKcal, setMachineKcal] = useState<Record<string, string>>({});
   const [rpe, setRpe] = useState<number | null>(null);
   const [hoverRpe, setHoverRpe] = useState<number | null>(null);
   const [weights, setWeights] = useState("");
@@ -151,6 +155,9 @@ export function LogForm({
       ? workouts.find((w) => w.structure_source_id === workoutId)
       : undefined;
   const exercises = selected ? parseExercises(selected.preview) : [];
+  // Endurance sessions are logged per machine (kcal), not per-exercise kg.
+  const isEndurance = selected?.category === "endurance";
+  const CARDIO_MACHINES = MACHINES.filter((m) => m.value !== "other");
   // "Last time" = most recent prior log of this workout, preferring the same level.
   const last =
     !isOther && workoutId
@@ -176,10 +183,22 @@ export function LogForm({
     const weightsText =
       [composed, weights.trim()].filter(Boolean).join(" · ") || null;
 
+    // Per-machine kcal (endurance) → a json map { machine: kcal } plus a total
+    // that feeds the normal calorie displays. Each machine still counts on its
+    // own leaderboard because kcal_leaderboard unnests machines_json.
+    const machineEntries = Object.entries(machineKcal)
+      .map(([k, v]) => [k, parseFloat(v.replace(",", "."))] as const)
+      .filter(([, v]) => !Number.isNaN(v) && v > 0);
+    const machinesJson = machineEntries.length
+      ? Object.fromEntries(machineEntries.map(([k, v]) => [k, String(v)]))
+      : null;
+    const machinesTotal = machineEntries.reduce((sum, [, v]) => sum + v, 0);
+
     if (
       !rpe &&
       !weightsText &&
       cal == null &&
+      !machinesJson &&
       !notes.trim() &&
       !activityName
     ) {
@@ -202,6 +221,9 @@ export function LogForm({
           level,
         }
       : {};
+    // With a per-machine breakdown the total is the sum and there's no single
+    // "machine" — otherwise fall back to the single calories + machine fields.
+    const totalCalories = machinesJson ? machinesTotal : cal;
     const { error: insertError } = await supabase.from("workout_logs").insert({
       user_id: userId,
       logged_on: loggedOn,
@@ -209,8 +231,9 @@ export function LogForm({
       rpe: rpe,
       weights: weightsText,
       weights_json: weightsJson,
-      calories: cal,
-      machine: cal != null && machine ? machine : null,
+      calories: totalCalories,
+      machine: !machinesJson && cal != null && machine ? machine : null,
+      machines_json: machinesJson,
       notes: notes.trim() || null,
       ...tag,
     });
@@ -222,6 +245,7 @@ export function LogForm({
     setRpe(null);
     setActivity("");
     setPerExercise({});
+    setMachineKcal({});
     setWeights("");
     setCalories("");
     setMachine("");
@@ -296,6 +320,7 @@ export function LogForm({
             onChange={(e) => {
               setWorkoutId(e.target.value);
               setPerExercise({});
+              setMachineKcal({});
             }}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           >
@@ -337,7 +362,7 @@ export function LogForm({
           </div>
         )}
 
-        {selected && exercises.length > 0 && (
+        {selected && !isEndurance && exercises.length > 0 && (
           <div>
             <span className="mb-1 block text-sm text-muted-foreground">
               Þyngdir í æfingunni (kg) — fylltu inn það sem þú notaðir
@@ -385,6 +410,34 @@ export function LogForm({
             <span className="mt-1 block text-xs text-muted-foreground">
               Þarft ekki að skrifa æfingarnar — bara þyngdina. Geymist með
               skráningunni svo þú getir borið saman næst.
+            </span>
+          </div>
+        )}
+
+        {selected && isEndurance && (
+          <div>
+            <span className="mb-1 block text-sm text-muted-foreground">
+              Kaloríur á hverju tæki — fylltu inn það sem þú tókst
+            </span>
+            <div className="space-y-1.5">
+              {CARDIO_MACHINES.map((m) => (
+                <div key={m.value} className="flex items-center gap-2">
+                  <span className="flex-1 text-sm">{m.label}</span>
+                  <input
+                    inputMode="decimal"
+                    value={machineKcal[m.value] ?? ""}
+                    onChange={(e) =>
+                      setMachineKcal((p) => ({ ...p, [m.value]: e.target.value }))
+                    }
+                    placeholder="kcal"
+                    className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+              ))}
+            </div>
+            <span className="mt-1 block text-xs text-muted-foreground">
+              Skildu eftir autt tæki sem þú notaðir ekki. Hvert tæki telur sér á
+              Brennslu-leaderboardinu.
             </span>
           </div>
         )}
@@ -478,35 +531,41 @@ export function LogForm({
           />
         </label>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted-foreground">
-              Kaloríur
-            </span>
-            <input
-              inputMode="decimal"
-              value={calories}
-              onChange={(e) => setCalories(e.target.value)}
-              placeholder="t.d. 85"
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted-foreground">Tæki</span>
-            <select
-              value={machine}
-              onChange={(e) => setMachine(e.target.value)}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-            >
-              <option value="">Veldu tæki</option>
-              {MACHINES.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        {/* Endurance logs kcal per machine above; hide the single field then to
+            avoid double-counting. */}
+        {!isEndurance && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-sm text-muted-foreground">
+                Kaloríur
+              </span>
+              <input
+                inputMode="decimal"
+                value={calories}
+                onChange={(e) => setCalories(e.target.value)}
+                placeholder="t.d. 85"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm text-muted-foreground">
+                Tæki
+              </span>
+              <select
+                value={machine}
+                onChange={(e) => setMachine(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="">Veldu tæki</option>
+                {MACHINES.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
 
         <label className="block">
           <span className="mb-1 block text-sm text-muted-foreground">
