@@ -39,12 +39,26 @@ export default async function EditWeekPage({
     ? week.programs_json
     : []) as Slot[];
 
-  const { data: structuresRaw } = await supabase
-    .from("structures")
-    .select("source_id, name, category, levels, preview")
-    .order("name", { ascending: true });
+  // Supabase caps a single select at 1000 rows; page through the full library.
+  const structuresRaw: Array<{
+    source_id: string;
+    name: string;
+    category: string;
+    levels: unknown;
+    preview: string | null;
+  }> = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase
+      .from("structures")
+      .select("source_id, name, category, levels, preview")
+      .order("name", { ascending: true })
+      .range(from, from + 999);
+    if (!data?.length) break;
+    structuresRaw.push(...data);
+    if (data.length < 1000) break;
+  }
 
-  const structures = (structuresRaw ?? []).map((s) => {
+  const structures = structuresRaw.map((s) => {
     const l1 = (s.levels as { l1?: string } | null)?.l1 ?? "";
     return {
       source_id: s.source_id,
