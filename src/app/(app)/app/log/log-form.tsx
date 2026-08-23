@@ -139,18 +139,18 @@ export function LogForm({
 
   function addManualExercise() {
     const name = exerciseSel.trim();
-    if (!name || manualExercises.includes(name)) return;
-    setManualExercises((p) => [...p, name]);
+    if (!name) return;
+    // Duplicates allowed — each pick is its own set/row.
+    setManualExercises((p) => [...p, { name, kg: "" }]);
     setExerciseSel("");
   }
 
-  function removeManualExercise(name: string) {
-    setManualExercises((p) => p.filter((n) => n !== name));
-    setPerExercise((p) => {
-      const next = { ...p };
-      delete next[name];
-      return next;
-    });
+  function removeManualExercise(i: number) {
+    setManualExercises((p) => p.filter((_, idx) => idx !== i));
+  }
+
+  function setManualKg(i: number, kg: string) {
+    setManualExercises((p) => p.map((m, idx) => (idx === i ? { ...m, kg } : m)));
   }
 
   const [activity, setActivity] = useState("");
@@ -159,9 +159,12 @@ export function LogForm({
   // kcal per machine (endurance / önnur æfing): member rotates through the ergs,
   // keyed by machine value (assault_airbike, concept2_row, …).
   const [machineKcal, setMachineKcal] = useState<Record<string, string>>({});
-  // "Önnur æfing": exercises the member picked via movement-pattern → exercise,
-  // in display order. Their kg live in perExercise, keyed by name.
-  const [manualExercises, setManualExercises] = useState<string[]>([]);
+  // "Önnur æfing": exercises the member picked via movement-pattern → exercise.
+  // Each pick is its own row (the same exercise may be added more than once),
+  // with its own kg.
+  const [manualExercises, setManualExercises] = useState<
+    { name: string; kg: string }[]
+  >([]);
   const [patternSel, setPatternSel] = useState("");
   const [exerciseSel, setExerciseSel] = useState("");
   const [rpe, setRpe] = useState<number | null>(null);
@@ -196,14 +199,28 @@ export function LogForm({
     const cal = calories.trim() ? parseFloat(calories.replace(",", ".")) : null;
     const activityName = isOther ? activity.trim() : "";
 
-    // Per-exercise weights → a json map + a readable summary string.
-    const filled = Object.entries(perExercise)
+    // Per-exercise weights. Planned workouts fill perExercise (keyed by movement
+    // name); "önnur æfing" adds manualExercises (each its own row, duplicates
+    // allowed). For weights_json we keep the max kg per name (drives exercise
+    // bests + last-time recall); the readable string keeps every set.
+    const num = (v: string) => parseFloat(v.replace(",", ".")) || 0;
+    const plannedFilled = Object.entries(perExercise)
       .map(([k, v]) => [k, v.trim()] as const)
       .filter(([, v]) => v);
-    const weightsJson = filled.length
-      ? Object.fromEntries(filled.map(([k, v]) => [k, v]))
-      : null;
-    const composed = filled.map(([k, v]) => `${k} ${v}kg`).join(", ");
+    const manualFilled = manualExercises
+      .map((m) => ({ name: m.name, kg: m.kg.trim() }))
+      .filter((m) => m.kg);
+    const jsonMap: Record<string, string> = {};
+    for (const [k, v] of plannedFilled) jsonMap[k] = v;
+    for (const m of manualFilled) {
+      if (!jsonMap[m.name] || num(m.kg) > num(jsonMap[m.name]))
+        jsonMap[m.name] = m.kg;
+    }
+    const weightsJson = Object.keys(jsonMap).length ? jsonMap : null;
+    const composed = [
+      ...plannedFilled.map(([k, v]) => `${k} ${v}kg`),
+      ...manualFilled.map((m) => `${m.name} ${m.kg}kg`),
+    ].join(", ");
     const weightsText =
       [composed, weights.trim()].filter(Boolean).join(" · ") || null;
 
@@ -531,27 +548,25 @@ export function LogForm({
             </div>
             {manualExercises.length > 0 && (
               <div className="mt-2 space-y-1.5">
-                {manualExercises.map((ex) => {
-                  const best = exerciseBests[ex];
-                  const entered = parseFloat(
-                    (perExercise[ex] ?? "").replace(",", "."),
-                  );
+                {manualExercises.map((ex, i) => {
+                  const best = exerciseBests[ex.name];
+                  const entered = parseFloat((ex.kg ?? "").replace(",", "."));
                   const isPr =
                     !Number.isNaN(entered) &&
                     entered > 0 &&
                     (best == null || entered > best);
                   return (
-                    <div key={ex} className="flex items-center gap-2">
+                    <div key={i} className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => removeManualExercise(ex)}
+                        onClick={() => removeManualExercise(i)}
                         aria-label="Fjarlægja æfingu"
                         className="text-muted-foreground hover:text-foreground"
                       >
                         ✕
                       </button>
                       <span className="flex-1 text-sm">
-                        {ex}
+                        {ex.name}
                         {best != null && (
                           <span className="ml-2 text-xs text-muted-foreground">
                             met: {best} kg
@@ -565,10 +580,8 @@ export function LogForm({
                       </span>
                       <input
                         inputMode="decimal"
-                        value={perExercise[ex] ?? ""}
-                        onChange={(e) =>
-                          setPerExercise((p) => ({ ...p, [ex]: e.target.value }))
-                        }
+                        value={ex.kg}
+                        onChange={(e) => setManualKg(i, e.target.value)}
                         placeholder="kg"
                         className={`w-24 rounded-md border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent ${
                           isPr ? "border-accent" : "border-border"
