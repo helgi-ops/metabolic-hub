@@ -54,6 +54,46 @@ function todayISO() {
   ).padStart(2, "0")}`;
 }
 
+// Summarize a logged weights string ("Bekkpressa 60kg, Bekkpressa 65kg, …") by
+// grouping repeats of the same exercise into a set count + weight range, so the
+// history shows "Bekkpressa ×3 (60–70kg)". Non-weight notes pass through.
+function summarizeWeights(weights: string | null): string {
+  if (!weights) return "";
+  const items = weights
+    .split(/\s*·\s*/)
+    .flatMap((s) => s.split(","))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const groups = new Map<string, number[]>();
+  const order: string[] = [];
+  const other: string[] = [];
+  for (const it of items) {
+    const m = it.match(/^(.+?)\s+([\d.,]+)\s*kg$/i);
+    if (m) {
+      const name = m[1].trim();
+      const val = parseFloat(m[2].replace(",", "."));
+      if (!groups.has(name)) {
+        groups.set(name, []);
+        order.push(name);
+      }
+      groups.get(name)!.push(val);
+    } else {
+      other.push(it);
+    }
+  }
+  const parts = order.map((name) => {
+    const vals = groups.get(name)!;
+    if (vals.length > 1) {
+      const min = Math.min(...vals);
+      const max = Math.max(...vals);
+      const range = min === max ? `${min}kg` : `${min}–${max}kg`;
+      return `${name} ×${vals.length} (${range})`;
+    }
+    return `${name} ${vals[0]}kg`;
+  });
+  return [...parts, ...other].join(", ");
+}
+
 export default async function LogPage() {
   const supabase = await createClient();
   const {
@@ -294,7 +334,7 @@ export default async function LogPage() {
                           🚲 {l.activity}
                         </span>
                       ) : (
-                        (l.weights ?? "")
+                        summarizeWeights(l.weights)
                       )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
