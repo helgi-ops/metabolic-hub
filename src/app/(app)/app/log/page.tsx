@@ -129,6 +129,19 @@ export default async function LogPage() {
     (exBests ?? []).map((b) => [b.exercise, Number(b.best_value)]),
   );
 
+  // Exercise catalog for "önnur æfing": movement pattern (video category) →
+  // exercise names, so the member picks a pattern then an exercise.
+  const { data: exVideos } = await supabase
+    .from("exercise_videos")
+    .select("name, category")
+    .order("category", { ascending: true })
+    .order("name", { ascending: true });
+  const exerciseCatalog: Record<string, string[]> = {};
+  for (const v of exVideos ?? []) {
+    const cat = v.category ?? "Annað";
+    (exerciseCatalog[cat] ??= []).push(v.name);
+  }
+
   // Group tagged logs by the workout they belong to, for side-by-side comparison.
   const groups = new Map<
     string,
@@ -195,6 +208,7 @@ export default async function LogPage() {
           weekByLevel={weekByLevel}
           loggedSourceIds={loggedSourceIds}
           exerciseBests={exerciseBests}
+          exerciseCatalog={exerciseCatalog}
           recent={list
             .filter((l) => l.structure_source_id)
             .map((l) => ({

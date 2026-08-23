@@ -97,6 +97,7 @@ export function LogForm({
   weekByLevel,
   loggedSourceIds,
   exerciseBests,
+  exerciseCatalog,
   recent,
 }: {
   userId: string;
@@ -105,6 +106,7 @@ export function LogForm({
   weekByLevel: Record<string, WeekWorkout[]>;
   loggedSourceIds: string[];
   exerciseBests: Record<string, number>;
+  exerciseCatalog: Record<string, string[]>;
   recent: RecentLog[];
 }) {
   const router = useRouter();
@@ -132,14 +134,36 @@ export function LogForm({
     setWorkoutId(t?.structure_source_id ?? "");
     setPerExercise({});
     setMachineKcal({});
+    setManualExercises([]);
+  }
+
+  function addManualExercise() {
+    const name = exerciseSel.trim();
+    if (!name || manualExercises.includes(name)) return;
+    setManualExercises((p) => [...p, name]);
+    setExerciseSel("");
+  }
+
+  function removeManualExercise(name: string) {
+    setManualExercises((p) => p.filter((n) => n !== name));
+    setPerExercise((p) => {
+      const next = { ...p };
+      delete next[name];
+      return next;
+    });
   }
 
   const [activity, setActivity] = useState("");
   // kg per exercise, keyed by movement name (parsed from the prescription).
   const [perExercise, setPerExercise] = useState<Record<string, string>>({});
-  // kcal per machine (endurance): member rotates through the ergs, keyed by
-  // machine value (assault_airbike, concept2_row, …).
+  // kcal per machine (endurance / önnur æfing): member rotates through the ergs,
+  // keyed by machine value (assault_airbike, concept2_row, …).
   const [machineKcal, setMachineKcal] = useState<Record<string, string>>({});
+  // "Önnur æfing": exercises the member picked via movement-pattern → exercise,
+  // in display order. Their kg live in perExercise, keyed by name.
+  const [manualExercises, setManualExercises] = useState<string[]>([]);
+  const [patternSel, setPatternSel] = useState("");
+  const [exerciseSel, setExerciseSel] = useState("");
   const [rpe, setRpe] = useState<number | null>(null);
   const [hoverRpe, setHoverRpe] = useState<number | null>(null);
   const [weights, setWeights] = useState("");
@@ -246,6 +270,7 @@ export function LogForm({
     setActivity("");
     setPerExercise({});
     setMachineKcal({});
+    setManualExercises([]);
     setWeights("");
     setCalories("");
     setMachine("");
@@ -321,6 +346,7 @@ export function LogForm({
               setWorkoutId(e.target.value);
               setPerExercise({});
               setMachineKcal({});
+              setManualExercises([]);
             }}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           >
@@ -414,7 +440,7 @@ export function LogForm({
           </div>
         )}
 
-        {selected && isEndurance && (
+        {((selected && isEndurance) || isOther) && (
           <div>
             <span className="mb-1 block text-sm text-muted-foreground">
               Kaloríur á hverju tæki — fylltu inn það sem þú tókst
@@ -455,9 +481,109 @@ export function LogForm({
             />
             <span className="mt-1 block text-xs text-muted-foreground">
               Skráð sem aukaæfing í stað æfingar dagsins. Þú getur líka skráð RPE
-              og kaloríur fyrir hana hér að neðan.
+              hér að neðan.
             </span>
           </label>
+        )}
+
+        {isOther && (
+          <div>
+            <span className="mb-1 block text-sm text-muted-foreground">
+              Æfingar — veldu hreyfiflokk og æfingu
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <select
+                value={patternSel}
+                onChange={(e) => {
+                  setPatternSel(e.target.value);
+                  setExerciseSel("");
+                }}
+                className="rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value="">Hreyfiflokkur</option>
+                {Object.keys(exerciseCatalog).map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={exerciseSel}
+                onChange={(e) => setExerciseSel(e.target.value)}
+                disabled={!patternSel}
+                className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+              >
+                <option value="">Æfing</option>
+                {(exerciseCatalog[patternSel] ?? []).map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={addManualExercise}
+                disabled={!exerciseSel}
+                className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
+              >
+                Bæta við
+              </button>
+            </div>
+            {manualExercises.length > 0 && (
+              <div className="mt-2 space-y-1.5">
+                {manualExercises.map((ex) => {
+                  const best = exerciseBests[ex];
+                  const entered = parseFloat(
+                    (perExercise[ex] ?? "").replace(",", "."),
+                  );
+                  const isPr =
+                    !Number.isNaN(entered) &&
+                    entered > 0 &&
+                    (best == null || entered > best);
+                  return (
+                    <div key={ex} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => removeManualExercise(ex)}
+                        aria-label="Fjarlægja æfingu"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        ✕
+                      </button>
+                      <span className="flex-1 text-sm">
+                        {ex}
+                        {best != null && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            met: {best} kg
+                          </span>
+                        )}
+                        {isPr && (
+                          <span className="ml-2 text-xs font-medium text-accent">
+                            🎉 Nýtt met!
+                          </span>
+                        )}
+                      </span>
+                      <input
+                        inputMode="decimal"
+                        value={perExercise[ex] ?? ""}
+                        onChange={(e) =>
+                          setPerExercise((p) => ({ ...p, [ex]: e.target.value }))
+                        }
+                        placeholder="kg"
+                        className={`w-24 rounded-md border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent ${
+                          isPr ? "border-accent" : "border-border"
+                        }`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <span className="mt-1 block text-xs text-muted-foreground">
+              Veldu hreyfiflokk, svo æfingu, og „Bæta við". Skráðu kg — met vistast
+              eins og í venjulegum tíma.
+            </span>
+          </div>
         )}
 
         <div>
@@ -531,9 +657,9 @@ export function LogForm({
           />
         </label>
 
-        {/* Endurance logs kcal per machine above; hide the single field then to
-            avoid double-counting. */}
-        {!isEndurance && (
+        {/* Endurance and "önnur æfing" log kcal per machine above; hide the
+            single field then to avoid double-counting. */}
+        {!isEndurance && !isOther && (
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-sm text-muted-foreground">
