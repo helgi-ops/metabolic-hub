@@ -158,29 +158,32 @@ export default async function StationPage({
     (m) => m.role === "student" && m.status === "suspended",
   );
 
-  // One roster row, shared across the grouped sections below.
-  const memberRow = (m: (typeof roster)[number]) => (
+  // One roster card, shown in a responsive grid so full names have room and the
+  // actions aren't crammed into a narrow sidebar column.
+  const memberCard = (m: (typeof roster)[number]) => (
     <li
       key={m.id}
-      className="flex items-center justify-between gap-2 px-4 py-3 text-sm"
+      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-sm"
     >
-      <span className="flex min-w-0 items-center gap-2">
-        <span className="truncate">{m.full_name ?? "—"}</span>
-        {m.role !== "student" && (
-          <span className="font-mono text-[10px] uppercase tracking-widest text-accent">
-            {m.role}
-          </span>
-        )}
-        {m.role === "student" && m.status === "suspended" && (
-          <span className="font-mono text-[10px] uppercase tracking-widest text-red-400">
-            Lokað
-          </span>
-        )}
-      </span>
-      <span className="flex shrink-0 items-center gap-3">
+      <span className="flex min-w-0 flex-col">
+        <span className="flex items-center gap-2">
+          <span className="truncate font-medium">{m.full_name ?? "—"}</span>
+          {m.role !== "student" && (
+            <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-accent">
+              {m.role}
+            </span>
+          )}
+          {m.role === "student" && m.status === "suspended" && (
+            <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-red-400">
+              Lokað
+            </span>
+          )}
+        </span>
         <span className="text-xs text-muted-foreground">
           {pbCount.get(m.id) ?? 0} met
         </span>
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
         {m.role === "student" && (
           <MemberActions
             memberId={m.id}
@@ -335,100 +338,98 @@ export default async function StationPage({
         </div>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        {/* Leaderboards */}
-        <div className="lg:col-span-2">
-          <h2 className="mb-4 font-semibold">Leaderboards</h2>
-          {leaderboards.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Engin met skráð á þessari stöð enn.
-            </p>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {leaderboards.map(({ benchmark, rows }) => (
-                <div
-                  key={benchmark.id}
-                  className="rounded-lg border border-border bg-muted p-4"
-                >
-                  <div className="font-mono text-[10px] tracking-widest text-accent uppercase">
-                    {benchmark.name}
-                  </div>
-                  <ol className="mt-3 space-y-1.5">
-                    {rows.slice(0, 5).map((r, i) => (
-                      <li
-                        key={r.name + i}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <span className="flex items-center gap-2">
-                          <span
-                            className={`w-4 text-right font-mono text-xs ${
-                              i === 0 ? "text-accent" : "text-muted-foreground"
-                            }`}
-                          >
-                            {i + 1}
-                          </span>
-                          {r.name}
-                        </span>
-                        <span className="font-medium">
-                          {formatMeasure(r.value, benchmark.unit)}
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
+      {/* Leaderboards */}
+      <div className="mb-8">
+        <h2 className="mb-4 font-semibold">Leaderboards</h2>
+        {leaderboards.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Engin met skráð á þessari stöð enn.
+          </p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {leaderboards.map(({ benchmark, rows }) => (
+              <div
+                key={benchmark.id}
+                className="rounded-lg border border-border bg-muted p-4"
+              >
+                <div className="font-mono text-[10px] tracking-widest text-accent uppercase">
+                  {benchmark.name}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <ol className="mt-3 space-y-1.5">
+                  {rows.slice(0, 5).map((r, i) => (
+                    <li
+                      key={r.name + i}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span
+                          className={`w-4 text-right font-mono text-xs ${
+                            i === 0 ? "text-accent" : "text-muted-foreground"
+                          }`}
+                        >
+                          {i + 1}
+                        </span>
+                        {r.name}
+                      </span>
+                      <span className="font-medium">
+                        {formatMeasure(r.value, benchmark.unit)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-        {/* Roster — grouped: coaches, active students, suspended */}
-        <div>
-          <h2 className="mb-4 font-semibold">Iðkendur</h2>
-          {roster.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Engir skráðir á þessari stöð.
-            </p>
-          ) : (
-            <div className="space-y-5">
-              {coaches.length > 0 && (
-                <section>
-                  <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Þjálfarar ({coaches.length})
-                  </h3>
-                  <ul className="divide-y divide-border rounded-lg border border-border">
-                    {coaches.map(memberRow)}
-                  </ul>
-                </section>
-              )}
-
+      {/* Roster — full width, grouped, responsive card grid */}
+      <div className="mb-8">
+        <h2 className="mb-4 font-semibold">Iðkendur</h2>
+        {roster.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Engir skráðir á þessari stöð.
+          </p>
+        ) : (
+          <div className="space-y-6">
+            {coaches.length > 0 && (
               <section>
                 <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                  Virkir iðkendur ({activeStudents.length})
+                  Þjálfarar ({coaches.length})
                 </h3>
-                {activeStudents.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Engir virkir iðkendur.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-border rounded-lg border border-border">
-                    {activeStudents.map(memberRow)}
-                  </ul>
-                )}
+                <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {coaches.map(memberCard)}
+                </ul>
               </section>
+            )}
 
-              {suspendedStudents.length > 0 && (
-                <section>
-                  <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Lokaðir aðgangar ({suspendedStudents.length})
-                  </h3>
-                  <ul className="divide-y divide-border rounded-lg border border-border opacity-70">
-                    {suspendedStudents.map(memberRow)}
-                  </ul>
-                </section>
+            <section>
+              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                Virkir iðkendur ({activeStudents.length})
+              </h3>
+              {activeStudents.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Engir virkir iðkendur.
+                </p>
+              ) : (
+                <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {activeStudents.map(memberCard)}
+                </ul>
               )}
-            </div>
-          )}
-        </div>
+            </section>
+
+            {suspendedStudents.length > 0 && (
+              <section>
+                <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Lokaðir aðgangar ({suspendedStudents.length})
+                </h3>
+                <ul className="grid gap-2 opacity-70 sm:grid-cols-2 lg:grid-cols-3">
+                  {suspendedStudents.map(memberCard)}
+                </ul>
+              </section>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Weekly plans for this station */}
