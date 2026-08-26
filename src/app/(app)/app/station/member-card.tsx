@@ -161,7 +161,7 @@ export function MemberCard({
         {isAdmin && member.role === "coach" && (
           <ProgramBuilderToggle
             memberId={member.id}
-            enabled={member.can_build_programs}
+            enabled={member.can_build_programs ?? false}
           />
         )}
       </span>
