@@ -145,6 +145,59 @@ export default async function StationPage({
     })
     .sort((a, b) => (b.days ?? 1e9) - (a.days ?? 1e9));
 
+  // Split the roster into meaningful groups so the pending-approval queue and
+  // the active roster aren't buried in one long alphabetical list.
+  const pendingMembers = roster.filter(
+    (m) => m.role === "student" && m.status === "pending",
+  );
+  const coaches = roster.filter((m) => m.role !== "student");
+  const activeStudents = roster.filter(
+    (m) => m.role === "student" && m.status === "active",
+  );
+  const suspendedStudents = roster.filter(
+    (m) => m.role === "student" && m.status === "suspended",
+  );
+
+  // One roster row, shared across the grouped sections below.
+  const memberRow = (m: (typeof roster)[number]) => (
+    <li
+      key={m.id}
+      className="flex items-center justify-between gap-2 px-4 py-3 text-sm"
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="truncate">{m.full_name ?? "—"}</span>
+        {m.role !== "student" && (
+          <span className="font-mono text-[10px] uppercase tracking-widest text-accent">
+            {m.role}
+          </span>
+        )}
+        {m.role === "student" && m.status === "suspended" && (
+          <span className="font-mono text-[10px] uppercase tracking-widest text-red-400">
+            Lokað
+          </span>
+        )}
+      </span>
+      <span className="flex shrink-0 items-center gap-3">
+        <span className="text-xs text-muted-foreground">
+          {pbCount.get(m.id) ?? 0} met
+        </span>
+        {m.role === "student" && (
+          <MemberActions
+            memberId={m.id}
+            status={m.status}
+            canDelete={isAdmin}
+          />
+        )}
+        {isAdmin && m.role === "coach" && (
+          <ProgramBuilderToggle
+            memberId={m.id}
+            enabled={m.can_build_programs}
+          />
+        )}
+      </span>
+    </li>
+  );
+
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
       <div className="mb-8">
@@ -155,8 +208,15 @@ export default async function StationPage({
           {targetStation?.name ?? "Stöðin"}
         </h1>
         <p className="mt-2 text-muted-foreground">
-          {roster.length} skráðir · {pbList.length} skráð met. Þjálfarar sjá sína
-          stöð; aðrar stöðvar eru faldar.
+          {activeStudents.length} virkir iðkendur · {coaches.length} þjálfarar
+          {pendingMembers.length > 0 && (
+            <span className="text-amber-400">
+              {" "}
+              · {pendingMembers.length} í bið
+            </span>
+          )}{" "}
+          · {pbList.length} skráð met. Þjálfarar sjá sína stöð; aðrar stöðvar eru
+          faldar.
         </p>
         <div className="mt-4">
           <Link
@@ -188,6 +248,38 @@ export default async function StationPage({
               {s.name}
             </Link>
           ))}
+        </div>
+      )}
+
+      {/* Pending approvals — the coach's most actionable queue, up top */}
+      {pendingMembers.length > 0 && (
+        <div className="mb-8 rounded-lg border border-amber-400/40 bg-amber-400/5 p-4">
+          <div className="mb-1 flex items-center gap-2">
+            <h2 className="font-semibold">Bíða samþykkis</h2>
+            <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-xs font-medium text-amber-400">
+              {pendingMembers.length}
+            </span>
+          </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Nýskráðir iðkendur — samþykktu til að veita aðgang.
+          </p>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {pendingMembers.map((m) => (
+              <li
+                key={m.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-sm"
+              >
+                <span className="min-w-0 truncate font-medium">
+                  {m.full_name ?? "—"}
+                </span>
+                <MemberActions
+                  memberId={m.id}
+                  status={m.status}
+                  canDelete={isAdmin}
+                />
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -289,7 +381,7 @@ export default async function StationPage({
           )}
         </div>
 
-        {/* Roster */}
+        {/* Roster — grouped: coaches, active students, suspended */}
         <div>
           <h2 className="mb-4 font-semibold">Iðkendur</h2>
           {roster.length === 0 ? (
@@ -297,53 +389,44 @@ export default async function StationPage({
               Engir skráðir á þessari stöð.
             </p>
           ) : (
-            <ul className="divide-y divide-border rounded-lg border border-border">
-              {roster.map((m) => (
-                <li
-                  key={m.id}
-                  className="flex items-center justify-between px-4 py-3 text-sm"
-                >
-                  <span className="flex items-center gap-2">
-                    {m.full_name ?? "—"}
-                    {m.role !== "student" ? (
-                      <span className="font-mono text-[10px] uppercase tracking-widest text-accent">
-                        {m.role}
-                      </span>
-                    ) : (
-                      m.status !== "active" && (
-                        <span
-                          className={`font-mono text-[10px] uppercase tracking-widest ${
-                            m.status === "pending"
-                              ? "text-amber-400"
-                              : "text-red-400"
-                          }`}
-                        >
-                          {m.status === "pending" ? "Í bið" : "Lokað"}
-                        </span>
-                      )
-                    )}
-                  </span>
-                  <span className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground">
-                      {pbCount.get(m.id) ?? 0} met
-                    </span>
-                    {m.role === "student" && (
-                      <MemberActions
-                        memberId={m.id}
-                        status={m.status}
-                        canDelete={isAdmin}
-                      />
-                    )}
-                    {isAdmin && m.role === "coach" && (
-                      <ProgramBuilderToggle
-                        memberId={m.id}
-                        enabled={m.can_build_programs}
-                      />
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-5">
+              {coaches.length > 0 && (
+                <section>
+                  <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Þjálfarar ({coaches.length})
+                  </h3>
+                  <ul className="divide-y divide-border rounded-lg border border-border">
+                    {coaches.map(memberRow)}
+                  </ul>
+                </section>
+              )}
+
+              <section>
+                <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Virkir iðkendur ({activeStudents.length})
+                </h3>
+                {activeStudents.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Engir virkir iðkendur.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-border rounded-lg border border-border">
+                    {activeStudents.map(memberRow)}
+                  </ul>
+                )}
+              </section>
+
+              {suspendedStudents.length > 0 && (
+                <section>
+                  <h3 className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    Lokaðir aðgangar ({suspendedStudents.length})
+                  </h3>
+                  <ul className="divide-y divide-border rounded-lg border border-border opacity-70">
+                    {suspendedStudents.map(memberRow)}
+                  </ul>
+                </section>
+              )}
+            </div>
           )}
         </div>
       </div>
