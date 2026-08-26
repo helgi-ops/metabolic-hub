@@ -1,17 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LogForm } from "./log-form";
+import { LogHistory } from "./log-history";
 
 export const metadata = {
   title: "Æfingadagbók · Metabolic",
-};
-
-const MACHINE_LABEL: Record<string, string> = {
-  assault_airbike: "Assault Airbike",
-  concept2_row: "Concept2 Róður",
-  concept2_bike: "Concept2 Bike",
-  concept2_ski: "Concept2 Ski",
-  other: "Annað",
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -31,6 +24,7 @@ type Log = {
   level: string | null;
   calories: number | null;
   machine: string | null;
+  machines_json: Record<string, string> | null;
   notes: string | null;
   activity: string | null;
   structure_source_id: string | null;
@@ -52,46 +46,6 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate(),
   ).padStart(2, "0")}`;
-}
-
-// Summarize a logged weights string ("Bekkpressa 60kg, Bekkpressa 65kg, …") by
-// grouping repeats of the same exercise into a set count + weight range, so the
-// history shows "Bekkpressa ×3 (60–70kg)". Non-weight notes pass through.
-function summarizeWeights(weights: string | null): string {
-  if (!weights) return "";
-  const items = weights
-    .split(/\s*·\s*/)
-    .flatMap((s) => s.split(","))
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const groups = new Map<string, number[]>();
-  const order: string[] = [];
-  const other: string[] = [];
-  for (const it of items) {
-    const m = it.match(/^(.+?)\s+([\d.,]+)\s*kg$/i);
-    if (m) {
-      const name = m[1].trim();
-      const val = parseFloat(m[2].replace(",", "."));
-      if (!groups.has(name)) {
-        groups.set(name, []);
-        order.push(name);
-      }
-      groups.get(name)!.push(val);
-    } else {
-      other.push(it);
-    }
-  }
-  const parts = order.map((name) => {
-    const vals = groups.get(name)!;
-    if (vals.length > 1) {
-      const min = Math.min(...vals);
-      const max = Math.max(...vals);
-      const range = min === max ? `${min}kg` : `${min}–${max}kg`;
-      return `${name} ×${vals.length} (${range})`;
-    }
-    return `${name} ${vals[0]}kg`;
-  });
-  return [...parts, ...other].join(", ");
 }
 
 export default async function LogPage() {
@@ -150,7 +104,7 @@ export default async function LogPage() {
   const { data: logs } = await supabase
     .from("workout_logs")
     .select(
-      "id, logged_on, rpe, weights, weights_json, level, calories, machine, notes, activity, structure_source_id, scheduled_day, scheduled_category",
+      "id, logged_on, rpe, weights, weights_json, level, calories, machine, machines_json, notes, activity, structure_source_id, scheduled_day, scheduled_category",
     )
     .eq("user_id", user!.id)
     .order("logged_on", { ascending: false })
@@ -304,52 +258,7 @@ export default async function LogPage() {
             Engar færslur enn. Skráðu fyrstu æfinguna hér að ofan.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Dags.</th>
-                  <th className="px-4 py-2 font-medium">RPE</th>
-                  <th className="px-4 py-2 font-medium">Þyngdir</th>
-                  <th className="px-4 py-2 font-medium">Kaloríur</th>
-                  <th className="px-4 py-2 font-medium">Athugasemd</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {list.map((l) => (
-                  <tr key={l.id}>
-                    <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
-                      {l.logged_on}
-                    </td>
-                    <td className="px-4 py-2">
-                      {l.rpe != null ? (
-                        <span className="font-medium">{l.rpe}/10</span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-muted-foreground">
-                      {l.activity ? (
-                        <span className="inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs text-accent">
-                          🚲 {l.activity}
-                        </span>
-                      ) : (
-                        summarizeWeights(l.weights)
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
-                      {l.calories != null
-                        ? `${l.calories} kcal${l.machine ? ` · ${MACHINE_LABEL[l.machine] ?? l.machine}` : ""}`
-                        : ""}
-                    </td>
-                    <td className="px-4 py-2 text-muted-foreground">
-                      {l.notes ?? ""}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <LogHistory logs={list} />
         )}
       </div>
     </main>

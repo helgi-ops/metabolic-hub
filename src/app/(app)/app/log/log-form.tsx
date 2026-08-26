@@ -311,9 +311,14 @@ export function LogForm({
           <input
             type="date"
             value={loggedOn}
+            max={today}
             onChange={(e) => setLoggedOn(e.target.value)}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent sm:w-auto"
           />
+          <span className="mt-1 block text-xs text-muted-foreground">
+            Veldu fyrri dagsetningu til að skrá æfingu aftur í tímann — bæði
+            Metabolic-æfingu og önnur æfing.
+          </span>
         </label>
 
         <div>
