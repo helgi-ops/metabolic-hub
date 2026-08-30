@@ -181,6 +181,12 @@ export default async function LogPage() {
         <p className="mt-2 text-muted-foreground">
           Skráðu hvernig æfingin var — álag, þyngdir og kaloríur á tækjunum.
         </p>
+        <a
+          href="/app/tengingar"
+          className="mt-3 inline-flex items-center gap-1 text-sm text-accent hover:underline"
+        >
+          ⌚ Tengja Garmin úr — láttu æfingar skrást sjálfkrafa →
+        </a>
       </div>
 
       {list.length > 0 && (

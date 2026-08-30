@@ -319,7 +319,22 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "exercise_bests_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "workout_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_bests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       exercise_videos: {
         Row: {
@@ -408,6 +423,39 @@ export type Database = {
           thumbnail_url?: string | null
           updated_at?: string
           video_url?: string | null
+        }
+        Relationships: []
+      }
+      garmin_connections: {
+        Row: {
+          access_token: string | null
+          connected_at: string
+          garmin_user_id: string | null
+          refresh_token: string | null
+          scope: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          connected_at?: string
+          garmin_user_id?: string | null
+          refresh_token?: string | null
+          scope?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          connected_at?: string
+          garmin_user_id?: string | null
+          refresh_token?: string | null
+          scope?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -971,6 +1019,7 @@ export type Database = {
           activity: string | null
           calories: number | null
           created_at: string
+          external_id: string | null
           id: string
           level: string | null
           logged_on: string
@@ -980,6 +1029,7 @@ export type Database = {
           rpe: number | null
           scheduled_category: string | null
           scheduled_day: string | null
+          source: string | null
           structure_source_id: string | null
           updated_at: string
           user_id: string
@@ -990,6 +1040,7 @@ export type Database = {
           activity?: string | null
           calories?: number | null
           created_at?: string
+          external_id?: string | null
           id?: string
           level?: string | null
           logged_on?: string
@@ -999,6 +1050,7 @@ export type Database = {
           rpe?: number | null
           scheduled_category?: string | null
           scheduled_day?: string | null
+          source?: string | null
           structure_source_id?: string | null
           updated_at?: string
           user_id: string
@@ -1009,15 +1061,17 @@ export type Database = {
           activity?: string | null
           calories?: number | null
           created_at?: string
+          external_id?: string | null
           id?: string
-          logged_on?: string
           level?: string | null
+          logged_on?: string
           machine?: string | null
           machines_json?: Json | null
           notes?: string | null
           rpe?: number | null
           scheduled_category?: string | null
           scheduled_day?: string | null
+          source?: string | null
           structure_source_id?: string | null
           updated_at?: string
           user_id?: string
@@ -1035,26 +1089,26 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
-      current_week_workouts: {
-        Args: never
-        Returns: {
-          slot: number
-          structure_source_id: string
-          category: string
-          name: string
-          day: string | null
-        }[]
-      }
       current_week_plans_by_level: {
         Args: never
         Returns: {
+          category: string
+          day: string
           level: string
+          name: string
+          preview: string
           slot: number
           structure_source_id: string
+        }[]
+      }
+      current_week_workouts: {
+        Args: never
+        Returns: {
           category: string
+          day: string
           name: string
-          day: string | null
-          preview: string | null
+          slot: number
+          structure_source_id: string
         }[]
       }
       delete_member: { Args: { member: string }; Returns: undefined }
@@ -1066,32 +1120,29 @@ export type Database = {
         Args: { p_course: string }
         Returns: {
           certificate_number: string
-          issued_at: string
-          full_name: string | null
           course_title: string
+          full_name: string
+          issued_at: string
         }[]
       }
       kcal_leaderboard: {
-        Args: {
-          p_station?: string | null
-          p_machine?: string | null
-          p_since?: string | null
-        }
+        Args: { p_machine?: string; p_since?: string; p_station?: string }
         Returns: {
-          user_id: string
-          full_name: string | null
-          station_id: string | null
-          station_name: string | null
-          total_kcal: number
           entries: number
+          full_name: string
+          station_id: string
+          station_name: string
+          total_kcal: number
+          user_id: string
         }[]
       }
       my_station_id: { Args: never; Returns: string }
+      my_station_ids: { Args: never; Returns: string[] }
       pb_leaderboard: {
-        Args: { p_benchmark: string; p_station?: string | null }
+        Args: { p_benchmark: string; p_station?: string }
         Returns: {
+          full_name: string
           user_id: string
-          full_name: string | null
           value: number
         }[]
       }
@@ -1108,7 +1159,7 @@ export type Database = {
         Returns: undefined
       }
       set_program_builder: {
-        Args: { member: string; allowed: boolean }
+        Args: { allowed: boolean; member: string }
         Returns: undefined
       }
       shares_my_station: { Args: { target: string }; Returns: boolean }
