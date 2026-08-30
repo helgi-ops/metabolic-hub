@@ -54,11 +54,11 @@ export default async function LeaderboardPage({
   const since =
     period === "month"
       ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
-      : null;
+      : undefined;
 
   const { data: rows } = await supabase.rpc("kcal_leaderboard", {
-    p_station: isAdmin ? stationParam || null : null,
-    p_machine: machine || null,
+    p_station: (isAdmin ? stationParam : "") || undefined,
+    p_machine: machine || undefined,
     p_since: since,
   });
 
