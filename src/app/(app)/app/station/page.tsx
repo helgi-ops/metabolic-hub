@@ -64,7 +64,7 @@ export default async function StationPage({
   const { data: members } = targetStationId
     ? await supabase
         .from("profiles")
-        .select("id, full_name, role, status, can_build_programs")
+        .select("id, full_name, role, status, can_build_programs, nutrition_coaching")
         .eq("station_id", targetStationId)
         .order("full_name", { ascending: true })
     : { data: [] };
@@ -177,6 +177,7 @@ export default async function StationPage({
           role: m.role,
           status: m.status,
           can_build_programs: m.can_build_programs,
+          nutrition_coaching: m.nutrition_coaching,
         }}
         pbCount={pbCount.get(m.id) ?? 0}
         isAdmin={isAdmin}

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { MemberActions } from "./member-actions";
 import { ProgramBuilderToggle } from "./program-builder-toggle";
+import { NutritionCoachingToggle } from "./nutrition-coaching-toggle";
 
 const CATEGORY_LABEL: Record<string, string> = {
   strength: "Strength",
@@ -27,6 +29,7 @@ type Member = {
   role: string;
   status: string;
   can_build_programs: boolean | null;
+  nutrition_coaching: boolean | null;
 };
 
 type Risk = "none" | "warn" | "at";
@@ -150,13 +153,19 @@ export function MemberCard({
           )}
         </span>
       </button>
-      <span className="flex shrink-0 items-center gap-2">
+      <span className="flex shrink-0 flex-wrap items-center justify-end gap-2">
         {isStudent && (
-          <MemberActions
-            memberId={member.id}
-            status={member.status}
-            canDelete={isAdmin}
-          />
+          <>
+            <NutritionCoachingToggle
+              memberId={member.id}
+              enabled={!!member.nutrition_coaching}
+            />
+            <MemberActions
+              memberId={member.id}
+              status={member.status}
+              canDelete={isAdmin}
+            />
+          </>
         )}
         {isAdmin && member.role === "coach" && (
           <ProgramBuilderToggle
@@ -239,6 +248,14 @@ function ActivityModal({
                   total === 1 ? "" : "ar"
                 }`}
             </p>
+            {member.nutrition_coaching && (
+              <Link
+                href={`/app/station/member/${member.id}/naering`}
+                className="mt-1 inline-block text-xs text-accent hover:underline"
+              >
+                🥗 Sjá næringu →
+              </Link>
+            )}
           </div>
           <button
             type="button"

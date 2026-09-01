@@ -797,6 +797,7 @@ export type Database = {
           full_name: string | null
           id: string
           leaderboard_opt_out: boolean
+          nutrition_coaching: boolean
           role: Database["public"]["Enums"]["user_role"]
           share_pbs: boolean
           station_id: string | null
@@ -812,6 +813,7 @@ export type Database = {
           full_name?: string | null
           id: string
           leaderboard_opt_out?: boolean
+          nutrition_coaching?: boolean
           role?: Database["public"]["Enums"]["user_role"]
           share_pbs?: boolean
           station_id?: string | null
@@ -827,6 +829,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           leaderboard_opt_out?: boolean
+          nutrition_coaching?: boolean
           role?: Database["public"]["Enums"]["user_role"]
           share_pbs?: boolean
           station_id?: string | null
@@ -1315,6 +1318,11 @@ export type Database = {
         Args: { allowed: boolean; member: string }
         Returns: undefined
       }
+      set_nutrition_coaching: {
+        Args: { enabled: boolean; member: string }
+        Returns: undefined
+      }
+      has_nutrition_coaching: { Args: { member: string }; Returns: boolean }
       shares_my_station: { Args: { target: string }; Returns: boolean }
     }
     Enums: {

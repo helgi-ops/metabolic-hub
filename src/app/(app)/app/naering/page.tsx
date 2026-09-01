@@ -123,6 +123,13 @@ export default async function NaeringPage({
   const customFoods = (foods ?? []) as CustomFood[];
   const targets = targetRow ?? null;
 
+  const { data: prof } = await supabase
+    .from("profiles")
+    .select("nutrition_coaching")
+    .eq("id", user.id)
+    .maybeSingle();
+  const coachingOn = !!prof?.nutrition_coaching;
+
   const totals = {
     kcal: sum(entries, "kcal"),
     protein: sum(entries, "protein_g"),
@@ -181,6 +188,12 @@ export default async function NaeringPage({
           handvirkt. Dagurinn leggst saman á móti markmiðunum þínum.
         </p>
       </div>
+
+      {coachingOn && (
+        <div className="mb-6 rounded-md border border-accent/40 bg-accent/10 px-4 py-2 text-sm text-accent">
+          🥗 Þjálfarinn þinn fylgist með næringunni þinni.
+        </div>
+      )}
 
       {/* Day nav */}
       <div className="mb-6 flex items-center gap-2 text-sm">
