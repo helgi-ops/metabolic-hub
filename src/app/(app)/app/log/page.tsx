@@ -50,6 +50,17 @@ function todayISO() {
   ).padStart(2, "0")}`;
 }
 
+// Monday (ISO week start) for a given date, as YYYY-MM-DD — the bucket key for
+// weekly aggregation so the trend groups a whole training week into one point.
+function weekStartISO(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  const dow = (d.getDay() + 6) % 7; // 0 = Monday
+  d.setDate(d.getDate() - dow);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
 export default async function LogPage() {
   const supabase = await createClient();
   const {
@@ -173,17 +184,18 @@ export default async function LogPage() {
     : "—";
   const totalCalories = list.reduce((sum, l) => sum + (l.calories ?? 0), 0);
 
-  // Volume trend: total training load (sett × reps × kg) summed per day. Several
-  // strength workouts on one day add up, so the trend tracks daily load over time.
-  const volumeByDay = new Map<string, number>();
+  // Volume trend: total training load (sett × reps × kg) summed per week. Every
+  // strength workout in a week adds up, so the trend tracks weekly load over time.
+  const volumeByWeek = new Map<string, number>();
   for (const l of list) {
     const v = Number(l.total_volume) || 0;
     if (v <= 0) continue;
-    volumeByDay.set(l.logged_on, (volumeByDay.get(l.logged_on) ?? 0) + v);
+    const wk = weekStartISO(l.logged_on);
+    volumeByWeek.set(wk, (volumeByWeek.get(wk) ?? 0) + v);
   }
-  const volumePoints = [...volumeByDay.entries()]
+  const volumePoints = [...volumeByWeek.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([day, v]) => ({ achieved_on: day, value: Math.round(v) }));
+    .map(([week, v]) => ({ achieved_on: week, value: Math.round(v) }));
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
@@ -274,16 +286,17 @@ export default async function LogPage() {
 
       {volumePoints.length >= 2 && (
         <div className="mb-8">
-          <h2 className="mb-3 font-semibold">Álagsþróun</h2>
+          <h2 className="mb-3 font-semibold">Álagsþróun (vikulegt)</h2>
           <ProgressChart
-            name="Heildar-álag á dag (sett × reps × kg)"
+            name="Heildar-álag á viku (sett × reps × kg)"
             unit="kg"
             higherIsBetter
             points={volumePoints}
           />
           <p className="mt-2 text-xs text-muted-foreground">
-            Samtala álags allra styrktaræfinga hvers dags. Vaxandi lína = þú ert
-            að lyfta meira yfir tíma.
+            Samtala álags allra styrktaræfinga hverrar viku (mánudagur–sunnudagur).
+            Vaxandi lína = þú ert að lyfta meira yfir tíma. Dagsetning = upphaf
+            vikunnar.
           </p>
         </div>
       )}
