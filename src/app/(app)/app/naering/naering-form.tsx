@@ -45,7 +45,9 @@ export function NaeringForm({
   recentFoods?: RecentFood[];
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"search" | "custom" | "manual">("search");
+  const [mode, setMode] = useState<
+    "search" | "custom" | "manual" | "photo"
+  >("search");
   const [meal, setMeal] = useState("breakfast");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,104 @@ export function NaeringForm({
   const [mCarbs, setMCarbs] = useState("");
   const [mFat, setMFat] = useState("");
 
+  // Photo state — the estimate returned by Claude, editable before logging.
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [pName, setPName] = useState("");
+  const [pGrams, setPGrams] = useState("");
+  const [pKcal, setPKcal] = useState("");
+  const [pProtein, setPProtein] = useState("");
+  const [pCarbs, setPCarbs] = useState("");
+  const [pFat, setPFat] = useState("");
+  const [pNote, setPNote] = useState("");
+  const [pReady, setPReady] = useState(false);
+
   const num = (v: string) => parseFloat(v.replace(",", ".")) || 0;
+
+  // Downscale an image file to keep the upload small, return base64 (no prefix).
+  function fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("read error"));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("image error"));
+        img.onload = () => {
+          const max = 1024;
+          const scale = Math.min(1, max / Math.max(img.width, img.height));
+          const w = Math.round(img.width * scale);
+          const h = Math.round(img.height * scale);
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("canvas error"));
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+          resolve(dataUrl.split(",")[1] ?? "");
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function onPhoto(file: File | null) {
+    if (!file) return;
+    setError(null);
+    setPReady(false);
+    setPhotoBusy(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const res = await fetch("/api/nutrition/photo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64, mediaType: "image/jpeg" }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? "Gat ekki metið myndina.");
+        setPhotoBusy(false);
+        return;
+      }
+      const e = json.estimate;
+      setPName(String(e.name ?? "Matur"));
+      setPGrams(e.quantity_g != null ? String(e.quantity_g) : "");
+      setPKcal(String(e.kcal ?? 0));
+      setPProtein(String(e.protein_g ?? 0));
+      setPCarbs(String(e.carbs_g ?? 0));
+      setPFat(String(e.fat_g ?? 0));
+      setPNote(e.note ? String(e.note) : "");
+      setPReady(true);
+    } catch {
+      setError("Gat ekki lesið myndina.");
+    }
+    setPhotoBusy(false);
+  }
+
+  async function addPhoto() {
+    if (!pName.trim()) return;
+    const ok = await insert({
+      name: pName.trim(),
+      brand: null,
+      source: "photo",
+      off_code: null,
+      quantity_g: pGrams.trim() ? Math.round(num(pGrams)) : null,
+      kcal: Math.round(num(pKcal)),
+      protein_g: round(num(pProtein)),
+      carbs_g: round(num(pCarbs)),
+      fat_g: round(num(pFat)),
+    });
+    if (!ok) return;
+    setPReady(false);
+    setPName("");
+    setPGrams("");
+    setPKcal("");
+    setPProtein("");
+    setPCarbs("");
+    setPFat("");
+    setPNote("");
+    router.refresh();
+  }
 
   async function runSearch() {
     if (q.trim().length < 2) return;
@@ -280,6 +379,7 @@ export function NaeringForm({
       <div className="mt-4 flex gap-2 border-b border-border">
         {([
           ["search", "Leita"],
+          ["photo", "📷 Mynd"],
           ["custom", "Mín matvæli"],
           ["manual", "Handvirkt"],
         ] as const).map(([v, label]) => (
@@ -486,6 +586,54 @@ export function NaeringForm({
             >
               {saving ? "Bæti við…" : "Bæta við"}
             </button>
+          </div>
+        )}
+
+        {mode === "photo" && (
+          <div className="space-y-3">
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-background px-4 py-6 text-sm text-muted-foreground transition hover:border-accent hover:text-foreground">
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => onPhoto(e.target.files?.[0] ?? null)}
+              />
+              {photoBusy ? "Greini mynd…" : "📷 Taktu mynd eða veldu mynd af matnum"}
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Claude áætlar macros og kaloríur út frá myndinni. Þetta er
+              ágiskun — yfirfarðu og lagaðu áður en þú skráir.
+            </p>
+
+            {pReady && (
+              <div className="space-y-3 rounded-md border border-border bg-background p-3">
+                <input
+                  value={pName}
+                  onChange={(e) => setPName(e.target.value)}
+                  placeholder="Heiti"
+                  className={field}
+                />
+                {pNote && (
+                  <p className="text-xs text-muted-foreground">{pNote}</p>
+                )}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                  <input inputMode="decimal" value={pGrams} onChange={(e) => setPGrams(e.target.value)} placeholder="g" className={field} />
+                  <input inputMode="decimal" value={pKcal} onChange={(e) => setPKcal(e.target.value)} placeholder="kcal" className={field} />
+                  <input inputMode="decimal" value={pProtein} onChange={(e) => setPProtein(e.target.value)} placeholder="Prótein g" className={field} />
+                  <input inputMode="decimal" value={pCarbs} onChange={(e) => setPCarbs(e.target.value)} placeholder="Kolvetni g" className={field} />
+                  <input inputMode="decimal" value={pFat} onChange={(e) => setPFat(e.target.value)} placeholder="Fita g" className={field} />
+                </div>
+                <button
+                  type="button"
+                  onClick={addPhoto}
+                  disabled={saving}
+                  className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
+                >
+                  {saving ? "Bæti við…" : "Bæta við"}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
