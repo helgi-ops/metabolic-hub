@@ -26,6 +26,7 @@ export default async function AchievementsPage() {
     { data: prog },
     { data: enrolls },
     { data: exBests },
+    { data: nutriDays },
   ] = await Promise.all([
     supabase
       .from("workout_logs")
@@ -38,6 +39,10 @@ export default async function AchievementsPage() {
       .eq("user_id", user.id),
     supabase.from("enrollments").select("course_id").eq("user_id", user.id),
     supabase.from("exercise_bests").select("exercise").eq("user_id", user.id),
+    supabase
+      .from("nutrition_entries")
+      .select("logged_on")
+      .eq("user_id", user.id),
   ]);
 
   const logList = logs ?? [];
@@ -104,6 +109,7 @@ export default async function AchievementsPage() {
     exerciseBests: (exBests ?? []).length,
     lessonsDone: completedLessons.size,
     coursesDone,
+    nutritionDays: new Set((nutriDays ?? []).map((n) => n.logged_on)).size,
   };
 
   const badges = evaluateBadges(stats);

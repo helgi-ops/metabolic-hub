@@ -11,6 +11,7 @@ export type BadgeStats = {
   exerciseBests: number; // distinct exercises with an auto-tracked weight best
   lessonsDone: number; // completed course lessons
   coursesDone: number; // fully completed courses
+  nutritionDays: number; // distinct days with a logged food
 };
 
 export type BadgeDef = {
@@ -43,6 +44,10 @@ export const BADGES: BadgeDef[] = [
 
   { id: "weeks4", group: "Samfellni", icon: "📅", title: "Mánuður í röð", desc: "Æfðu í 4 mismunandi vikum", metric: "activeWeeks", target: 4 },
   { id: "weeks12", group: "Samfellni", icon: "🗓️", title: "Ársfjórðungur", desc: "Æfðu í 12 mismunandi vikum", metric: "activeWeeks", target: 12 },
+
+  { id: "nutri7", group: "Næring", icon: "🥗", title: "Vika af skráningu", desc: "Skráðu mat í 7 daga", metric: "nutritionDays", target: 7 },
+  { id: "nutri30", group: "Næring", icon: "🍎", title: "Mánuður af skráningu", desc: "Skráðu mat í 30 daga", metric: "nutritionDays", target: 30 },
+  { id: "nutri100", group: "Næring", icon: "🥑", title: "100 dagar", desc: "Skráðu mat í 100 daga", metric: "nutritionDays", target: 100 },
 
   { id: "lesson1", group: "Akademía", icon: "🎓", title: "Fyrsta lexía", desc: "Kláraðu fyrstu lexíuna", metric: "lessonsDone", target: 1 },
   { id: "lesson10", group: "Akademía", icon: "📖", title: "10 lexíur", desc: "Kláraðu 10 lexíur", metric: "lessonsDone", target: 10 },

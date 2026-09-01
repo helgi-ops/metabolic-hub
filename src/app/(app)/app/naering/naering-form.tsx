@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { CustomFood } from "./page";
+import type { CustomFood, RecentFood } from "./page";
+import { BarcodeScanner } from "./barcode-scanner";
 
 const MEALS: { value: string; label: string }[] = [
   { value: "breakfast", label: "Morgunmatur" },
@@ -36,16 +37,19 @@ export function NaeringForm({
   userId,
   loggedOn,
   customFoods,
+  recentFoods = [],
 }: {
   userId: string;
   loggedOn: string;
   customFoods: CustomFood[];
+  recentFoods?: RecentFood[];
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"search" | "custom" | "manual">("search");
   const [meal, setMeal] = useState("breakfast");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
 
   // Search state
   const [q, setQ] = useState("");
@@ -210,6 +214,21 @@ export function NaeringForm({
     router.refresh();
   }
 
+  async function quickAdd(food: RecentFood) {
+    const ok = await insert({
+      name: food.name,
+      brand: food.brand,
+      source: food.source,
+      off_code: null,
+      quantity_g: food.quantity_g,
+      kcal: Math.round(Number(food.kcal) || 0),
+      protein_g: round(Number(food.protein_g) || 0),
+      carbs_g: round(Number(food.carbs_g) || 0),
+      fat_g: round(Number(food.fat_g) || 0),
+    });
+    if (ok) router.refresh();
+  }
+
   const field =
     "w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent";
   const preview = picked ? scale(picked.per100g, num(grams) || 0) : null;
@@ -235,6 +254,27 @@ export function NaeringForm({
           </button>
         ))}
       </div>
+
+      {/* Recent foods — one-tap re-log into the selected meal */}
+      {recentFoods.length > 0 && (
+        <div className="mt-3">
+          <div className="mb-1 text-xs text-muted-foreground">Nýlegt</div>
+          <div className="flex flex-wrap gap-1.5">
+            {recentFoods.map((f, i) => (
+              <button
+                key={`${f.name}-${i}`}
+                type="button"
+                onClick={() => quickAdd(f)}
+                disabled={saving}
+                title={`${Math.round(Number(f.kcal) || 0)} kcal`}
+                className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition hover:border-accent hover:text-foreground disabled:opacity-50"
+              >
+                + {f.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Mode */}
       <div className="mt-4 flex gap-2 border-b border-border">
@@ -276,6 +316,14 @@ export function NaeringForm({
                 className="shrink-0 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
               >
                 {searching ? "Leita…" : "Leita"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setScanning(true)}
+                title="Skanna strikamerki"
+                className="shrink-0 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground transition hover:border-accent hover:text-foreground"
+              >
+                📷
               </button>
             </div>
 
@@ -443,6 +491,19 @@ export function NaeringForm({
       </div>
 
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
+
+      {scanning && (
+        <BarcodeScanner
+          onClose={() => setScanning(false)}
+          onFound={(p) => {
+            setMode("search");
+            setPicked(p);
+            setGrams(p.serving_g ? String(p.serving_g) : "100");
+            setResults([]);
+            setScanning(false);
+          }}
+        />
+      )}
     </div>
   );
 }

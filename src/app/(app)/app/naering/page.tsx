@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NaeringForm } from "./naering-form";
 import { NaeringEntries } from "./naering-entries";
 import { TargetsForm } from "./targets-form";
+import { ProgressChart } from "../personal-bests/progress-chart";
 
 export const metadata = { title: "Næring · Metabolic" };
 
@@ -27,6 +28,17 @@ export type CustomFood = {
   brand: string | null;
   basis: string;
   serving_g: number | null;
+  kcal: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+};
+
+export type RecentFood = {
+  name: string;
+  brand: string | null;
+  source: string;
+  quantity_g: number | null;
   kcal: number | null;
   protein_g: number | null;
   carbs_g: number | null;
@@ -65,37 +77,47 @@ export default async function NaeringPage({
 
   const today = todayISO();
   const selected = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : today;
-  const weekAgo = shiftDate(selected, -6);
 
-  const [{ data: dayRows }, { data: weekRows }, { data: targetRow }, { data: foods }] =
-    await Promise.all([
-      supabase
-        .from("nutrition_entries")
-        .select(
-          "id, logged_on, meal, name, brand, source, quantity_g, kcal, protein_g, carbs_g, fat_g",
-        )
-        .eq("user_id", user.id)
-        .eq("logged_on", selected)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("nutrition_entries")
-        .select("logged_on, kcal, protein_g, carbs_g, fat_g")
-        .eq("user_id", user.id)
-        .gte("logged_on", weekAgo)
-        .lte("logged_on", selected),
-      supabase
-        .from("nutrition_targets")
-        .select("kcal, protein_g, carbs_g, fat_g")
-        .eq("user_id", user.id)
-        .maybeSingle(),
-      supabase
-        .from("custom_foods")
-        .select(
-          "id, name, brand, basis, serving_g, kcal, protein_g, carbs_g, fat_g",
-        )
-        .eq("user_id", user.id)
-        .order("name", { ascending: true }),
-    ]);
+  const [
+    { data: dayRows },
+    { data: weekRows },
+    { data: targetRow },
+    { data: foods },
+    { data: recentRows },
+  ] = await Promise.all([
+    supabase
+      .from("nutrition_entries")
+      .select(
+        "id, logged_on, meal, name, brand, source, quantity_g, kcal, protein_g, carbs_g, fat_g",
+      )
+      .eq("user_id", user.id)
+      .eq("logged_on", selected)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("nutrition_entries")
+      .select("logged_on, kcal")
+      .eq("user_id", user.id)
+      .gte("logged_on", shiftDate(selected, -13))
+      .lte("logged_on", selected),
+    supabase
+      .from("nutrition_targets")
+      .select("kcal, protein_g, carbs_g, fat_g")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("custom_foods")
+      .select(
+        "id, name, brand, basis, serving_g, kcal, protein_g, carbs_g, fat_g",
+      )
+      .eq("user_id", user.id)
+      .order("name", { ascending: true }),
+    supabase
+      .from("nutrition_entries")
+      .select("name, brand, source, quantity_g, kcal, protein_g, carbs_g, fat_g")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(60),
+  ]);
 
   const entries = (dayRows ?? []) as Entry[];
   const customFoods = (foods ?? []) as CustomFood[];
@@ -108,7 +130,8 @@ export default async function NaeringPage({
     fat: sum(entries, "fat_g"),
   };
 
-  // Weekly average over the days that actually have entries.
+  // Daily kcal over the last 14 days (up to the selected day) — average over the
+  // days that actually have entries, plus a trend line.
   const byDay = new Map<string, number>();
   for (const r of weekRows ?? []) {
     byDay.set(r.logged_on, (byDay.get(r.logged_on) ?? 0) + (Number(r.kcal) || 0));
@@ -117,6 +140,20 @@ export default async function NaeringPage({
   const avgKcal = daysWithData
     ? Math.round([...byDay.values()].reduce((a, b) => a + b, 0) / daysWithData)
     : 0;
+  const trendPoints = [...byDay.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([day, kcal]) => ({ achieved_on: day, value: Math.round(kcal) }));
+
+  // Most-used recent foods for one-tap re-logging.
+  const seen = new Set<string>();
+  const recentFoods = ((recentRows ?? []) as RecentFood[])
+    .filter((r) => {
+      const key = r.name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8);
 
   const prettyDate =
     selected === today
@@ -224,6 +261,7 @@ export default async function NaeringPage({
           userId={user.id}
           loggedOn={selected}
           customFoods={customFoods}
+          recentFoods={recentFoods}
         />
       </div>
 
@@ -233,15 +271,25 @@ export default async function NaeringPage({
         <NaeringEntries entries={entries} />
       </div>
 
-      {/* Weekly average */}
+      {/* Trend + average (last 14 days) */}
       {daysWithData > 0 && (
-        <div className="rounded-lg border border-border bg-muted p-5">
-          <div className="text-xs uppercase tracking-widest text-muted-foreground">
-            Vikumeðaltal ({daysWithData} {daysWithData === 1 ? "dagur" : "dagar"})
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-lg border border-border bg-muted p-5">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">
+              Meðaltal ({daysWithData} {daysWithData === 1 ? "dagur" : "dagar"})
+            </div>
+            <div className="mt-1 text-2xl font-bold">
+              {avgKcal.toLocaleString("is-IS")} kcal/dag
+            </div>
           </div>
-          <div className="mt-1 text-2xl font-bold">
-            {avgKcal.toLocaleString("is-IS")} kcal/dag
-          </div>
+          {trendPoints.length >= 2 && (
+            <ProgressChart
+              name="Kaloríur/dag"
+              unit="kcal"
+              higherIsBetter
+              points={trendPoints}
+            />
+          )}
         </div>
       )}
     </main>
