@@ -573,10 +573,22 @@ export function NaeringForm({
               className={field}
             />
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <input inputMode="decimal" value={mKcal} onChange={(e) => setMKcal(e.target.value)} placeholder="kcal" className={field} />
-              <input inputMode="decimal" value={mProtein} onChange={(e) => setMProtein(e.target.value)} placeholder="Prótein g" className={field} />
-              <input inputMode="decimal" value={mCarbs} onChange={(e) => setMCarbs(e.target.value)} placeholder="Kolvetni g" className={field} />
-              <input inputMode="decimal" value={mFat} onChange={(e) => setMFat(e.target.value)} placeholder="Fita g" className={field} />
+              <label className="block">
+                <span className="mb-1 block text-xs text-muted-foreground">Kaloríur</span>
+                <input inputMode="decimal" value={mKcal} onChange={(e) => setMKcal(e.target.value)} placeholder="kcal" className={field} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-muted-foreground">Prótein (g)</span>
+                <input inputMode="decimal" value={mProtein} onChange={(e) => setMProtein(e.target.value)} placeholder="g" className={field} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-muted-foreground">Kolvetni (g)</span>
+                <input inputMode="decimal" value={mCarbs} onChange={(e) => setMCarbs(e.target.value)} placeholder="g" className={field} />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-muted-foreground">Fita (g)</span>
+                <input inputMode="decimal" value={mFat} onChange={(e) => setMFat(e.target.value)} placeholder="g" className={field} />
+              </label>
             </div>
             <button
               type="button"
@@ -618,11 +630,26 @@ export function NaeringForm({
                   <p className="text-xs text-muted-foreground">{pNote}</p>
                 )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                  <input inputMode="decimal" value={pGrams} onChange={(e) => setPGrams(e.target.value)} placeholder="g" className={field} />
-                  <input inputMode="decimal" value={pKcal} onChange={(e) => setPKcal(e.target.value)} placeholder="kcal" className={field} />
-                  <input inputMode="decimal" value={pProtein} onChange={(e) => setPProtein(e.target.value)} placeholder="Prótein g" className={field} />
-                  <input inputMode="decimal" value={pCarbs} onChange={(e) => setPCarbs(e.target.value)} placeholder="Kolvetni g" className={field} />
-                  <input inputMode="decimal" value={pFat} onChange={(e) => setPFat(e.target.value)} placeholder="Fita g" className={field} />
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-muted-foreground">Magn (g)</span>
+                    <input inputMode="decimal" value={pGrams} onChange={(e) => setPGrams(e.target.value)} placeholder="g" className={field} />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-muted-foreground">Kaloríur</span>
+                    <input inputMode="decimal" value={pKcal} onChange={(e) => setPKcal(e.target.value)} placeholder="kcal" className={field} />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-muted-foreground">Prótein (g)</span>
+                    <input inputMode="decimal" value={pProtein} onChange={(e) => setPProtein(e.target.value)} placeholder="g" className={field} />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-muted-foreground">Kolvetni (g)</span>
+                    <input inputMode="decimal" value={pCarbs} onChange={(e) => setPCarbs(e.target.value)} placeholder="g" className={field} />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs text-muted-foreground">Fita (g)</span>
+                    <input inputMode="decimal" value={pFat} onChange={(e) => setPFat(e.target.value)} placeholder="g" className={field} />
+                  </label>
                 </div>
                 <button
                   type="button"
