@@ -1,40 +1,51 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { garminConfigured } from "@/lib/garmin/config";
-import { GarminConnect } from "./garmin-connect";
+import { terraConfigured } from "@/lib/terra/config";
+import { TerraConnect } from "./terra-connect";
 
 export const metadata = { title: "Tengingar · Metabolic" };
 
 const STATUS: Record<string, { text: string; tone: "ok" | "err" | "info" }> = {
-  connected: { text: "Garmin er tengt ✓", tone: "ok" },
+  connected: { text: "Úrið er tengt ✓", tone: "ok" },
   error: { text: "Tengingin tókst ekki — reyndu aftur.", tone: "err" },
   unconfigured: {
-    text: "Garmin-tengingin er ekki tilbúin enn (beðið eftir aðgangi).",
+    text: "Úra-tengingin er ekki tilbúin enn (í uppsetningu).",
     tone: "info",
   },
+};
+
+const PROVIDER_LABEL: Record<string, string> = {
+  GARMIN: "Garmin",
+  FITBIT: "Fitbit",
+  POLAR: "Polar",
+  SUUNTO: "Suunto",
+  OURA: "Oura",
+  APPLE: "Apple Watch",
+  COROS: "Coros",
+  GOOGLE: "Google Fit",
 };
 
 export default async function TengingarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ garmin?: string }>;
+  searchParams: Promise<{ terra?: string }>;
 }) {
-  const { garmin } = await searchParams;
+  const { terra } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: conn } = await supabase
-    .from("garmin_connections")
-    .select("connected_at")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const { data: conns } = await supabase
+    .from("terra_connections")
+    .select("provider, connected_at")
+    .eq("user_id", user.id);
 
-  const connected = !!conn;
-  const configured = garminConfigured();
-  const status = garmin ? STATUS[garmin] : null;
+  const list = conns ?? [];
+  const connected = list.length > 0;
+  const configured = terraConfigured();
+  const status = terra ? STATUS[terra] : null;
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
@@ -44,9 +55,9 @@ export default async function TengingarPage({
         </div>
         <h1 className="mt-2 text-3xl font-bold">Tengja úr og tæki</h1>
         <p className="mt-2 text-muted-foreground">
-          Tengdu Garmin-úrið þitt til að láta æfingar skrást sjálfkrafa í
-          Dagbókina — kaloríur, púls og tími rata beint inn og telja á
-          leaderboardið.
+          Tengdu úrið þitt til að láta æfingar skrást sjálfkrafa í Dagbókina —
+          kaloríur, púls og tími rata beint inn og telja á leaderboardið.
+          Styður Garmin, Apple Watch, Polar, Fitbit, Suunto, Oura o.fl.
         </p>
       </div>
 
@@ -66,15 +77,23 @@ export default async function TengingarPage({
 
       <div className="rounded-lg border border-border bg-muted p-5">
         <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="font-semibold">Garmin Connect</div>
+          <div className="min-w-0">
+            <div className="font-semibold">Úra-tenging</div>
             <div className="mt-0.5 text-sm text-muted-foreground">
               {connected
-                ? "Tengt — nýjar æfingar birtast sjálfkrafa í Dagbók."
+                ? `Tengt: ${
+                    list
+                      .map((c) =>
+                        c.provider
+                          ? (PROVIDER_LABEL[c.provider] ?? c.provider)
+                          : "úr",
+                      )
+                      .join(", ")
+                  } — nýjar æfingar birtast sjálfkrafa.`
                 : "Ekki tengt."}
             </div>
           </div>
-          <GarminConnect
+          <TerraConnect
             connected={connected}
             configured={configured}
             userId={user.id}

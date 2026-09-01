@@ -185,7 +185,8 @@ export default async function LogPage() {
           href="/app/tengingar"
           className="mt-3 inline-flex items-center gap-1 text-sm text-accent hover:underline"
         >
-          ⌚ Tengja Garmin úr — láttu æfingar skrást sjálfkrafa →
+          ⌚ Tengja úr (Garmin, Apple Watch, Polar…) — láttu æfingar skrást
+          sjálfkrafa →
         </a>
       </div>
 

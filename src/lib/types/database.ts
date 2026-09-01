@@ -940,6 +940,36 @@ export type Database = {
           },
         ]
       }
+      terra_connections: {
+        Row: {
+          connected_at: string
+          id: string
+          provider: string | null
+          reference_id: string | null
+          terra_user_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string
+          id?: string
+          provider?: string | null
+          reference_id?: string | null
+          terra_user_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connected_at?: string
+          id?: string
+          provider?: string | null
+          reference_id?: string | null
+          terra_user_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       weekly_plans: {
         Row: {
           created_at: string
