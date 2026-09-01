@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
-// Food search via Open Food Facts (free, no key). Two sources, best-effort:
-//  1. Search-a-licious (search.openfoodfacts.org) — much better full-text
-//     relevance, incl. Icelandic product names.
-//  2. Legacy cgi/search.pl — fallback if the first returns nothing/errors.
-// Normalised to per-100g macros; energy recovered from kJ when kcal is missing.
-// NOTE: OFF is a *branded product* database — generic whole foods (an apple,
-// plain oats) are sparse; those are best covered by custom foods / an ÍSGEM
-// import.
+// Food search, two sources merged:
+//  1. foods_is — the Icelandic ÍSGEM reference table (generic whole foods:
+//     epli, brauð, kjöt, fiskur …), macros per 100g. Shown first.
+//  2. Open Food Facts (free, no key) — branded/packaged products. Search-a-licious
+//     first, legacy cgi/search.pl as fallback; energy recovered from kJ.
 
 const UA = "MetabolicHub/1.0 (helgi@metabolic.is)";
+
+type Result = {
+  code: string | null;
+  name: string;
+  brand: string | null;
+  per100g: { kcal: number; protein: number; carbs: number; fat: number };
+  serving_g: number | null;
+};
 
 type Nutriments = Record<string, number | string | undefined>;
 type Product = {
@@ -30,12 +36,11 @@ function num(v: number | string | undefined): number | null {
 function energyKcal(n: Nutriments): number | null {
   const kcal = num(n["energy-kcal_100g"]);
   if (kcal != null) return kcal;
-  // OFF stores energy_100g in kJ; recover an approximate kcal.
   const kj = num(n["energy-kj_100g"]) ?? num(n["energy_100g"]);
   return kj != null ? Math.round(kj / 4.184) : null;
 }
 
-function normalize(p: Product) {
+function normalizeOff(p: Product): Result | null {
   const n = p.nutriments ?? {};
   const kcal = energyKcal(n);
   const name = (p.product_name || p.product_name_is || "").trim();
@@ -71,18 +76,46 @@ async function fetchJson(url: string): Promise<unknown | null> {
   }
 }
 
-export async function GET(request: Request) {
-  const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
-  if (q.length < 2) return NextResponse.json({ results: [] });
-  const enc = encodeURIComponent(q);
+async function searchIcelandic(q: string): Promise<Result[]> {
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase
+      .from("foods_is")
+      .select("name, kcal, protein_g, carbs_g, fat_g")
+      .ilike("name", `%${q}%`)
+      .limit(30);
+    const ql = q.toLowerCase();
+    return (data ?? [])
+      .map((r) => ({
+        code: null,
+        name: r.name,
+        brand: "ÍSGEM",
+        per100g: {
+          kcal: Number(r.kcal) || 0,
+          protein: Number(r.protein_g) || 0,
+          carbs: Number(r.carbs_g) || 0,
+          fat: Number(r.fat_g) || 0,
+        },
+        serving_g: null,
+      }))
+      // names that start with the query first, then alphabetical
+      .sort((a, b) => {
+        const as = a.name.toLowerCase().startsWith(ql) ? 0 : 1;
+        const bs = b.name.toLowerCase().startsWith(ql) ? 0 : 1;
+        return as - bs || a.name.localeCompare(b.name, "is");
+      })
+      .slice(0, 12);
+  } catch {
+    return [];
+  }
+}
 
-  // 1. Search-a-licious (better relevance).
+async function searchOff(q: string): Promise<Result[]> {
+  const enc = encodeURIComponent(q);
   const sal = (await fetchJson(
     `https://search.openfoodfacts.org/search?q=${enc}&page_size=25`,
   )) as { hits?: Product[] } | null;
   let products: Product[] = sal?.hits ?? [];
-
-  // 2. Fallback to the legacy endpoint if nothing came back.
   if (products.length === 0) {
     const legacy = (await fetchJson(
       `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${enc}` +
@@ -90,18 +123,27 @@ export async function GET(request: Request) {
     )) as { products?: Product[] } | null;
     products = legacy?.products ?? [];
   }
+  return products
+    .map(normalizeOff)
+    .filter((r): r is Result => r !== null);
+}
+
+export async function GET(request: Request) {
+  const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
+  if (q.length < 2) return NextResponse.json({ results: [] });
+
+  // Icelandic reference foods first, then branded products from OFF.
+  const [local, off] = await Promise.all([searchIcelandic(q), searchOff(q)]);
 
   const seen = new Set<string>();
-  const results = products
-    .map(normalize)
-    .filter((r): r is NonNullable<typeof r> => r !== null)
+  const results = [...local, ...off]
     .filter((r) => {
       const key = `${r.name}|${r.brand ?? ""}`.toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     })
-    .slice(0, 20);
+    .slice(0, 25);
 
   return NextResponse.json({ results });
 }

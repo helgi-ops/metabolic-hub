@@ -468,6 +468,39 @@ export type Database = {
         }
         Relationships: []
       }
+      foods_is: {
+        Row: {
+          carbs_g: number | null
+          category: string | null
+          created_at: string
+          fat_g: number | null
+          id: number
+          kcal: number | null
+          name: string
+          protein_g: number | null
+        }
+        Insert: {
+          carbs_g?: number | null
+          category?: string | null
+          created_at?: string
+          fat_g?: number | null
+          id?: number
+          kcal?: number | null
+          name: string
+          protein_g?: number | null
+        }
+        Update: {
+          carbs_g?: number | null
+          category?: string | null
+          created_at?: string
+          fat_g?: number | null
+          id?: number
+          kcal?: number | null
+          name?: string
+          protein_g?: number | null
+        }
+        Relationships: []
+      }
       garmin_connections: {
         Row: {
           access_token: string | null
