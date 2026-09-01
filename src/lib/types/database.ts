@@ -217,6 +217,48 @@ export type Database = {
         }
         Relationships: []
       }
+      custom_foods: {
+        Row: {
+          basis: string
+          brand: string | null
+          carbs_g: number | null
+          created_at: string
+          fat_g: number | null
+          id: string
+          kcal: number | null
+          name: string
+          protein_g: number | null
+          serving_g: number | null
+          user_id: string
+        }
+        Insert: {
+          basis?: string
+          brand?: string | null
+          carbs_g?: number | null
+          created_at?: string
+          fat_g?: number | null
+          id?: string
+          kcal?: number | null
+          name: string
+          protein_g?: number | null
+          serving_g?: number | null
+          user_id: string
+        }
+        Update: {
+          basis?: string
+          brand?: string | null
+          carbs_g?: number | null
+          created_at?: string
+          fat_g?: number | null
+          id?: string
+          kcal?: number | null
+          name?: string
+          protein_g?: number | null
+          serving_g?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_signups: {
         Row: {
           created_at: string
@@ -578,6 +620,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      nutrition_entries: {
+        Row: {
+          brand: string | null
+          carbs_g: number | null
+          created_at: string
+          fat_g: number | null
+          id: string
+          kcal: number | null
+          logged_on: string
+          meal: string | null
+          name: string
+          off_code: string | null
+          protein_g: number | null
+          quantity_g: number | null
+          source: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand?: string | null
+          carbs_g?: number | null
+          created_at?: string
+          fat_g?: number | null
+          id?: string
+          kcal?: number | null
+          logged_on?: string
+          meal?: string | null
+          name: string
+          off_code?: string | null
+          protein_g?: number | null
+          quantity_g?: number | null
+          source?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brand?: string | null
+          carbs_g?: number | null
+          created_at?: string
+          fat_g?: number | null
+          id?: string
+          kcal?: number | null
+          logged_on?: string
+          meal?: string | null
+          name?: string
+          off_code?: string | null
+          protein_g?: number | null
+          quantity_g?: number | null
+          source?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      nutrition_targets: {
+        Row: {
+          carbs_g: number | null
+          fat_g: number | null
+          kcal: number | null
+          protein_g: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          carbs_g?: number | null
+          fat_g?: number | null
+          kcal?: number | null
+          protein_g?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          carbs_g?: number | null
+          fat_g?: number | null
+          kcal?: number | null
+          protein_g?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       personal_bests: {
         Row: {

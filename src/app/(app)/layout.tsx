@@ -113,6 +113,12 @@ export default async function AppLayout({
                 Dagbók
               </Link>
               <Link
+                href="/app/naering"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Næring
+              </Link>
+              <Link
                 href="/app/leaderboard"
                 className="text-muted-foreground hover:text-foreground"
               >
@@ -191,6 +197,12 @@ export default async function AppLayout({
             className="whitespace-nowrap text-muted-foreground"
           >
             Dagbók
+          </Link>
+          <Link
+            href="/app/naering"
+            className="whitespace-nowrap text-muted-foreground"
+          >
+            Næring
           </Link>
           <Link
             href="/app/leaderboard"
