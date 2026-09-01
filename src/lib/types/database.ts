@@ -1253,8 +1253,10 @@ export type Database = {
           scheduled_day: string | null
           source: string | null
           structure_source_id: string | null
+          total_volume: number | null
           updated_at: string
           user_id: string
+          volume_json: Json | null
           weights: string | null
           weights_json: Json | null
         }
@@ -1274,8 +1276,10 @@ export type Database = {
           scheduled_day?: string | null
           source?: string | null
           structure_source_id?: string | null
+          total_volume?: number | null
           updated_at?: string
           user_id: string
+          volume_json?: Json | null
           weights?: string | null
           weights_json?: Json | null
         }
@@ -1295,8 +1299,10 @@ export type Database = {
           scheduled_day?: string | null
           source?: string | null
           structure_source_id?: string | null
+          total_volume?: number | null
           updated_at?: string
           user_id?: string
+          volume_json?: Json | null
           weights?: string | null
           weights_json?: Json | null
         }

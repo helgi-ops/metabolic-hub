@@ -31,6 +31,7 @@ export type Log = {
   calories: number | null;
   machine: string | null;
   machines_json: Record<string, string> | null;
+  total_volume: number | null;
   notes: string | null;
   activity: string | null;
 };
@@ -105,6 +106,7 @@ export function LogHistory({ logs }: { logs: Log[] }) {
               <th className="px-4 py-2 font-medium">Dags.</th>
               <th className="px-4 py-2 font-medium">RPE</th>
               <th className="px-4 py-2 font-medium">Þyngdir</th>
+              <th className="px-4 py-2 text-right font-medium">Volume</th>
               <th className="px-4 py-2 font-medium">Kaloríur</th>
               <th className="px-4 py-2 font-medium">Athugasemd</th>
               <th className="px-4 py-2 text-right font-medium">Aðgerðir</th>
@@ -131,6 +133,11 @@ export function LogHistory({ logs }: { logs: Log[] }) {
                   ) : (
                     summarizeWeights(l.weights)
                   )}
+                </td>
+                <td className="whitespace-nowrap px-4 py-2 text-right text-muted-foreground">
+                  {l.total_volume
+                    ? `${Math.round(Number(l.total_volume)).toLocaleString("is-IS")} kg`
+                    : ""}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
                   {l.calories != null
