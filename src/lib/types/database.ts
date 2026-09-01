@@ -708,6 +708,39 @@ export type Database = {
         }
         Relationships: []
       }
+      nutrition_profile: {
+        Row: {
+          base_activity: string
+          birth_year: number | null
+          goal: string
+          height_cm: number | null
+          sex: string | null
+          updated_at: string
+          user_id: string
+          weight_kg: number | null
+        }
+        Insert: {
+          base_activity?: string
+          birth_year?: number | null
+          goal?: string
+          height_cm?: number | null
+          sex?: string | null
+          updated_at?: string
+          user_id: string
+          weight_kg?: number | null
+        }
+        Update: {
+          base_activity?: string
+          birth_year?: number | null
+          goal?: string
+          height_cm?: number | null
+          sex?: string | null
+          updated_at?: string
+          user_id?: string
+          weight_kg?: number | null
+        }
+        Relationships: []
+      }
       nutrition_targets: {
         Row: {
           carbs_g: number | null

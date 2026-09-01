@@ -5,6 +5,18 @@ import { NaeringForm } from "./naering-form";
 import { NaeringEntries } from "./naering-entries";
 import { TargetsForm } from "./targets-form";
 import { ProgressChart } from "../personal-bests/progress-chart";
+import { EnergyCard, type Need, type Suggested } from "./energy-card";
+import {
+  ageFromBirthYear,
+  baseMaintenance,
+  suggestTargets,
+  trainingKcalForDay,
+  trainingKcalForLog,
+  type BaseActivity,
+  type Goal,
+  type Sex,
+  type WorkoutLog,
+} from "@/lib/nutrition/energy";
 
 export const metadata = { title: "Næring · Metabolic" };
 
@@ -84,6 +96,9 @@ export default async function NaeringPage({
     { data: targetRow },
     { data: foods },
     { data: recentRows },
+    { data: profileRow },
+    { data: dayWorkouts },
+    { data: weekWorkouts },
   ] = await Promise.all([
     supabase
       .from("nutrition_entries")
@@ -117,6 +132,22 @@ export default async function NaeringPage({
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(60),
+    supabase
+      .from("nutrition_profile")
+      .select("sex, birth_year, height_cm, weight_kg, base_activity, goal")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("workout_logs")
+      .select("calories, machine, machines_json, rpe, scheduled_category")
+      .eq("user_id", user.id)
+      .eq("logged_on", selected),
+    supabase
+      .from("workout_logs")
+      .select("logged_on, calories, machine, machines_json, rpe, scheduled_category")
+      .eq("user_id", user.id)
+      .gte("logged_on", shiftDate(selected, -13))
+      .lte("logged_on", selected),
   ]);
 
   const entries = (dayRows ?? []) as Entry[];
@@ -136,6 +167,52 @@ export default async function NaeringPage({
     carbs: sum(entries, "carbs_g"),
     fat: sum(entries, "fat_g"),
   };
+
+  // Estimated daily energy need (BMR + base lifestyle + this day's training),
+  // and a suggested macro target from a representative TDEE (base + avg training
+  // per day over the last 14 days) adjusted for the member's goal.
+  const profileRowData = profileRow ?? null;
+  let need: Need | null = null;
+  let suggested: Suggested | null = null;
+  if (
+    profileRowData?.sex &&
+    profileRowData.birth_year &&
+    profileRowData.height_cm &&
+    profileRowData.weight_kg
+  ) {
+    const p = {
+      sex: profileRowData.sex as Sex,
+      age: ageFromBirthYear(profileRowData.birth_year),
+      heightCm: Number(profileRowData.height_cm),
+      weightKg: Number(profileRowData.weight_kg),
+      base_activity: profileRowData.base_activity as BaseActivity,
+      goal: profileRowData.goal as Goal,
+    };
+    const base = baseMaintenance(p);
+    const dayTrain = trainingKcalForDay(
+      (dayWorkouts ?? []) as unknown as WorkoutLog[],
+      p.weightKg,
+    );
+    need = {
+      base,
+      training: dayTrain.kcal,
+      total: base + dayTrain.kcal,
+      estimated: dayTrain.estimated,
+    };
+    const perDay = new Map<string, number>();
+    for (const w of (weekWorkouts ?? []) as unknown as (WorkoutLog & {
+      logged_on: string;
+    })[]) {
+      perDay.set(
+        w.logged_on,
+        (perDay.get(w.logged_on) ?? 0) + trainingKcalForLog(w, p.weightKg).kcal,
+      );
+    }
+    const avgTrain = Math.round(
+      [...perDay.values()].reduce((a, b) => a + b, 0) / 14,
+    );
+    suggested = suggestTargets(base + avgTrain, p.goal, p.weightKg);
+  }
 
   // Daily kcal over the last 14 days (up to the selected day) — average over the
   // days that actually have entries, plus a trend line.
@@ -267,6 +344,15 @@ export default async function NaeringPage({
           </p>
         )}
       </div>
+
+      {/* Estimated energy need */}
+      <EnergyCard
+        userId={user.id}
+        profile={profileRowData}
+        need={need}
+        suggested={suggested}
+        intakeKcal={totals.kcal}
+      />
 
       {/* Add food */}
       <div className="mb-8">

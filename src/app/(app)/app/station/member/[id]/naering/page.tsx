@@ -2,6 +2,15 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ProgressChart } from "../../../../personal-bests/progress-chart";
+import {
+  ageFromBirthYear,
+  baseMaintenance,
+  trainingKcalForLog,
+  type BaseActivity,
+  type Goal,
+  type Sex,
+  type WorkoutLog,
+} from "@/lib/nutrition/energy";
 
 export const metadata = { title: "Næring iðkanda · Metabolic" };
 
@@ -57,22 +66,66 @@ export default async function CoachNutritionPage({
   const today = new Date().toISOString().slice(0, 10);
   const since = shiftDate(today, -13);
 
-  const [{ data: rows }, { data: targetRow }] = await Promise.all([
-    supabase
-      .from("nutrition_entries")
-      .select("logged_on, kcal, protein_g, carbs_g, fat_g")
-      .eq("user_id", id)
-      .gte("logged_on", since)
-      .lte("logged_on", today),
-    supabase
-      .from("nutrition_targets")
-      .select("kcal, protein_g, carbs_g, fat_g")
-      .eq("user_id", id)
-      .maybeSingle(),
-  ]);
+  const [{ data: rows }, { data: targetRow }, { data: profRow }, { data: wLogs }] =
+    await Promise.all([
+      supabase
+        .from("nutrition_entries")
+        .select("logged_on, kcal, protein_g, carbs_g, fat_g")
+        .eq("user_id", id)
+        .gte("logged_on", since)
+        .lte("logged_on", today),
+      supabase
+        .from("nutrition_targets")
+        .select("kcal, protein_g, carbs_g, fat_g")
+        .eq("user_id", id)
+        .maybeSingle(),
+      supabase
+        .from("nutrition_profile")
+        .select("sex, birth_year, height_cm, weight_kg, base_activity, goal")
+        .eq("user_id", id)
+        .maybeSingle(),
+      supabase
+        .from("workout_logs")
+        .select("logged_on, calories, machine, machines_json, rpe, scheduled_category")
+        .eq("user_id", id)
+        .gte("logged_on", since)
+        .lte("logged_on", today),
+    ]);
 
   const entries = (rows ?? []) as Row[];
   const targets = targetRow ?? null;
+
+  // Representative daily energy need for the coach (base + avg training/day).
+  let energyNeed: number | null = null;
+  if (
+    profRow?.sex &&
+    profRow.birth_year &&
+    profRow.height_cm &&
+    profRow.weight_kg
+  ) {
+    const weight = Number(profRow.weight_kg);
+    const base = baseMaintenance({
+      sex: profRow.sex as Sex,
+      age: ageFromBirthYear(profRow.birth_year),
+      heightCm: Number(profRow.height_cm),
+      weightKg: weight,
+      base_activity: profRow.base_activity as BaseActivity,
+      goal: profRow.goal as Goal,
+    });
+    const perDay = new Map<string, number>();
+    for (const w of (wLogs ?? []) as unknown as (WorkoutLog & {
+      logged_on: string;
+    })[]) {
+      perDay.set(
+        w.logged_on,
+        (perDay.get(w.logged_on) ?? 0) + trainingKcalForLog(w, weight).kcal,
+      );
+    }
+    const avgTrain = Math.round(
+      [...perDay.values()].reduce((a, b) => a + b, 0) / 14,
+    );
+    energyNeed = base + avgTrain;
+  }
 
   // Aggregate per day.
   const byDay = new Map<
@@ -121,6 +174,15 @@ export default async function CoachNutritionPage({
         </div>
       ) : (
         <>
+          {energyNeed != null && (
+            <div className="mb-3 rounded-lg border border-border bg-muted p-4 text-sm">
+              <span className="font-medium">Áætluð orkuþörf:</span> ~
+              {energyNeed.toLocaleString("is-IS")} kcal/dag{" "}
+              <span className="text-muted-foreground">
+                (grunnbrennsla + meðal-æfingaorka)
+              </span>
+            </div>
+          )}
           {targets && (
             <div className="mb-6 rounded-lg border border-border bg-muted p-4 text-sm">
               <span className="font-medium">Markmið:</span>{" "}
