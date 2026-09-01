@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LogForm } from "./log-form";
 import { LogHistory } from "./log-history";
+import { ProgressChart } from "../personal-bests/progress-chart";
 
 export const metadata = {
   title: "Æfingadagbók · Metabolic",
@@ -172,6 +173,18 @@ export default async function LogPage() {
     : "—";
   const totalCalories = list.reduce((sum, l) => sum + (l.calories ?? 0), 0);
 
+  // Volume trend: total training load (sett × reps × kg) summed per day. Several
+  // strength workouts on one day add up, so the trend tracks daily load over time.
+  const volumeByDay = new Map<string, number>();
+  for (const l of list) {
+    const v = Number(l.total_volume) || 0;
+    if (v <= 0) continue;
+    volumeByDay.set(l.logged_on, (volumeByDay.get(l.logged_on) ?? 0) + v);
+  }
+  const volumePoints = [...volumeByDay.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([day, v]) => ({ achieved_on: day, value: Math.round(v) }));
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
       <div className="mb-8">
@@ -256,6 +269,22 @@ export default async function LogPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {volumePoints.length >= 2 && (
+        <div className="mb-8">
+          <h2 className="mb-3 font-semibold">Álagsþróun</h2>
+          <ProgressChart
+            name="Heildar-álag á dag (sett × reps × kg)"
+            unit="kg"
+            higherIsBetter
+            points={volumePoints}
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Samtala álags allra styrktaræfinga hvers dags. Vaxandi lína = þú ert
+            að lyfta meira yfir tíma.
+          </p>
         </div>
       )}
 
