@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { BackButton } from "./back-button";
+import { AppShell } from "./app-shell";
 
 export default async function AppLayout({
   children,
@@ -66,176 +65,24 @@ export default async function AppLayout({
     );
   }
 
+  // Nav items for the sidebar/drawer. Staff-only items are gated here so the
+  // client shell just renders whatever it's given.
+  const navItems = [
+    { href: "/app", label: "Yfirlit" },
+    ...(isStaff ? [{ href: "/app/programs", label: "Æfingaplön" }] : []),
+    { href: "/app/videos", label: "Æfingabanki" },
+    { href: "/app/personal-bests", label: "Mín met" },
+    { href: "/app/log", label: "Æfingadagbók" },
+    { href: "/app/naering", label: "Næringardagbók" },
+    { href: "/app/leaderboard", label: "Leaderboard" },
+    { href: "/app/afrek", label: "Afrek" },
+    { href: "/app/akademia", label: "Akademía" },
+    ...(isStaff ? [{ href: "/app/station", label: "Stöðin" }] : []),
+  ];
+
   return (
-    <div className="flex flex-col flex-1">
-      <header className="no-print border-b border-border">
-        <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4 sm:gap-8">
-            <BackButton />
-            <Link
-              href="/app"
-              className="font-mono text-sm tracking-widest uppercase"
-            >
-              Metabolic
-            </Link>
-            <nav className="hidden flex-wrap items-center gap-2 text-sm sm:flex">
-              <Link
-                href="/app"
-                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
-              >
-                Yfirlit
-              </Link>
-              {/* All staff can view the week; only builders see the builder UI. */}
-              {isStaff && (
-                <Link
-                  href="/app/programs"
-                  className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
-                >
-                  Æfingaplön
-                </Link>
-              )}
-              <Link
-                href="/app/videos"
-                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
-              >
-                Æfingabanki
-              </Link>
-              <Link
-                href="/app/personal-bests"
-                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
-              >
-                Mín met
-              </Link>
-              <Link
-                href="/app/log"
-                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
-              >
-                Æfingadagbók
-              </Link>
-              <Link
-                href="/app/naering"
-                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
-              >
-                Næringardagbók
-              </Link>
-              <Link
-                href="/app/leaderboard"
-                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
-              >
-                Leaderboard
-              </Link>
-              <Link
-                href="/app/afrek"
-                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
-              >
-                Afrek
-              </Link>
-              <Link
-                href="/app/akademia"
-                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
-              >
-                Akademía
-              </Link>
-              {isStaff && (
-                <Link
-                  href="/app/station"
-                  className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
-                >
-                  Stöðin
-                </Link>
-              )}
-            </nav>
-          </div>
-          <div className="flex items-center gap-4 text-sm">
-            <div className="hidden sm:block text-muted-foreground">
-              {profile?.full_name ?? user.email}
-            </div>
-            <Link
-              href="/breyta-lykilord"
-              className="hidden sm:block text-muted-foreground hover:text-foreground transition"
-            >
-              Lykilorð
-            </Link>
-            <form action="/auth/signout" method="post">
-              <button
-                type="submit"
-                className="text-muted-foreground hover:text-foreground transition"
-              >
-                Skrá út
-              </button>
-            </form>
-          </div>
-        </div>
-        {/* Mobile nav — the desktop nav above is hidden on phones, so the same
-            links live here as a horizontally scrollable strip. */}
-        <nav className="flex gap-2 overflow-x-auto border-t border-border px-6 py-3 text-sm sm:hidden">
-          <Link
-            href="/app"
-            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
-          >
-            Yfirlit
-          </Link>
-          {isStaff && (
-            <Link
-              href="/app/programs"
-              className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
-            >
-              Æfingaplön
-            </Link>
-          )}
-          <Link
-            href="/app/videos"
-            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
-          >
-            Æfingabanki
-          </Link>
-          <Link
-            href="/app/personal-bests"
-            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
-          >
-            Mín met
-          </Link>
-          <Link
-            href="/app/log"
-            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
-          >
-            Æfingadagbók
-          </Link>
-          <Link
-            href="/app/naering"
-            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
-          >
-            Næringardagbók
-          </Link>
-          <Link
-            href="/app/leaderboard"
-            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
-          >
-            Leaderboard
-          </Link>
-          <Link
-            href="/app/afrek"
-            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
-          >
-            Afrek
-          </Link>
-          <Link
-            href="/app/akademia"
-            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
-          >
-            Akademía
-          </Link>
-          {isStaff && (
-            <Link
-              href="/app/station"
-              className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
-            >
-              Stöðin
-            </Link>
-          )}
-        </nav>
-      </header>
-      <div className="flex-1">{children}</div>
-    </div>
+    <AppShell navItems={navItems} fullName={profile?.full_name ?? user.email ?? ""}>
+      {children}
+    </AppShell>
   );
 }
