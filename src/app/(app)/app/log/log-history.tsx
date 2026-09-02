@@ -94,8 +94,14 @@ function weightsToJson(text: string): Record<string, string> | null {
   return Object.keys(map).length ? map : null;
 }
 
+const INITIAL_ROWS = 8;
+
 export function LogHistory({ logs }: { logs: Log[] }) {
   const [editing, setEditing] = useState<Log | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  const visible = showAll ? logs : logs.slice(0, INITIAL_ROWS);
+  const hidden = logs.length - visible.length;
 
   return (
     <>
@@ -113,7 +119,7 @@ export function LogHistory({ logs }: { logs: Log[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {logs.map((l) => (
+            {visible.map((l) => (
               <tr key={l.id}>
                 <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
                   {l.logged_on}
@@ -165,6 +171,20 @@ export function LogHistory({ logs }: { logs: Log[] }) {
           </tbody>
         </table>
       </div>
+
+      {logs.length > INITIAL_ROWS && (
+        <div className="mt-3 text-center">
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground transition hover:border-accent hover:text-foreground"
+          >
+            {showAll
+              ? "Sýna minna"
+              : `Sýna fleiri (${hidden} í viðbót)`}
+          </button>
+        </div>
+      )}
 
       {editing && (
         <EditModal log={editing} onClose={() => setEditing(null)} />

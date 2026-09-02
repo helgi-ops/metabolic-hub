@@ -859,9 +859,10 @@ export function LogForm({
           />
         </label>
 
-        {/* Endurance and "önnur æfing" log kcal per machine above; hide the
-            single field then to avoid double-counting. */}
-        {!isEndurance && !isOther && (
+        {/* Endurance, "önnur æfing", and any workout that already shows the
+            per-machine kcal inputs above log kcal there — hide this single
+            field then to avoid a redundant/duplicate entry. */}
+        {!isEndurance && !isOther && cardioExercises.length === 0 && (
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-sm text-muted-foreground">
