@@ -104,7 +104,7 @@ export default async function DashboardPage() {
           <p className="text-sm text-muted-foreground">
             {streak > 0
               ? "Flott! Skráðu æfingu þessa viku til að halda röðinni."
-              : "Skráðu æfingu í Dagbók til að byrja nýja samfellni."}
+              : "Skráðu æfingu í Æfingadagbók til að byrja nýja samfellni."}
           </p>
         </div>
       </div>
@@ -115,11 +115,11 @@ export default async function DashboardPage() {
         hasLogs={hadWeekLogs}
       />
 
-      <div className="grid sm:grid-cols-3 gap-4 mb-12">
-        <Stat label="Æfingaplön" value={programCount ?? 0} />
-        <Stat label="Námskeið" value={enrollmentCount ?? 0} />
+      <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-lg border border-border bg-muted px-4 py-2.5">
+        <Stat label="æfingaplön" value={programCount ?? 0} />
+        <Stat label="námskeið" value={enrollmentCount ?? 0} />
         <Stat
-          label="Hlutverk"
+          label="hlutverk"
           value={
             profile?.role === "admin"
               ? "Admin"
@@ -132,16 +132,22 @@ export default async function DashboardPage() {
 
       <div className="grid md:grid-cols-2 gap-4">
         <Card
+          title="Æfingadagbók"
+          description="Skráðu sett, þyngdir, álag og kaloríur eftir hverja æfingu."
+          href="/app/log"
+          cta="Skrá æfingu →"
+        />
+        <Card
+          title="Næringardagbók"
+          description="Skráðu máltíðir og fylgstu með macro-um og kaloríum á móti markmiði."
+          href="/app/naering"
+          cta="Skrá næringu →"
+        />
+        <Card
           title="Mín met"
           description="Skráðu Personal Best og fylgstu með framvindunni þinni."
           href="/app/personal-bests"
           cta="Skrá met →"
-        />
-        <Card
-          title="Dagbók"
-          description="Skráðu álag, þyngdir og kaloríur eftir hverja æfingu."
-          href="/app/log"
-          cta="Skrá æfingu →"
         />
         <Card
           title="Kcal Leaderboard"
@@ -176,12 +182,10 @@ export default async function DashboardPage() {
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-lg border border-border bg-muted p-6">
-      <div className="text-xs uppercase tracking-widest text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-2 text-3xl font-bold">{value}</div>
-    </div>
+    <span className="flex items-baseline gap-1.5">
+      <span className="text-lg font-bold">{value}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </span>
   );
 }
 

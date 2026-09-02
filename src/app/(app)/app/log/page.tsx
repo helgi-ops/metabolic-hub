@@ -215,7 +215,7 @@ export default async function LogPage() {
         <div className="font-mono text-xs tracking-widest text-accent uppercase">
           Æfingadagbók
         </div>
-        <h1 className="mt-2 text-3xl font-bold">Dagbók</h1>
+        <h1 className="mt-2 text-3xl font-bold">Æfingadagbók</h1>
         <p className="mt-2 text-muted-foreground">
           Skráðu hvernig æfingin var — álag, þyngdir og kaloríur á tækjunum.
         </p>
