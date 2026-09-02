@@ -12,6 +12,24 @@ export const MACHINES: { value: string; label: string }[] = [
   { value: "other", label: "Annað" },
 ];
 
+// Cardio ergs (Assault Airbike, Concept2 row/bike/ski) are ALWAYS logged as
+// kcal — never sett × reps × kg — no matter where they appear in a workout.
+// Map a movement name (from a prescription or the exercise catalog) to its
+// machine value, or null when it's a weightable movement.
+export function machineForExercise(name: string): string | null {
+  const n = name.toLowerCase();
+  if (n.includes("assault") || n.includes("airbike") || n.includes("air bike"))
+    return "assault_airbike";
+  if (n.includes("skierg") || (n.includes("ski") && n.includes("erg")))
+    return "concept2_ski";
+  if (n.includes("concept") || n.includes("c2")) {
+    if (n.includes("ski")) return "concept2_ski";
+    if (n.includes("bike") || n.includes("hjól")) return "concept2_bike";
+    return "concept2_row"; // "Róður" / "Row" / plain Concept2
+  }
+  return null;
+}
+
 // RPE = upplifað áreynslustig. Lýsingar byggðar á öndun / "talprófi".
 const RPE_LABELS: Record<number, string> = {
   1: "Mjög létt — varla nokkur áreynsla",
@@ -143,7 +161,10 @@ export function LogForm({
     const name = exerciseSel.trim();
     if (!name) return;
     // Duplicates allowed — each pick is its own set/row.
-    setManualExercises((p) => [...p, { name, sets: "", reps: "", kg: "" }]);
+    setManualExercises((p) => [
+      ...p,
+      { name, sets: "", reps: "", kg: "", kcal: "" },
+    ]);
     setExerciseSel("");
   }
 
@@ -153,7 +174,7 @@ export function LogForm({
 
   function setManualField(
     i: number,
-    field: "sets" | "reps" | "kg",
+    field: "sets" | "reps" | "kg" | "kcal",
     value: string,
   ) {
     setManualExercises((p) =>
@@ -173,7 +194,7 @@ export function LogForm({
   // "Önnur æfing": exercises the member picked via movement-pattern → exercise.
   // Each pick is its own row (duplicates allowed), with its own sets/reps/kg.
   const [manualExercises, setManualExercises] = useState<
-    { name: string; sets: string; reps: string; kg: string }[]
+    { name: string; sets: string; reps: string; kg: string; kcal: string }[]
   >([]);
   const [patternSel, setPatternSel] = useState("");
   const [exerciseSel, setExerciseSel] = useState("");
@@ -192,6 +213,10 @@ export function LogForm({
       ? workouts.find((w) => w.structure_source_id === workoutId)
       : undefined;
   const exercises = selected ? parseExercises(selected.preview) : [];
+  // Split a planned workout's movements: cardio ergs are logged as kcal, the
+  // rest as sett × reps × kg.
+  const strengthExercises = exercises.filter((ex) => !machineForExercise(ex));
+  const cardioExercises = exercises.filter((ex) => machineForExercise(ex));
   // Endurance sessions are logged per machine (kcal), not per-exercise kg.
   const isEndurance = selected?.category === "endurance";
   const CARDIO_MACHINES = MACHINES.filter((m) => m.value !== "other");
@@ -227,6 +252,9 @@ export function LogForm({
         collected.push({ name, sets, reps, kg });
     }
     for (const m of manualExercises) {
+      // Cardio ergs are logged as kcal (handled with the machine map), never as
+      // sett × reps × kg — skip them here.
+      if (machineForExercise(m.name)) continue;
       const kg = num(m.kg);
       const sets = num(m.sets);
       const reps = num(m.reps);
@@ -279,12 +307,27 @@ export function LogForm({
     const weightsText =
       [composed, weights.trim()].filter(Boolean).join(" · ") || null;
 
-    // Per-machine kcal (endurance) → a json map { machine: kcal } plus a total
-    // that feeds the normal calorie displays. Each machine still counts on its
-    // own leaderboard because kcal_leaderboard unnests machines_json.
-    const machineEntries = Object.entries(machineKcal)
-      .map(([k, v]) => [k, parseFloat(v.replace(",", "."))] as const)
-      .filter(([, v]) => !Number.isNaN(v) && v > 0);
+    // Per-machine kcal → a json map { machine: kcal } plus a total that feeds
+    // the normal calorie displays. Sources: the endurance / inline-planned kcal
+    // fields (machineKcal) AND any cardio erg picked in "önnur æfing" (its row
+    // kcal). Same machine from two sources sums. Each machine still counts on
+    // its own leaderboard because kcal_leaderboard unnests machines_json.
+    const machineTotals: Record<string, number> = {};
+    for (const [k, v] of Object.entries(machineKcal)) {
+      const n = parseFloat(v.replace(",", "."));
+      if (!Number.isNaN(n) && n > 0)
+        machineTotals[k] = (machineTotals[k] ?? 0) + n;
+    }
+    for (const m of manualExercises) {
+      const mv = machineForExercise(m.name);
+      if (!mv) continue;
+      const n = parseFloat((m.kcal ?? "").replace(",", "."));
+      if (!Number.isNaN(n) && n > 0)
+        machineTotals[mv] = (machineTotals[mv] ?? 0) + n;
+    }
+    const machineEntries = Object.entries(machineTotals).filter(
+      ([, v]) => v > 0,
+    );
     const machinesJson = machineEntries.length
       ? Object.fromEntries(machineEntries.map(([k, v]) => [k, String(v)]))
       : null;
@@ -472,66 +515,101 @@ export function LogForm({
         )}
 
         {selected && !isEndurance && exercises.length > 0 && (
-          <div>
-            <span className="mb-1 block text-sm text-muted-foreground">
-              Sett, reps og þyngd — kerfið reiknar heildar-álag (volume)
-            </span>
-            <div className="space-y-2">
-              {exercises.map((ex) => {
-                const best = exerciseBests[ex];
-                const kg = parseFloat((perExercise[ex] ?? "").replace(",", ".")) || 0;
-                const sets = parseFloat((perSets[ex] ?? "").replace(",", ".")) || 0;
-                const reps = parseFloat((perReps[ex] ?? "").replace(",", ".")) || 0;
-                const vol = sets > 0 && reps > 0 && kg > 0 ? Math.round(sets * reps * kg) : 0;
-                const isPr = kg > 0 && (best == null || kg > best);
-                const cell =
-                  "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent";
-                return (
-                  <div key={ex} className="rounded-md border border-border bg-background p-2">
-                    <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="min-w-0 truncate">
-                        {ex}
-                        {best != null && (
-                          <span className="ml-2 text-xs text-muted-foreground">met: {best} kg</span>
-                        )}
-                        {isPr && (
-                          <span className="ml-2 text-xs font-medium text-accent">🎉 Nýtt met!</span>
-                        )}
-                      </span>
-                      {vol > 0 && (
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {vol.toLocaleString("is-IS")} kg
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1.5 grid grid-cols-3 gap-2">
-                      <input inputMode="numeric" value={perSets[ex] ?? ""} onChange={(e) => setPerSets((p) => ({ ...p, [ex]: e.target.value }))} placeholder="Sett" className={cell} />
-                      <input inputMode="numeric" value={perReps[ex] ?? ""} onChange={(e) => setPerReps((p) => ({ ...p, [ex]: e.target.value }))} placeholder="Reps" className={cell} />
-                      <input inputMode="decimal" value={perExercise[ex] ?? ""} onChange={(e) => setPerExercise((p) => ({ ...p, [ex]: e.target.value }))} placeholder="kg" className={isPr ? cell.replace("border-border", "border-accent") : cell} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {(() => {
-              const total = exercises.reduce((a, ex) => {
-                const kg = parseFloat((perExercise[ex] ?? "").replace(",", ".")) || 0;
-                const s = parseFloat((perSets[ex] ?? "").replace(",", ".")) || 0;
-                const r = parseFloat((perReps[ex] ?? "").replace(",", ".")) || 0;
-                return a + (s > 0 && r > 0 && kg > 0 ? s * r * kg : 0);
-              }, 0);
-              return total > 0 ? (
-                <div className="mt-2 flex items-center justify-between rounded-md bg-accent/10 px-3 py-2 text-sm">
-                  <span className="font-medium">Heildar-álag æfingar</span>
-                  <span className="font-semibold text-accent">
-                    {Math.round(total).toLocaleString("is-IS")} kg
-                  </span>
+          <div className="space-y-3">
+            {strengthExercises.length > 0 && (
+              <div>
+                <span className="mb-1 block text-sm text-muted-foreground">
+                  Sett, reps og þyngd — kerfið reiknar heildar-álag (volume)
+                </span>
+                <div className="space-y-2">
+                  {strengthExercises.map((ex) => {
+                    const best = exerciseBests[ex];
+                    const kg = parseFloat((perExercise[ex] ?? "").replace(",", ".")) || 0;
+                    const sets = parseFloat((perSets[ex] ?? "").replace(",", ".")) || 0;
+                    const reps = parseFloat((perReps[ex] ?? "").replace(",", ".")) || 0;
+                    const vol = sets > 0 && reps > 0 && kg > 0 ? Math.round(sets * reps * kg) : 0;
+                    const isPr = kg > 0 && (best == null || kg > best);
+                    const cell =
+                      "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent";
+                    return (
+                      <div key={ex} className="rounded-md border border-border bg-background p-2">
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="min-w-0 truncate">
+                            {ex}
+                            {best != null && (
+                              <span className="ml-2 text-xs text-muted-foreground">met: {best} kg</span>
+                            )}
+                            {isPr && (
+                              <span className="ml-2 text-xs font-medium text-accent">🎉 Nýtt met!</span>
+                            )}
+                          </span>
+                          {vol > 0 && (
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {vol.toLocaleString("is-IS")} kg
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1.5 grid grid-cols-3 gap-2">
+                          <input inputMode="numeric" value={perSets[ex] ?? ""} onChange={(e) => setPerSets((p) => ({ ...p, [ex]: e.target.value }))} placeholder="Sett" className={cell} />
+                          <input inputMode="numeric" value={perReps[ex] ?? ""} onChange={(e) => setPerReps((p) => ({ ...p, [ex]: e.target.value }))} placeholder="Reps" className={cell} />
+                          <input inputMode="decimal" value={perExercise[ex] ?? ""} onChange={(e) => setPerExercise((p) => ({ ...p, [ex]: e.target.value }))} placeholder="kg" className={isPr ? cell.replace("border-border", "border-accent") : cell} />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ) : null;
-            })()}
-            <span className="mt-1 block text-xs text-muted-foreground">
-              Volume = sett × reps × þyngd. Skildu eftir autt það sem á ekki við.
-            </span>
+                {(() => {
+                  const total = strengthExercises.reduce((a, ex) => {
+                    const kg = parseFloat((perExercise[ex] ?? "").replace(",", ".")) || 0;
+                    const s = parseFloat((perSets[ex] ?? "").replace(",", ".")) || 0;
+                    const r = parseFloat((perReps[ex] ?? "").replace(",", ".")) || 0;
+                    return a + (s > 0 && r > 0 && kg > 0 ? s * r * kg : 0);
+                  }, 0);
+                  return total > 0 ? (
+                    <div className="mt-2 flex items-center justify-between rounded-md bg-accent/10 px-3 py-2 text-sm">
+                      <span className="font-medium">Heildar-álag æfingar</span>
+                      <span className="font-semibold text-accent">
+                        {Math.round(total).toLocaleString("is-IS")} kg
+                      </span>
+                    </div>
+                  ) : null;
+                })()}
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Volume = sett × reps × þyngd. Skildu eftir autt það sem á ekki við.
+                </span>
+              </div>
+            )}
+
+            {cardioExercises.length > 0 && (
+              <div>
+                <span className="mb-1 block text-sm text-muted-foreground">
+                  Kaloríur á tækjunum — Assault Airbike / Concept2 skráð í kcal
+                </span>
+                <div className="space-y-1.5">
+                  {cardioExercises.map((ex) => {
+                    const mv = machineForExercise(ex)!;
+                    return (
+                      <div key={ex} className="flex items-center gap-2">
+                        <span className="flex-1 text-sm">{ex}</span>
+                        <input
+                          inputMode="decimal"
+                          value={machineKcal[mv] ?? ""}
+                          onChange={(e) =>
+                            setMachineKcal((p) => ({ ...p, [mv]: e.target.value }))
+                          }
+                          placeholder="kcal"
+                          className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Þessi tæki eru alltaf skráð í kaloríum — ekki sett/reps/þyngd.
+                  Hvert tæki telur á Brennslu-leaderboardinu.
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -627,12 +705,13 @@ export function LogForm({
             {manualExercises.length > 0 && (
               <div className="mt-2 space-y-2">
                 {manualExercises.map((ex, i) => {
+                  const mv = machineForExercise(ex.name);
                   const best = exerciseBests[ex.name];
                   const kg = parseFloat((ex.kg ?? "").replace(",", ".")) || 0;
                   const sets = parseFloat((ex.sets ?? "").replace(",", ".")) || 0;
                   const reps = parseFloat((ex.reps ?? "").replace(",", ".")) || 0;
                   const vol = sets > 0 && reps > 0 && kg > 0 ? Math.round(sets * reps * kg) : 0;
-                  const isPr = kg > 0 && (best == null || kg > best);
+                  const isPr = !mv && kg > 0 && (best == null || kg > best);
                   const cell =
                     "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent";
                   return (
@@ -649,7 +728,7 @@ export function LogForm({
                           </button>
                           <span className="truncate">
                             {ex.name}
-                            {best != null && (
+                            {!mv && best != null && (
                               <span className="ml-2 text-xs text-muted-foreground">met: {best} kg</span>
                             )}
                             {isPr && (
@@ -657,17 +736,32 @@ export function LogForm({
                             )}
                           </span>
                         </span>
-                        {vol > 0 && (
+                        {!mv && vol > 0 && (
                           <span className="shrink-0 text-xs text-muted-foreground">
                             {vol.toLocaleString("is-IS")} kg
                           </span>
                         )}
                       </div>
-                      <div className="mt-1.5 grid grid-cols-3 gap-2">
-                        <input inputMode="numeric" value={ex.sets} onChange={(e) => setManualField(i, "sets", e.target.value)} placeholder="Sett" className={cell} />
-                        <input inputMode="numeric" value={ex.reps} onChange={(e) => setManualField(i, "reps", e.target.value)} placeholder="Reps" className={cell} />
-                        <input inputMode="decimal" value={ex.kg} onChange={(e) => setManualField(i, "kg", e.target.value)} placeholder="kg" className={isPr ? cell.replace("border-border", "border-accent") : cell} />
-                      </div>
+                      {mv ? (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span className="flex-1 text-xs text-muted-foreground">
+                            Tæki — skráð í kcal
+                          </span>
+                          <input
+                            inputMode="decimal"
+                            value={ex.kcal}
+                            onChange={(e) => setManualField(i, "kcal", e.target.value)}
+                            placeholder="kcal"
+                            className="w-24 rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                          />
+                        </div>
+                      ) : (
+                        <div className="mt-1.5 grid grid-cols-3 gap-2">
+                          <input inputMode="numeric" value={ex.sets} onChange={(e) => setManualField(i, "sets", e.target.value)} placeholder="Sett" className={cell} />
+                          <input inputMode="numeric" value={ex.reps} onChange={(e) => setManualField(i, "reps", e.target.value)} placeholder="Reps" className={cell} />
+                          <input inputMode="decimal" value={ex.kg} onChange={(e) => setManualField(i, "kg", e.target.value)} placeholder="kg" className={isPr ? cell.replace("border-border", "border-accent") : cell} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
