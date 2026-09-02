@@ -103,10 +103,81 @@ const CATEGORY_LABEL: Record<string, string> = {
   burn: "Burn",
 };
 
+// Per-exercise set editor: one row per set (Reps × kg) so varied loads and reps
+// (e.g. a wave 2-4-6 with rising kg) can be logged. Add/remove sets freely.
+function SetsEditor({
+  sets,
+  best,
+  onChange,
+  onAdd,
+  onRemove,
+}: {
+  sets: SetEntry[];
+  best?: number;
+  onChange: (si: number, field: "reps" | "kg", value: string) => void;
+  onAdd: () => void;
+  onRemove: (si: number) => void;
+}) {
+  const cell =
+    "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent";
+  return (
+    <div className="mt-1.5 space-y-1.5">
+      {sets.map((s, si) => {
+        const kg = parseFloat((s.kg || "").replace(",", ".")) || 0;
+        const isPr = kg > 0 && (best == null || kg > best);
+        return (
+          <div key={si} className="flex items-center gap-2">
+            <span className="w-5 shrink-0 text-center text-xs text-muted-foreground">
+              {si + 1}
+            </span>
+            <input
+              inputMode="numeric"
+              value={s.reps}
+              onChange={(e) => onChange(si, "reps", e.target.value)}
+              placeholder="Reps"
+              className={cell}
+            />
+            <span className="shrink-0 text-xs text-muted-foreground">×</span>
+            <input
+              inputMode="decimal"
+              value={s.kg}
+              onChange={(e) => onChange(si, "kg", e.target.value)}
+              placeholder="kg"
+              className={isPr ? cell.replace("border-border", "border-accent") : cell}
+            />
+            {sets.length > 1 && (
+              <button
+                type="button"
+                onClick={() => onRemove(si)}
+                aria-label="Fjarlægja sett"
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        onClick={onAdd}
+        className="text-xs text-accent hover:underline"
+      >
+        + Bæta við setti
+      </button>
+    </div>
+  );
+}
+
 const LEVELS = ["MB1", "MB2", "MB3"] as const;
 
 // Sentinel for "logged an alternative activity instead of the day's workout".
 const OTHER = "__other__";
+
+// One logged set of an exercise: reps done in that set and the weight used.
+// A list of these lets a member log varied weights/reps (e.g. a wave 2-4-6).
+type SetEntry = { reps: string; kg: string };
+const emptySet = (): SetEntry => ({ reps: "", kg: "" });
 
 export function LogForm({
   userId,
@@ -150,9 +221,7 @@ export function LogForm({
     setLevel(l);
     const t = (weekByLevel[l] ?? []).find((w) => w.day === todayDay) ?? null;
     setWorkoutId(t?.structure_source_id ?? "");
-    setPerExercise({});
-    setPerSets({});
-    setPerReps({});
+    setExSets({});
     setSwaps({});
     setSwapOpen(null);
     setMachineKcal({});
@@ -162,10 +231,10 @@ export function LogForm({
   function addManualExercise() {
     const name = exerciseSel.trim();
     if (!name) return;
-    // Duplicates allowed — each pick is its own set/row.
+    // Duplicates allowed — each pick is its own row with its own set list.
     setManualExercises((p) => [
       ...p,
-      { name, sets: "", reps: "", kg: "", kcal: "" },
+      { name, kcal: "", sets: [emptySet()] },
     ]);
     setExerciseSel("");
   }
@@ -174,22 +243,91 @@ export function LogForm({
     setManualExercises((p) => p.filter((_, idx) => idx !== i));
   }
 
-  function setManualField(
+  function setManualKcal(i: number, value: string) {
+    setManualExercises((p) =>
+      p.map((m, idx) => (idx === i ? { ...m, kcal: value } : m)),
+    );
+  }
+
+  function setManualSet(
     i: number,
-    field: "sets" | "reps" | "kg" | "kcal",
+    si: number,
+    field: "reps" | "kg",
     value: string,
   ) {
     setManualExercises((p) =>
-      p.map((m, idx) => (idx === i ? { ...m, [field]: value } : m)),
+      p.map((m, idx) =>
+        idx === i
+          ? {
+              ...m,
+              sets: m.sets.map((s, sj) =>
+                sj === si ? { ...s, [field]: value } : s,
+              ),
+            }
+          : m,
+      ),
     );
+  }
+
+  function addManualSet(i: number) {
+    setManualExercises((p) =>
+      p.map((m, idx) =>
+        idx === i
+          ? { ...m, sets: [...m.sets, { ...(m.sets[m.sets.length - 1] ?? emptySet()) }] }
+          : m,
+      ),
+    );
+  }
+
+  function removeManualSet(i: number, si: number) {
+    setManualExercises((p) =>
+      p.map((m, idx) =>
+        idx === i && m.sets.length > 1
+          ? { ...m, sets: m.sets.filter((_, sj) => sj !== si) }
+          : m,
+      ),
+    );
+  }
+
+  // Planned strength exercise sets (keyed by effective movement name).
+  const setsForEx = (name: string): SetEntry[] => exSets[name] ?? [emptySet()];
+
+  function setPlannedSet(
+    name: string,
+    si: number,
+    field: "reps" | "kg",
+    value: string,
+  ) {
+    setExSets((p) => {
+      const cur = p[name] ?? [emptySet()];
+      return {
+        ...p,
+        [name]: cur.map((s, j) => (j === si ? { ...s, [field]: value } : s)),
+      };
+    });
+  }
+
+  function addPlannedSet(name: string) {
+    setExSets((p) => {
+      const cur = p[name] ?? [emptySet()];
+      return { ...p, [name]: [...cur, { ...cur[cur.length - 1] }] };
+    });
+  }
+
+  function removePlannedSet(name: string, si: number) {
+    setExSets((p) => {
+      const cur = p[name] ?? [emptySet()];
+      if (cur.length <= 1) return p;
+      return { ...p, [name]: cur.filter((_, j) => j !== si) };
+    });
   }
 
   const [activity, setActivity] = useState("");
   // Per exercise (keyed by movement name parsed from the prescription): sets,
   // reps and kg → volume = sets × reps × kg.
-  const [perExercise, setPerExercise] = useState<Record<string, string>>({});
-  const [perSets, setPerSets] = useState<Record<string, string>>({});
-  const [perReps, setPerReps] = useState<Record<string, string>>({});
+  // Each planned strength exercise → a list of sets (varied reps/kg allowed),
+  // keyed by the effective (post-swap) movement name. Volume = Σ (reps × kg).
+  const [exSets, setExSets] = useState<Record<string, SetEntry[]>>({});
   // Swap a prescribed movement the member can't do for another from the same
   // category (e.g. Stiffur → another Mjaðmir exercise). Keyed by the original
   // parsed name → chosen replacement name. Inputs then key by the effective
@@ -199,20 +337,10 @@ export function LogForm({
   const [swapCat, setSwapCat] = useState("");
   const [swapEx, setSwapEx] = useState("");
 
-  // Drop any sett/reps/kg typed under a name (used when the effective name of a
-  // slot changes so no orphan values are submitted).
+  // Drop any sets typed under a name (used when the effective name of a slot
+  // changes so no orphan values are submitted).
   function clearInputsFor(name: string) {
-    setPerExercise((p) => {
-      const n = { ...p };
-      delete n[name];
-      return n;
-    });
-    setPerSets((p) => {
-      const n = { ...p };
-      delete n[name];
-      return n;
-    });
-    setPerReps((p) => {
+    setExSets((p) => {
       const n = { ...p };
       delete n[name];
       return n;
@@ -246,7 +374,7 @@ export function LogForm({
   // "Önnur æfing": exercises the member picked via movement-pattern → exercise.
   // Each pick is its own row (duplicates allowed), with its own sets/reps/kg.
   const [manualExercises, setManualExercises] = useState<
-    { name: string; sets: string; reps: string; kg: string; kcal: string }[]
+    { name: string; kcal: string; sets: SetEntry[] }[]
   >([]);
   const [patternSel, setPatternSel] = useState("");
   const [exerciseSel, setExerciseSel] = useState("");
@@ -286,76 +414,75 @@ export function LogForm({
     const cal = calories.trim() ? parseFloat(calories.replace(",", ".")) : null;
     const activityName = isOther ? activity.trim() : "";
 
-    // Per-exercise weights. Planned workouts fill perExercise (keyed by movement
-    // name); "önnur æfing" adds manualExercises (each its own row, duplicates
-    // allowed). For weights_json we keep the max kg per name (drives exercise
-    // bests + last-time recall); the readable string keeps every set.
+    // Per-exercise sets. Planned workouts fill exSets (keyed by effective
+    // movement name); "önnur æfing" adds manualExercises (each its own row with
+    // its own set list). Each set has its own reps + kg so varied loads/reps
+    // (e.g. a wave) are captured. Volume = Σ (reps × kg) over the sets.
     const num = (v: string) => parseFloat(v.replace(",", ".")) || 0;
 
-    // Gather each exercise's sets / reps / kg from the planned inputs and the
-    // "önnur æfing" manual rows. Volume = sets × reps × kg.
-    type Ex = { name: string; sets: number; reps: number; kg: number };
+    type LoggedSet = { reps: number; kg: number };
+    type Ex = { name: string; sets: LoggedSet[] };
     const collected: Ex[] = [];
-    for (const [name, kgStr] of Object.entries(perExercise)) {
-      const kg = num(kgStr);
-      const sets = num(perSets[name] ?? "");
-      const reps = num(perReps[name] ?? "");
-      if (kg > 0 || sets > 0 || reps > 0)
-        collected.push({ name, sets, reps, kg });
-    }
+    const gather = (name: string, sets: SetEntry[]) => {
+      const parsed = sets
+        .map((s) => ({ reps: num(s.reps), kg: num(s.kg) }))
+        .filter((s) => s.reps > 0 || s.kg > 0);
+      if (parsed.length) collected.push({ name, sets: parsed });
+    };
+    for (const [name, sets] of Object.entries(exSets)) gather(name, sets);
     for (const m of manualExercises) {
       // Cardio ergs are logged as kcal (handled with the machine map), never as
       // sett × reps × kg — skip them here.
       if (machineForExercise(m.name)) continue;
-      const kg = num(m.kg);
-      const sets = num(m.sets);
-      const reps = num(m.reps);
-      if (m.name && (kg > 0 || sets > 0 || reps > 0))
-        collected.push({ name: m.name, sets, reps, kg });
+      if (m.name) gather(m.name, m.sets);
     }
+
+    const exVolume = (e: Ex) =>
+      e.sets.reduce((a, s) => a + (s.reps > 0 && s.kg > 0 ? s.reps * s.kg : 0), 0);
+    const exMaxKg = (e: Ex) => e.sets.reduce((a, s) => Math.max(a, s.kg), 0);
 
     // weights_json (name → max kg) drives exercise-bests + last-time recall.
     const jsonMap: Record<string, string> = {};
     for (const e of collected) {
-      if (e.kg > 0 && (!jsonMap[e.name] || e.kg > num(jsonMap[e.name])))
-        jsonMap[e.name] = String(e.kg);
+      const mx = exMaxKg(e);
+      if (mx > 0 && (!jsonMap[e.name] || mx > num(jsonMap[e.name])))
+        jsonMap[e.name] = String(mx);
     }
     const weightsJson = Object.keys(jsonMap).length ? jsonMap : null;
 
-    // volume_json (name → {sets,reps,kg,volume}); duplicates sum their volume.
+    // volume_json (name → {sets:[{reps,kg}], volume}); duplicate names merge.
     const volMap: Record<
       string,
-      { sets: number; reps: number; kg: number; volume: number }
+      { sets: LoggedSet[]; volume: number }
     > = {};
     let totalVolume = 0;
     for (const e of collected) {
-      const volume =
-        e.sets > 0 && e.reps > 0 && e.kg > 0 ? e.sets * e.reps * e.kg : 0;
-      if (volume <= 0 && e.kg <= 0) continue;
-      if (volMap[e.name]) volMap[e.name].volume += volume;
-      else volMap[e.name] = { sets: e.sets, reps: e.reps, kg: e.kg, volume };
+      const volume = exVolume(e);
+      if (volMap[e.name]) {
+        volMap[e.name].sets.push(...e.sets);
+        volMap[e.name].volume += volume;
+      } else {
+        volMap[e.name] = { sets: [...e.sets], volume };
+      }
       totalVolume += volume;
     }
     const volumeJson = Object.keys(volMap).length ? volMap : null;
     const totalVol = totalVolume > 0 ? Math.round(totalVolume) : null;
 
     const composed = collected
-      .filter((e) => e.kg > 0 || e.sets > 0)
       .map((e) => {
-        const sr =
-          e.sets > 0 && e.reps > 0
-            ? `${e.sets}×${e.reps} `
-            : e.sets > 0
-              ? `${e.sets} sett `
-              : "";
-        const kg = e.kg > 0 ? `${e.kg}kg` : "";
-        const vol =
-          e.sets > 0 && e.reps > 0 && e.kg > 0
-            ? ` (${Math.round(e.sets * e.reps * e.kg)}kg)`
-            : "";
-        return `${e.name} ${sr}${kg}${vol}`.trim();
+        const setStrs = e.sets.map((s) =>
+          s.kg > 0 && s.reps > 0
+            ? `${s.kg}kg×${s.reps}`
+            : s.kg > 0
+              ? `${s.kg}kg`
+              : `${s.reps} reps`,
+        );
+        const v = exVolume(e);
+        const volStr = v > 0 ? ` (${Math.round(v)}kg)` : "";
+        return `${e.name} ${setStrs.join(", ")}${volStr}`.trim();
       })
-      .join(", ");
+      .join(" · ");
     const weightsText =
       [composed, weights.trim()].filter(Boolean).join(" · ") || null;
 
@@ -437,9 +564,7 @@ export function LogForm({
     }
     setRpe(null);
     setActivity("");
-    setPerExercise({});
-    setPerSets({});
-    setPerReps({});
+    setExSets({});
     setSwaps({});
     setSwapOpen(null);
     setSwapCat("");
@@ -524,9 +649,7 @@ export function LogForm({
             value={workoutId}
             onChange={(e) => {
               setWorkoutId(e.target.value);
-              setPerExercise({});
-              setPerSets({});
-              setPerReps({});
+              setExSets({});
               setSwaps({});
               setSwapOpen(null);
               setMachineKcal({});
@@ -585,13 +708,17 @@ export function LogForm({
                     const swapped = eff !== ex;
                     const open = swapOpen === ex;
                     const best = exerciseBests[eff];
-                    const kg = parseFloat((perExercise[eff] ?? "").replace(",", ".")) || 0;
-                    const sets = parseFloat((perSets[eff] ?? "").replace(",", ".")) || 0;
-                    const reps = parseFloat((perReps[eff] ?? "").replace(",", ".")) || 0;
-                    const vol = sets > 0 && reps > 0 && kg > 0 ? Math.round(sets * reps * kg) : 0;
-                    const isPr = kg > 0 && (best == null || kg > best);
-                    const cell =
-                      "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent";
+                    const sets = setsForEx(eff);
+                    const vol = sets.reduce((a, s) => {
+                      const r = parseFloat((s.reps || "").replace(",", ".")) || 0;
+                      const k = parseFloat((s.kg || "").replace(",", ".")) || 0;
+                      return a + (r > 0 && k > 0 ? r * k : 0);
+                    }, 0);
+                    const maxKg = sets.reduce(
+                      (a, s) => Math.max(a, parseFloat((s.kg || "").replace(",", ".")) || 0),
+                      0,
+                    );
+                    const isPr = maxKg > 0 && (best == null || maxKg > best);
                     return (
                       <div key={ex} className="rounded-md border border-border bg-background p-2">
                         <div className="flex items-center justify-between gap-2 text-sm">
@@ -612,7 +739,7 @@ export function LogForm({
                           <span className="flex shrink-0 items-center gap-2">
                             {vol > 0 && (
                               <span className="text-xs text-muted-foreground">
-                                {vol.toLocaleString("is-IS")} kg
+                                {Math.round(vol).toLocaleString("is-IS")} kg
                               </span>
                             )}
                             <button
@@ -636,11 +763,13 @@ export function LogForm({
                             </button>
                           </span>
                         </div>
-                        <div className="mt-1.5 grid grid-cols-3 gap-2">
-                          <input inputMode="numeric" value={perSets[eff] ?? ""} onChange={(e) => setPerSets((p) => ({ ...p, [eff]: e.target.value }))} placeholder="Sett" className={cell} />
-                          <input inputMode="numeric" value={perReps[eff] ?? ""} onChange={(e) => setPerReps((p) => ({ ...p, [eff]: e.target.value }))} placeholder="Reps/sett" className={cell} />
-                          <input inputMode="decimal" value={perExercise[eff] ?? ""} onChange={(e) => setPerExercise((p) => ({ ...p, [eff]: e.target.value }))} placeholder="kg" className={isPr ? cell.replace("border-border", "border-accent") : cell} />
-                        </div>
+                        <SetsEditor
+                          sets={sets}
+                          best={best}
+                          onChange={(si, f, v) => setPlannedSet(eff, si, f, v)}
+                          onAdd={() => addPlannedSet(eff)}
+                          onRemove={(si) => removePlannedSet(eff, si)}
+                        />
                         {open && (
                           <div className="mt-2 space-y-2 rounded-md border border-border bg-muted p-2">
                             <span className="block text-xs text-muted-foreground">
@@ -703,10 +832,14 @@ export function LogForm({
                 {(() => {
                   const total = strengthExercises.reduce((a, ex) => {
                     const eff = swaps[ex] ?? ex;
-                    const kg = parseFloat((perExercise[eff] ?? "").replace(",", ".")) || 0;
-                    const s = parseFloat((perSets[eff] ?? "").replace(",", ".")) || 0;
-                    const r = parseFloat((perReps[eff] ?? "").replace(",", ".")) || 0;
-                    return a + (s > 0 && r > 0 && kg > 0 ? s * r * kg : 0);
+                    return (
+                      a +
+                      setsForEx(eff).reduce((b, s) => {
+                        const r = parseFloat((s.reps || "").replace(",", ".")) || 0;
+                        const k = parseFloat((s.kg || "").replace(",", ".")) || 0;
+                        return b + (r > 0 && k > 0 ? r * k : 0);
+                      }, 0)
+                    );
                   }, 0);
                   return total > 0 ? (
                     <div className="mt-2 flex items-center justify-between rounded-md bg-accent/10 px-3 py-2 text-sm">
@@ -718,9 +851,9 @@ export function LogForm({
                   ) : null;
                 })()}
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  Volume = sett × reps × þyngd. Skráðu reps eins og þú tókst í
-                  hverju setti (ekki heildarfjölda) — kerfið margfaldar með
-                  settunum. Skildu eftir autt það sem á ekki við.
+                  Eitt sett í hverri línu — reps × þyngd. Ólíkar þyngdir/reps eru
+                  í lagi (t.d. wave 2-4-6). „+ Bæta við setti" fyrir fleiri sett;
+                  volume = samtala (reps × þyngd) allra settanna.
                 </span>
               </div>
             )}
@@ -850,13 +983,16 @@ export function LogForm({
                 {manualExercises.map((ex, i) => {
                   const mv = machineForExercise(ex.name);
                   const best = exerciseBests[ex.name];
-                  const kg = parseFloat((ex.kg ?? "").replace(",", ".")) || 0;
-                  const sets = parseFloat((ex.sets ?? "").replace(",", ".")) || 0;
-                  const reps = parseFloat((ex.reps ?? "").replace(",", ".")) || 0;
-                  const vol = sets > 0 && reps > 0 && kg > 0 ? Math.round(sets * reps * kg) : 0;
-                  const isPr = !mv && kg > 0 && (best == null || kg > best);
-                  const cell =
-                    "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent";
+                  const vol = ex.sets.reduce((a, s) => {
+                    const r = parseFloat((s.reps || "").replace(",", ".")) || 0;
+                    const k = parseFloat((s.kg || "").replace(",", ".")) || 0;
+                    return a + (r > 0 && k > 0 ? r * k : 0);
+                  }, 0);
+                  const maxKg = ex.sets.reduce(
+                    (a, s) => Math.max(a, parseFloat((s.kg || "").replace(",", ".")) || 0),
+                    0,
+                  );
+                  const isPr = !mv && maxKg > 0 && (best == null || maxKg > best);
                   return (
                     <div key={i} className="rounded-md border border-border bg-background p-2">
                       <div className="flex items-center justify-between gap-2 text-sm">
@@ -881,7 +1017,7 @@ export function LogForm({
                         </span>
                         {!mv && vol > 0 && (
                           <span className="shrink-0 text-xs text-muted-foreground">
-                            {vol.toLocaleString("is-IS")} kg
+                            {Math.round(vol).toLocaleString("is-IS")} kg
                           </span>
                         )}
                       </div>
@@ -893,17 +1029,19 @@ export function LogForm({
                           <input
                             inputMode="decimal"
                             value={ex.kcal}
-                            onChange={(e) => setManualField(i, "kcal", e.target.value)}
+                            onChange={(e) => setManualKcal(i, e.target.value)}
                             placeholder="kcal"
                             className="w-24 rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                           />
                         </div>
                       ) : (
-                        <div className="mt-1.5 grid grid-cols-3 gap-2">
-                          <input inputMode="numeric" value={ex.sets} onChange={(e) => setManualField(i, "sets", e.target.value)} placeholder="Sett" className={cell} />
-                          <input inputMode="numeric" value={ex.reps} onChange={(e) => setManualField(i, "reps", e.target.value)} placeholder="Reps/sett" className={cell} />
-                          <input inputMode="decimal" value={ex.kg} onChange={(e) => setManualField(i, "kg", e.target.value)} placeholder="kg" className={isPr ? cell.replace("border-border", "border-accent") : cell} />
-                        </div>
+                        <SetsEditor
+                          sets={ex.sets}
+                          best={best}
+                          onChange={(si, f, v) => setManualSet(i, si, f, v)}
+                          onAdd={() => addManualSet(i)}
+                          onRemove={(si) => removeManualSet(i, si)}
+                        />
                       )}
                     </div>
                   );
@@ -912,10 +1050,15 @@ export function LogForm({
             )}
             {(() => {
               const total = manualExercises.reduce((a, ex) => {
-                const kg = parseFloat((ex.kg ?? "").replace(",", ".")) || 0;
-                const s = parseFloat((ex.sets ?? "").replace(",", ".")) || 0;
-                const r = parseFloat((ex.reps ?? "").replace(",", ".")) || 0;
-                return a + (s > 0 && r > 0 && kg > 0 ? s * r * kg : 0);
+                if (machineForExercise(ex.name)) return a;
+                return (
+                  a +
+                  ex.sets.reduce((b, s) => {
+                    const r = parseFloat((s.reps || "").replace(",", ".")) || 0;
+                    const k = parseFloat((s.kg || "").replace(",", ".")) || 0;
+                    return b + (r > 0 && k > 0 ? r * k : 0);
+                  }, 0)
+                );
               }, 0);
               return total > 0 ? (
                 <div className="mt-2 flex items-center justify-between rounded-md bg-accent/10 px-3 py-2 text-sm">
@@ -927,8 +1070,8 @@ export function LogForm({
               ) : null;
             })()}
             <span className="mt-1 block text-xs text-muted-foreground">
-              Veldu hreyfiflokk, svo æfingu, og „Bæta við". Skráðu sett og reps
-              á sett (eins og þú tókst í hverju setti) og þyngd — volume og met
+              Veldu hreyfiflokk, svo æfingu, og „Bæta við". Hvert sett í sinni
+              línu (reps × þyngd) — ólíkar þyngdir/reps eru í lagi. Volume og met
               reiknast sjálfkrafa.
             </span>
           </div>
