@@ -638,7 +638,7 @@ export function LogForm({
                         </div>
                         <div className="mt-1.5 grid grid-cols-3 gap-2">
                           <input inputMode="numeric" value={perSets[eff] ?? ""} onChange={(e) => setPerSets((p) => ({ ...p, [eff]: e.target.value }))} placeholder="Sett" className={cell} />
-                          <input inputMode="numeric" value={perReps[eff] ?? ""} onChange={(e) => setPerReps((p) => ({ ...p, [eff]: e.target.value }))} placeholder="Reps" className={cell} />
+                          <input inputMode="numeric" value={perReps[eff] ?? ""} onChange={(e) => setPerReps((p) => ({ ...p, [eff]: e.target.value }))} placeholder="Reps/sett" className={cell} />
                           <input inputMode="decimal" value={perExercise[eff] ?? ""} onChange={(e) => setPerExercise((p) => ({ ...p, [eff]: e.target.value }))} placeholder="kg" className={isPr ? cell.replace("border-border", "border-accent") : cell} />
                         </div>
                         {open && (
@@ -718,7 +718,9 @@ export function LogForm({
                   ) : null;
                 })()}
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  Volume = sett × reps × þyngd. Skildu eftir autt það sem á ekki við.
+                  Volume = sett × reps × þyngd. Skráðu reps eins og þú tókst í
+                  hverju setti (ekki heildarfjölda) — kerfið margfaldar með
+                  settunum. Skildu eftir autt það sem á ekki við.
                 </span>
               </div>
             )}
@@ -899,7 +901,7 @@ export function LogForm({
                       ) : (
                         <div className="mt-1.5 grid grid-cols-3 gap-2">
                           <input inputMode="numeric" value={ex.sets} onChange={(e) => setManualField(i, "sets", e.target.value)} placeholder="Sett" className={cell} />
-                          <input inputMode="numeric" value={ex.reps} onChange={(e) => setManualField(i, "reps", e.target.value)} placeholder="Reps" className={cell} />
+                          <input inputMode="numeric" value={ex.reps} onChange={(e) => setManualField(i, "reps", e.target.value)} placeholder="Reps/sett" className={cell} />
                           <input inputMode="decimal" value={ex.kg} onChange={(e) => setManualField(i, "kg", e.target.value)} placeholder="kg" className={isPr ? cell.replace("border-border", "border-accent") : cell} />
                         </div>
                       )}
@@ -925,8 +927,9 @@ export function LogForm({
               ) : null;
             })()}
             <span className="mt-1 block text-xs text-muted-foreground">
-              Veldu hreyfiflokk, svo æfingu, og „Bæta við". Skráðu sett × reps ×
-              þyngd — volume og met reiknast sjálfkrafa.
+              Veldu hreyfiflokk, svo æfingu, og „Bæta við". Skráðu sett og reps
+              á sett (eins og þú tókst í hverju setti) og þyngd — volume og met
+              reiknast sjálfkrafa.
             </span>
           </div>
         )}
