@@ -153,6 +153,8 @@ export function LogForm({
     setPerExercise({});
     setPerSets({});
     setPerReps({});
+    setSwaps({});
+    setSwapOpen(null);
     setMachineKcal({});
     setManualExercises([]);
   }
@@ -188,6 +190,56 @@ export function LogForm({
   const [perExercise, setPerExercise] = useState<Record<string, string>>({});
   const [perSets, setPerSets] = useState<Record<string, string>>({});
   const [perReps, setPerReps] = useState<Record<string, string>>({});
+  // Swap a prescribed movement the member can't do for another from the same
+  // category (e.g. Stiffur → another Mjaðmir exercise). Keyed by the original
+  // parsed name → chosen replacement name. Inputs then key by the effective
+  // (replacement) name so volume/bests attach to what was actually done.
+  const [swaps, setSwaps] = useState<Record<string, string>>({});
+  const [swapOpen, setSwapOpen] = useState<string | null>(null);
+  const [swapCat, setSwapCat] = useState("");
+  const [swapEx, setSwapEx] = useState("");
+
+  // Drop any sett/reps/kg typed under a name (used when the effective name of a
+  // slot changes so no orphan values are submitted).
+  function clearInputsFor(name: string) {
+    setPerExercise((p) => {
+      const n = { ...p };
+      delete n[name];
+      return n;
+    });
+    setPerSets((p) => {
+      const n = { ...p };
+      delete n[name];
+      return n;
+    });
+    setPerReps((p) => {
+      const n = { ...p };
+      delete n[name];
+      return n;
+    });
+  }
+
+  function applySwap(original: string) {
+    if (!swapEx) return;
+    clearInputsFor(swaps[original] ?? original);
+    setSwaps((p) => ({ ...p, [original]: swapEx }));
+    setSwapOpen(null);
+    setSwapCat("");
+    setSwapEx("");
+  }
+
+  function revertSwap(original: string) {
+    clearInputsFor(swaps[original] ?? original);
+    setSwaps((p) => {
+      const n = { ...p };
+      delete n[original];
+      return n;
+    });
+    setSwapOpen(null);
+    setSwapCat("");
+    setSwapEx("");
+  }
+
   // kcal per machine (endurance / önnur æfing): member rotates through the ergs,
   // keyed by machine value (assault_airbike, concept2_row, …).
   const [machineKcal, setMachineKcal] = useState<Record<string, string>>({});
@@ -388,6 +440,10 @@ export function LogForm({
     setPerExercise({});
     setPerSets({});
     setPerReps({});
+    setSwaps({});
+    setSwapOpen(null);
+    setSwapCat("");
+    setSwapEx("");
     setMachineKcal({});
     setManualExercises([]);
     setWeights("");
@@ -471,6 +527,8 @@ export function LogForm({
               setPerExercise({});
               setPerSets({});
               setPerReps({});
+              setSwaps({});
+              setSwapOpen(null);
               setMachineKcal({});
               setManualExercises([]);
             }}
@@ -523,10 +581,13 @@ export function LogForm({
                 </span>
                 <div className="space-y-2">
                   {strengthExercises.map((ex) => {
-                    const best = exerciseBests[ex];
-                    const kg = parseFloat((perExercise[ex] ?? "").replace(",", ".")) || 0;
-                    const sets = parseFloat((perSets[ex] ?? "").replace(",", ".")) || 0;
-                    const reps = parseFloat((perReps[ex] ?? "").replace(",", ".")) || 0;
+                    const eff = swaps[ex] ?? ex;
+                    const swapped = eff !== ex;
+                    const open = swapOpen === ex;
+                    const best = exerciseBests[eff];
+                    const kg = parseFloat((perExercise[eff] ?? "").replace(",", ".")) || 0;
+                    const sets = parseFloat((perSets[eff] ?? "").replace(",", ".")) || 0;
+                    const reps = parseFloat((perReps[eff] ?? "").replace(",", ".")) || 0;
                     const vol = sets > 0 && reps > 0 && kg > 0 ? Math.round(sets * reps * kg) : 0;
                     const isPr = kg > 0 && (best == null || kg > best);
                     const cell =
@@ -535,7 +596,12 @@ export function LogForm({
                       <div key={ex} className="rounded-md border border-border bg-background p-2">
                         <div className="flex items-center justify-between gap-2 text-sm">
                           <span className="min-w-0 truncate">
-                            {ex}
+                            {eff}
+                            {swapped && (
+                              <span className="ml-1 text-xs text-muted-foreground">
+                                (í stað {ex})
+                              </span>
+                            )}
                             {best != null && (
                               <span className="ml-2 text-xs text-muted-foreground">met: {best} kg</span>
                             )}
@@ -543,26 +609,103 @@ export function LogForm({
                               <span className="ml-2 text-xs font-medium text-accent">🎉 Nýtt met!</span>
                             )}
                           </span>
-                          {vol > 0 && (
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {vol.toLocaleString("is-IS")} kg
-                            </span>
-                          )}
+                          <span className="flex shrink-0 items-center gap-2">
+                            {vol > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                {vol.toLocaleString("is-IS")} kg
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (open) setSwapOpen(null);
+                                else {
+                                  setSwapOpen(ex);
+                                  setSwapCat("");
+                                  setSwapEx("");
+                                }
+                              }}
+                              title="Skipta út fyrir aðra æfingu úr sama flokki"
+                              className={`rounded border px-1.5 py-0.5 text-xs transition ${
+                                open || swapped
+                                  ? "border-accent text-accent"
+                                  : "border-border text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              ⇄ Skipta
+                            </button>
+                          </span>
                         </div>
                         <div className="mt-1.5 grid grid-cols-3 gap-2">
-                          <input inputMode="numeric" value={perSets[ex] ?? ""} onChange={(e) => setPerSets((p) => ({ ...p, [ex]: e.target.value }))} placeholder="Sett" className={cell} />
-                          <input inputMode="numeric" value={perReps[ex] ?? ""} onChange={(e) => setPerReps((p) => ({ ...p, [ex]: e.target.value }))} placeholder="Reps" className={cell} />
-                          <input inputMode="decimal" value={perExercise[ex] ?? ""} onChange={(e) => setPerExercise((p) => ({ ...p, [ex]: e.target.value }))} placeholder="kg" className={isPr ? cell.replace("border-border", "border-accent") : cell} />
+                          <input inputMode="numeric" value={perSets[eff] ?? ""} onChange={(e) => setPerSets((p) => ({ ...p, [eff]: e.target.value }))} placeholder="Sett" className={cell} />
+                          <input inputMode="numeric" value={perReps[eff] ?? ""} onChange={(e) => setPerReps((p) => ({ ...p, [eff]: e.target.value }))} placeholder="Reps" className={cell} />
+                          <input inputMode="decimal" value={perExercise[eff] ?? ""} onChange={(e) => setPerExercise((p) => ({ ...p, [eff]: e.target.value }))} placeholder="kg" className={isPr ? cell.replace("border-border", "border-accent") : cell} />
                         </div>
+                        {open && (
+                          <div className="mt-2 space-y-2 rounded-md border border-border bg-muted p-2">
+                            <span className="block text-xs text-muted-foreground">
+                              Getur ekki gert {ex}? Veldu aðra æfingu úr sama
+                              flokki.
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              <select
+                                value={swapCat}
+                                onChange={(e) => {
+                                  setSwapCat(e.target.value);
+                                  setSwapEx("");
+                                }}
+                                className="rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                              >
+                                <option value="">Flokkur</option>
+                                {Object.keys(exerciseCatalog).map((c) => (
+                                  <option key={c} value={c}>
+                                    {c}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                value={swapEx}
+                                onChange={(e) => setSwapEx(e.target.value)}
+                                disabled={!swapCat}
+                                className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+                              >
+                                <option value="">Æfing</option>
+                                {(exerciseCatalog[swapCat] ?? []).map((n) => (
+                                  <option key={n} value={n}>
+                                    {n}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => applySwap(ex)}
+                                disabled={!swapEx}
+                                className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground transition hover:opacity-90 disabled:opacity-50"
+                              >
+                                Velja
+                              </button>
+                            </div>
+                            {swapped && (
+                              <button
+                                type="button"
+                                onClick={() => revertSwap(ex)}
+                                className="text-xs text-muted-foreground hover:text-foreground"
+                              >
+                                ↩ Til baka í {ex}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
                 {(() => {
                   const total = strengthExercises.reduce((a, ex) => {
-                    const kg = parseFloat((perExercise[ex] ?? "").replace(",", ".")) || 0;
-                    const s = parseFloat((perSets[ex] ?? "").replace(",", ".")) || 0;
-                    const r = parseFloat((perReps[ex] ?? "").replace(",", ".")) || 0;
+                    const eff = swaps[ex] ?? ex;
+                    const kg = parseFloat((perExercise[eff] ?? "").replace(",", ".")) || 0;
+                    const s = parseFloat((perSets[eff] ?? "").replace(",", ".")) || 0;
+                    const r = parseFloat((perReps[eff] ?? "").replace(",", ".")) || 0;
                     return a + (s > 0 && r > 0 && kg > 0 ? s * r * kg : 0);
                   }, 0);
                   return total > 0 ? (
