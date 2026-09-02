@@ -78,10 +78,10 @@ export default async function AppLayout({
             >
               Metabolic
             </Link>
-            <nav className="hidden sm:flex items-center gap-6 text-sm">
+            <nav className="hidden flex-wrap items-center gap-2 text-sm sm:flex">
               <Link
                 href="/app"
-                className="text-muted-foreground hover:text-foreground"
+                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
               >
                 Yfirlit
               </Link>
@@ -89,57 +89,57 @@ export default async function AppLayout({
               {isStaff && (
                 <Link
                   href="/app/programs"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
                 >
                   Æfingaplön
                 </Link>
               )}
               <Link
                 href="/app/videos"
-                className="text-muted-foreground hover:text-foreground"
+                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
               >
                 Æfingabanki
               </Link>
               <Link
                 href="/app/personal-bests"
-                className="text-muted-foreground hover:text-foreground"
+                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
               >
                 Mín met
               </Link>
               <Link
                 href="/app/log"
-                className="text-muted-foreground hover:text-foreground"
+                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
               >
                 Æfingadagbók
               </Link>
               <Link
                 href="/app/naering"
-                className="text-muted-foreground hover:text-foreground"
+                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
               >
                 Næringardagbók
               </Link>
               <Link
                 href="/app/leaderboard"
-                className="text-muted-foreground hover:text-foreground"
+                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
               >
                 Leaderboard
               </Link>
               <Link
                 href="/app/afrek"
-                className="text-muted-foreground hover:text-foreground"
+                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
               >
                 Afrek
               </Link>
               <Link
                 href="/app/akademia"
-                className="text-muted-foreground hover:text-foreground"
+                className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
               >
                 Akademía
               </Link>
               {isStaff && (
                 <Link
                   href="/app/station"
-                  className="text-muted-foreground hover:text-foreground"
+                  className="rounded-md border border-border px-3 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
                 >
                   Stöðin
                 </Link>
@@ -168,64 +168,67 @@ export default async function AppLayout({
         </div>
         {/* Mobile nav — the desktop nav above is hidden on phones, so the same
             links live here as a horizontally scrollable strip. */}
-        <nav className="flex gap-4 overflow-x-auto border-t border-border px-6 py-2 text-sm sm:hidden">
-          <Link href="/app" className="whitespace-nowrap text-muted-foreground">
+        <nav className="flex gap-2 overflow-x-auto border-t border-border px-6 py-3 text-sm sm:hidden">
+          <Link
+            href="/app"
+            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
+          >
             Yfirlit
           </Link>
           {isStaff && (
             <Link
               href="/app/programs"
-              className="whitespace-nowrap text-muted-foreground"
+              className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
             >
               Æfingaplön
             </Link>
           )}
           <Link
             href="/app/videos"
-            className="whitespace-nowrap text-muted-foreground"
+            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
           >
             Æfingabanki
           </Link>
           <Link
             href="/app/personal-bests"
-            className="whitespace-nowrap text-muted-foreground"
+            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
           >
             Mín met
           </Link>
           <Link
             href="/app/log"
-            className="whitespace-nowrap text-muted-foreground"
+            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
           >
             Æfingadagbók
           </Link>
           <Link
             href="/app/naering"
-            className="whitespace-nowrap text-muted-foreground"
+            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
           >
             Næringardagbók
           </Link>
           <Link
             href="/app/leaderboard"
-            className="whitespace-nowrap text-muted-foreground"
+            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
           >
             Leaderboard
           </Link>
           <Link
             href="/app/afrek"
-            className="whitespace-nowrap text-muted-foreground"
+            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
           >
             Afrek
           </Link>
           <Link
             href="/app/akademia"
-            className="whitespace-nowrap text-muted-foreground"
+            className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
           >
             Akademía
           </Link>
           {isStaff && (
             <Link
               href="/app/station"
-              className="whitespace-nowrap text-muted-foreground"
+              className="whitespace-nowrap rounded-md border border-border px-3 py-2 text-muted-foreground transition hover:border-accent hover:text-foreground"
             >
               Stöðin
             </Link>
