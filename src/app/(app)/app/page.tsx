@@ -214,7 +214,9 @@ function Card({
             {ctaDisabled ?? cta}
           </span>
         ) : (
-          <span className="text-sm text-accent">{cta}</span>
+          <span className="inline-block rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition group-hover:opacity-90">
+            {cta}
+          </span>
         )}
       </div>
     </>
@@ -229,7 +231,7 @@ function Card({
   return (
     <Link
       href={href}
-      className="block rounded-lg border border-border bg-muted p-6 transition hover:border-accent"
+      className="group block cursor-pointer rounded-lg border border-border bg-muted p-6 transition hover:border-accent hover:bg-muted/60"
     >
       {body}
     </Link>
