@@ -149,6 +149,18 @@ export default async function LogPage() {
     (exerciseCatalog[cat] ??= []).push(v.name);
   }
 
+  // Movements members do that aren't in the video bank yet — added so they can
+  // still be picked when self-logging "önnur æfing".
+  const EXTRA_CATALOG: Record<string, string[]> = {
+    "Framan á læri": ["Thruster"],
+    "Framan á læri nr. 2": ["Afturstig + armkreppa", "Afturstig + pressa"],
+  };
+  for (const [cat, names] of Object.entries(EXTRA_CATALOG)) {
+    const listForCat = (exerciseCatalog[cat] ??= []);
+    for (const n of names) if (!listForCat.includes(n)) listForCat.push(n);
+    listForCat.sort((a, b) => a.localeCompare(b, "is"));
+  }
+
   // Group tagged logs by the workout they belong to, for side-by-side comparison.
   const groups = new Map<
     string,

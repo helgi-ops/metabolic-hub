@@ -583,30 +583,28 @@ export function LogForm({
             {cardioExercises.length > 0 && (
               <div>
                 <span className="mb-1 block text-sm text-muted-foreground">
-                  Kaloríur á tækjunum — Assault Airbike / Concept2 skráð í kcal
+                  Þolæfing / tæki — skráð í kcal (taktu það sem þú notaðir)
                 </span>
                 <div className="space-y-1.5">
-                  {cardioExercises.map((ex) => {
-                    const mv = machineForExercise(ex)!;
-                    return (
-                      <div key={ex} className="flex items-center gap-2">
-                        <span className="flex-1 text-sm">{ex}</span>
-                        <input
-                          inputMode="decimal"
-                          value={machineKcal[mv] ?? ""}
-                          onChange={(e) =>
-                            setMachineKcal((p) => ({ ...p, [mv]: e.target.value }))
-                          }
-                          placeholder="kcal"
-                          className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                        />
-                      </div>
-                    );
-                  })}
+                  {CARDIO_MACHINES.map((m) => (
+                    <div key={m.value} className="flex items-center gap-2">
+                      <span className="flex-1 text-sm">{m.label}</span>
+                      <input
+                        inputMode="decimal"
+                        value={machineKcal[m.value] ?? ""}
+                        onChange={(e) =>
+                          setMachineKcal((p) => ({ ...p, [m.value]: e.target.value }))
+                        }
+                        placeholder="kcal"
+                        className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                      />
+                    </div>
+                  ))}
                 </div>
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  Þessi tæki eru alltaf skráð í kaloríum — ekki sett/reps/þyngd.
-                  Hvert tæki telur á Brennslu-leaderboardinu.
+                  Sumir taka Concept2 í stað Assault Airbike — skráðu bara tækið
+                  sem þú notaðir. Þessi tæki eru alltaf í kcal (ekki
+                  sett/reps/þyngd) og hvert telur á Brennslu-leaderboardinu.
                 </span>
               </div>
             )}
