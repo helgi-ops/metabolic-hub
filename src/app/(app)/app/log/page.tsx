@@ -27,6 +27,7 @@ type Log = {
   machine: string | null;
   machines_json: Record<string, string> | null;
   total_volume: number | null;
+  est_calories: number | null;
   notes: string | null;
   activity: string | null;
   structure_source_id: string | null;
@@ -117,7 +118,7 @@ export default async function LogPage() {
   const { data: logs } = await supabase
     .from("workout_logs")
     .select(
-      "id, logged_on, rpe, weights, weights_json, level, calories, machine, machines_json, total_volume, notes, activity, structure_source_id, scheduled_day, scheduled_category",
+      "id, logged_on, rpe, weights, weights_json, level, calories, machine, machines_json, total_volume, est_calories, notes, activity, structure_source_id, scheduled_day, scheduled_category",
     )
     .eq("user_id", user!.id)
     .order("logged_on", { ascending: false })
@@ -135,6 +136,15 @@ export default async function LogPage() {
   const exerciseBests: Record<string, number> = Object.fromEntries(
     (exBests ?? []).map((b) => [b.exercise, Number(b.best_value)]),
   );
+
+  // Bodyweight (from the member's nutrition profile) drives the live calorie-burn
+  // estimate in the form while wearables aren't connected. Null if not set yet.
+  const { data: nutProfile } = await supabase
+    .from("nutrition_profile")
+    .select("weight_kg")
+    .eq("user_id", user!.id)
+    .maybeSingle();
+  const weightKg = nutProfile?.weight_kg != null ? Number(nutProfile.weight_kg) : null;
 
   // Exercise catalog for "önnur æfing": movement pattern (video category) →
   // exercise names, so the member picks a pattern then an exercise.
@@ -248,6 +258,7 @@ export default async function LogPage() {
           loggedSourceIds={loggedSourceIds}
           exerciseBests={exerciseBests}
           exerciseCatalog={exerciseCatalog}
+          weightKg={weightKg}
           recent={list
             .filter((l) => l.structure_source_id)
             .map((l) => ({

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { trainingKcalForLog, type WorkoutLog } from "@/lib/nutrition/energy";
 
 export const MACHINES: { value: string; label: string }[] = [
   { value: "assault_airbike", label: "Assault Airbike" },
@@ -187,6 +188,7 @@ export function LogForm({
   loggedSourceIds,
   exerciseBests,
   exerciseCatalog,
+  weightKg,
   recent,
 }: {
   userId: string;
@@ -196,6 +198,7 @@ export function LogForm({
   loggedSourceIds: string[];
   exerciseBests: Record<string, number>;
   exerciseCatalog: Record<string, string[]>;
+  weightKg: number | null;
   recent: RecentLog[];
 }) {
   const router = useRouter();
@@ -384,6 +387,9 @@ export function LogForm({
   const [calories, setCalories] = useState("");
   const [machine, setMachine] = useState("");
   const [notes, setNotes] = useState("");
+  // Bodyweight for the calorie-burn estimate. Prefer the profile value; if none,
+  // the member can type it here (and it's saved to their profile on submit).
+  const [weightInput, setWeightInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -407,6 +413,46 @@ export function LogForm({
           (r) => r.structure_source_id === workoutId && r.level === level,
         ) ?? recent.find((r) => r.structure_source_id === workoutId))
       : undefined;
+
+  // Effective bodyweight for the burn estimate: the profile value, else what the
+  // member typed in the fallback field below.
+  const typedWeight = parseFloat(weightInput.replace(",", ".")) || 0;
+  const effWeight = weightKg ?? (typedWeight > 0 ? typedWeight : null);
+
+  // Build a WorkoutLog-shaped view of the current form for the burn estimate,
+  // reusing the exact nutrition logic (measured erg kcal wins, else MET × RPE).
+  function currentEstLog(): WorkoutLog {
+    const machinesMap: Record<string, string> = {};
+    for (const [k, v] of Object.entries(machineKcal)) {
+      const n = parseFloat(v.replace(",", ".")) || 0;
+      if (n > 0) machinesMap[k] = String(n);
+    }
+    for (const m of manualExercises) {
+      const mv = machineForExercise(m.name);
+      if (!mv) continue;
+      const n = parseFloat((m.kcal ?? "").replace(",", ".")) || 0;
+      if (n > 0)
+        machinesMap[mv] = String((parseFloat(machinesMap[mv] ?? "0") || 0) + n);
+    }
+    const singleCal =
+      !isEndurance && !isOther && cardioExercises.length === 0
+        ? parseFloat(calories.replace(",", ".")) || 0
+        : 0;
+    return {
+      calories: singleCal > 0 ? singleCal : null,
+      machine: singleCal > 0 && machine ? machine : null,
+      machines_json: Object.keys(machinesMap).length ? machinesMap : null,
+      rpe,
+      scheduled_category: selected?.category ?? null,
+    };
+  }
+  const estLog = currentEstLog();
+  const hasErgKcal = estLog.machines_json != null || estLog.calories != null;
+  const estimate =
+    effWeight != null ? trainingKcalForLog(estLog, effWeight) : null;
+  // Only surface a number once there's something to base it on (RPE or erg kcal).
+  const showEstimate =
+    estimate != null && estimate.kcal > 0 && (rpe != null || hasErgKcal);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -542,6 +588,25 @@ export function LogForm({
     // With a per-machine breakdown the total is the sum and there's no single
     // "machine" — otherwise fall back to the single calories + machine fields.
     const totalCalories = machinesJson ? machinesTotal : cal;
+    // Estimated total burn for the session — measured erg kcal wins, else a
+    // MET × RPE estimate. Stored in its own column so it never affects the
+    // leaderboard/Afrek (which read calories/machine/machines_json).
+    const singleMachine =
+      !machinesJson && cal != null && machine ? machine : null;
+    const est =
+      effWeight != null
+        ? trainingKcalForLog(
+            {
+              calories: totalCalories,
+              machine: singleMachine,
+              machines_json: machinesJson,
+              rpe,
+              scheduled_category: picked ? picked.category : null,
+            },
+            effWeight,
+          ).kcal
+        : 0;
+    const estCalories = est > 0 ? Math.round(est) : null;
     const { error: insertError } = await supabase.from("workout_logs").insert({
       user_id: userId,
       logged_on: loggedOn,
@@ -552,8 +617,9 @@ export function LogForm({
       volume_json: volumeJson,
       total_volume: totalVol,
       calories: totalCalories,
-      machine: !machinesJson && cal != null && machine ? machine : null,
+      machine: singleMachine,
       machines_json: machinesJson,
+      est_calories: estCalories,
       notes: notes.trim() || null,
       ...tag,
     });
@@ -561,6 +627,13 @@ export function LogForm({
       setError(insertError.message);
       setSaving(false);
       return;
+    }
+    // First time a weight was entered (no profile value) → remember it so the
+    // estimate keeps working next time without re-typing.
+    if (weightKg == null && typedWeight > 0) {
+      await supabase
+        .from("nutrition_profile")
+        .upsert({ user_id: userId, weight_kg: typedWeight }, { onConflict: "user_id" });
     }
     setRpe(null);
     setActivity("");
@@ -1196,6 +1269,49 @@ export function LogForm({
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
+
+        {/* Bodyweight fallback — only when we can't estimate yet and the member
+            has started logging something burn-relevant. */}
+        {effWeight == null && (rpe != null || hasErgKcal) && (
+          <label className="block">
+            <span className="mb-1 block text-sm text-muted-foreground">
+              Líkamsþyngd (kg) — til að áætla brennslu
+            </span>
+            <input
+              inputMode="decimal"
+              value={weightInput}
+              onChange={(e) => setWeightInput(e.target.value)}
+              placeholder="t.d. 80"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent sm:w-40"
+            />
+            <span className="mt-1 block text-xs text-muted-foreground">
+              Geymist í prófílnum þínum svo þú þarft ekki að slá hana inn aftur.
+            </span>
+          </label>
+        )}
+
+        {/* Live estimated calorie burn for the session (while wearables aren't
+            connected). Same model as the nutrition energy need. */}
+        {showEstimate && estimate && (
+          <div>
+            <div className="flex items-center justify-between rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-sm">
+              <span className="font-medium">🔥 Brennsla á æfingunni</span>
+              <span className="font-semibold text-accent">
+                {estimate.estimated ? "~" : ""}
+                {estimate.kcal.toLocaleString("is-IS")} kcal
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  {estimate.estimated ? "áætlað" : "mælt"}
+                </span>
+              </span>
+            </div>
+            {estimate.estimated && (
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Gróf áætlun m.v. flokk, RPE og þyngd — verður nákvæmara þegar úr
+                tengist.
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}

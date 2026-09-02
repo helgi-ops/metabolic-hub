@@ -1241,6 +1241,7 @@ export type Database = {
           activity: string | null
           calories: number | null
           created_at: string
+          est_calories: number | null
           external_id: string | null
           id: string
           level: string | null
@@ -1264,6 +1265,7 @@ export type Database = {
           activity?: string | null
           calories?: number | null
           created_at?: string
+          est_calories?: number | null
           external_id?: string | null
           id?: string
           level?: string | null
@@ -1287,6 +1289,7 @@ export type Database = {
           activity?: string | null
           calories?: number | null
           created_at?: string
+          est_calories?: number | null
           external_id?: string | null
           id?: string
           level?: string | null

@@ -32,6 +32,7 @@ export type Log = {
   machine: string | null;
   machines_json: Record<string, string> | null;
   total_volume: number | null;
+  est_calories: number | null;
   notes: string | null;
   activity: string | null;
 };
@@ -146,13 +147,20 @@ export function LogHistory({ logs }: { logs: Log[] }) {
                     : ""}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
-                  {l.calories != null
-                    ? `${l.calories} kcal${
-                        l.machine
-                          ? ` · ${MACHINE_LABEL[l.machine] ?? l.machine}`
-                          : ""
-                      }`
-                    : ""}
+                  {l.calories != null ? (
+                    `${l.calories} kcal${
+                      l.machine
+                        ? ` · ${MACHINE_LABEL[l.machine] ?? l.machine}`
+                        : ""
+                    }`
+                  ) : l.est_calories != null ? (
+                    <span title="Áætluð brennsla (engin úr tengd)">
+                      🔥 ~{Math.round(Number(l.est_calories))} kcal
+                      <span className="ml-1 text-xs">áætlað</span>
+                    </span>
+                  ) : (
+                    ""
+                  )}
                 </td>
                 <td className="px-4 py-2 text-muted-foreground">
                   {l.notes ?? ""}
