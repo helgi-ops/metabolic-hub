@@ -1241,6 +1241,7 @@ export type Database = {
           activity: string | null
           calories: number | null
           created_at: string
+          duration_min: number | null
           est_calories: number | null
           external_id: string | null
           id: string
@@ -1265,6 +1266,7 @@ export type Database = {
           activity?: string | null
           calories?: number | null
           created_at?: string
+          duration_min?: number | null
           est_calories?: number | null
           external_id?: string | null
           id?: string
@@ -1289,6 +1291,7 @@ export type Database = {
           activity?: string | null
           calories?: number | null
           created_at?: string
+          duration_min?: number | null
           est_calories?: number | null
           external_id?: string | null
           id?: string

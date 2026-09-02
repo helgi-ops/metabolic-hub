@@ -390,6 +390,9 @@ export function LogForm({
   // Bodyweight for the calorie-burn estimate. Prefer the profile value; if none,
   // the member can type it here (and it's saved to their profile on submit).
   const [weightInput, setWeightInput] = useState("");
+  // Optional session length (minutes) — sharpens the estimate vs the assumed
+  // class length.
+  const [durationMin, setDurationMin] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -444,6 +447,7 @@ export function LogForm({
       machines_json: Object.keys(machinesMap).length ? machinesMap : null,
       rpe,
       scheduled_category: selected?.category ?? null,
+      duration_min: parseFloat(durationMin.replace(",", ".")) || null,
     };
   }
   const estLog = currentEstLog();
@@ -593,6 +597,7 @@ export function LogForm({
     // leaderboard/Afrek (which read calories/machine/machines_json).
     const singleMachine =
       !machinesJson && cal != null && machine ? machine : null;
+    const durMin = parseFloat(durationMin.replace(",", ".")) || 0;
     const est =
       effWeight != null
         ? trainingKcalForLog(
@@ -602,6 +607,7 @@ export function LogForm({
               machines_json: machinesJson,
               rpe,
               scheduled_category: picked ? picked.category : null,
+              duration_min: durMin > 0 ? durMin : null,
             },
             effWeight,
           ).kcal
@@ -620,6 +626,7 @@ export function LogForm({
       machine: singleMachine,
       machines_json: machinesJson,
       est_calories: estCalories,
+      duration_min: durMin > 0 ? durMin : null,
       notes: notes.trim() || null,
       ...tag,
     });
@@ -647,6 +654,7 @@ export function LogForm({
     setWeights("");
     setCalories("");
     setMachine("");
+    setDurationMin("");
     setNotes("");
     setSaving(false);
     router.refresh();
@@ -1290,6 +1298,23 @@ export function LogForm({
           </label>
         )}
 
+        {/* Optional session length — sharpens the MET estimate vs the assumed
+            ~45 min class length. */}
+        {(rpe != null || hasErgKcal) && (
+          <label className="block">
+            <span className="mb-1 block text-sm text-muted-foreground">
+              Tímalengd (mín) — valfrjálst, skerpir áætlunina
+            </span>
+            <input
+              inputMode="numeric"
+              value={durationMin}
+              onChange={(e) => setDurationMin(e.target.value)}
+              placeholder="t.d. 45"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent sm:w-40"
+            />
+          </label>
+        )}
+
         {/* Live estimated calorie burn for the session (while wearables aren't
             connected). Same model as the nutrition energy need. */}
         {showEstimate && estimate && (
@@ -1306,8 +1331,8 @@ export function LogForm({
             </div>
             {estimate.estimated && (
               <span className="mt-1 block text-xs text-muted-foreground">
-                Gróf áætlun m.v. flokk, RPE og þyngd — verður nákvæmara þegar úr
-                tengist.
+                Áætlun m.v. flokk, RPE, þyngd og tímalengd (annars ~45 mín) —
+                verður nákvæmara þegar úr tengist.
               </span>
             )}
           </div>

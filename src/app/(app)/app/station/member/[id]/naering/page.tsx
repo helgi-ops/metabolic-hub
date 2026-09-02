@@ -86,7 +86,7 @@ export default async function CoachNutritionPage({
         .maybeSingle(),
       supabase
         .from("workout_logs")
-        .select("logged_on, calories, machine, machines_json, rpe, scheduled_category")
+        .select("logged_on, calories, machine, machines_json, rpe, scheduled_category, duration_min")
         .eq("user_id", id)
         .gte("logged_on", since)
         .lte("logged_on", today),

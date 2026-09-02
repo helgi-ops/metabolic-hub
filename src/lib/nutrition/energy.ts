@@ -61,6 +61,9 @@ export type WorkoutLog = {
   machines_json: Record<string, string> | null;
   rpe: number | null;
   scheduled_category: string | null;
+  // Optional logged duration (minutes). When set it sharpens the estimate; else
+  // we fall back to the assumed class length.
+  duration_min?: number | null;
 };
 
 /** Measured kcal on the ergs for one log (legacy single machine or per-machine). */
@@ -87,11 +90,13 @@ export function trainingKcalForLog(
 ): { kcal: number; estimated: boolean } {
   const measured = measuredKcal(l);
   if (measured > 0) return { kcal: Math.round(measured), estimated: false };
-  // No measured kcal — estimate for a strength/power/burn class.
+  // No measured kcal — estimate for a strength/power/burn class. Use the logged
+  // duration when available, else the assumed class length.
   const cat = l.scheduled_category ?? "strength";
   const met = MET[cat] ?? 5;
   const rpeMult = l.rpe ? l.rpe / 6 : 1;
-  const kcal = (met * 3.5 * weightKg) / 200 * CLASS_MIN * rpeMult;
+  const minutes = l.duration_min && l.duration_min > 0 ? l.duration_min : CLASS_MIN;
+  const kcal = (met * 3.5 * weightKg) / 200 * minutes * rpeMult;
   return { kcal: Math.round(kcal), estimated: true };
 }
 

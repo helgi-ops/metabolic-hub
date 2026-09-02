@@ -139,12 +139,12 @@ export default async function NaeringPage({
       .maybeSingle(),
     supabase
       .from("workout_logs")
-      .select("calories, machine, machines_json, rpe, scheduled_category")
+      .select("calories, machine, machines_json, rpe, scheduled_category, duration_min")
       .eq("user_id", user.id)
       .eq("logged_on", selected),
     supabase
       .from("workout_logs")
-      .select("logged_on, calories, machine, machines_json, rpe, scheduled_category")
+      .select("logged_on, calories, machine, machines_json, rpe, scheduled_category, duration_min")
       .eq("user_id", user.id)
       .gte("logged_on", shiftDate(selected, -13))
       .lte("logged_on", selected),
