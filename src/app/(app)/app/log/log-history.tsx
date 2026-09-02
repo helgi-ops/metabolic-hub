@@ -147,20 +147,43 @@ export function LogHistory({ logs }: { logs: Log[] }) {
                     : ""}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
-                  {l.calories != null ? (
-                    `${l.calories} kcal${
-                      l.machine
-                        ? ` · ${MACHINE_LABEL[l.machine] ?? l.machine}`
-                        : ""
-                    }`
-                  ) : l.est_calories != null ? (
-                    <span title="Áætluð brennsla (engin úr tengd)">
-                      🔥 ~{Math.round(Number(l.est_calories))} kcal
-                      <span className="ml-1 text-xs">áætlað</span>
-                    </span>
-                  ) : (
-                    ""
-                  )}
+                  {(() => {
+                    const est =
+                      l.est_calories != null
+                        ? Math.round(Number(l.est_calories))
+                        : null;
+                    const meas =
+                      l.calories != null ? Math.round(Number(l.calories)) : null;
+                    if (est != null) {
+                      // Contains an estimate unless it exactly equals the measured
+                      // erg kcal (pure endurance / erg-only workout).
+                      const containsEst = meas == null || est > meas;
+                      return (
+                        <span
+                          title={
+                            containsEst
+                              ? "Áætluð heildarbrennsla"
+                              : "Mæld brennsla"
+                          }
+                        >
+                          🔥 {containsEst ? "~" : ""}
+                          {est.toLocaleString("is-IS")} kcal
+                          <span className="ml-1 text-xs">
+                            {containsEst ? "áætlað" : "mælt"}
+                          </span>
+                        </span>
+                      );
+                    }
+                    // Legacy rows before est_calories: show measured erg kcal.
+                    if (meas != null) {
+                      return `${meas} kcal${
+                        l.machine
+                          ? ` · ${MACHINE_LABEL[l.machine] ?? l.machine}`
+                          : ""
+                      }`;
+                    }
+                    return "";
+                  })()}
                 </td>
                 <td className="px-4 py-2 text-muted-foreground">
                   {l.notes ?? ""}

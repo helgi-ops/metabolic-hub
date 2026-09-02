@@ -422,6 +422,26 @@ export function LogForm({
   const typedWeight = parseFloat(weightInput.replace(",", ".")) || 0;
   const effWeight = weightKg ?? (typedWeight > 0 ? typedWeight : null);
 
+  // Category the burn estimate should use. Planned workouts carry their real
+  // category; "önnur æfing" has none, so infer: if any strength movement was
+  // picked → strength (adds a MET estimate); otherwise treat it as endurance so
+  // only the logged erg kcal counts (no spurious strength estimate for pure
+  // cardio).
+  const otherHasStrength = manualExercises.some(
+    (m) =>
+      !machineForExercise(m.name) &&
+      m.sets.some(
+        (s) =>
+          (parseFloat((s.reps || "").replace(",", ".")) || 0) > 0 ||
+          (parseFloat((s.kg || "").replace(",", ".")) || 0) > 0,
+      ),
+  );
+  const estCategory = isOther
+    ? otherHasStrength
+      ? "strength"
+      : "endurance"
+    : (selected?.category ?? null);
+
   // Build a WorkoutLog-shaped view of the current form for the burn estimate,
   // reusing the exact nutrition logic (measured erg kcal wins, else MET × RPE).
   function currentEstLog(): WorkoutLog {
@@ -446,7 +466,7 @@ export function LogForm({
       machine: singleCal > 0 && machine ? machine : null,
       machines_json: Object.keys(machinesMap).length ? machinesMap : null,
       rpe,
-      scheduled_category: selected?.category ?? null,
+      scheduled_category: estCategory,
       duration_min: parseFloat(durationMin.replace(",", ".")) || null,
     };
   }
@@ -457,6 +477,14 @@ export function LogForm({
   // Only surface a number once there's something to base it on (RPE or erg kcal).
   const showEstimate =
     estimate != null && estimate.kcal > 0 && (rpe != null || hasErgKcal);
+  const estLabel =
+    estimate == null
+      ? ""
+      : estimate.measured > 0 && estimate.estimated
+        ? "mælt + áætlað"
+        : estimate.estimated
+          ? "áætlað"
+          : "mælt";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -606,7 +634,7 @@ export function LogForm({
               machine: singleMachine,
               machines_json: machinesJson,
               rpe,
-              scheduled_category: picked ? picked.category : null,
+              scheduled_category: estCategory,
               duration_min: durMin > 0 ? durMin : null,
             },
             effWeight,
@@ -1325,14 +1353,16 @@ export function LogForm({
                 {estimate.estimated ? "~" : ""}
                 {estimate.kcal.toLocaleString("is-IS")} kcal
                 <span className="ml-1 text-xs font-normal text-muted-foreground">
-                  {estimate.estimated ? "áætlað" : "mælt"}
+                  {estLabel}
                 </span>
               </span>
             </div>
             {estimate.estimated && (
               <span className="mt-1 block text-xs text-muted-foreground">
-                Áætlun m.v. flokk, RPE, þyngd og tímalengd (annars ~45 mín) —
-                verður nákvæmara þegar úr tengist.
+                {estimate.measured > 0
+                  ? "Mæld þoltækja-kcal + áætlaður styrktarhluti (flokkur, RPE, þyngd, tímalengd). "
+                  : "Áætlun m.v. flokk, RPE, þyngd og tímalengd (annars ~45 mín). "}
+                Verður nákvæmara þegar úr tengist.
               </span>
             )}
           </div>

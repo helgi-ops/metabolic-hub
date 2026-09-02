@@ -81,23 +81,38 @@ function measuredKcal(l: WorkoutLog): number {
 }
 
 /**
- * Energy for one workout log. Measured erg kcal wins; otherwise estimate from
- * MET × assumed class length × RPE. `estimated` flags a guessed value.
+ * Energy for one workout log. Depends on the workout type:
+ * - Endurance / conditioning happens entirely on the ergs, so the measured erg
+ *   kcal IS the workout; we only estimate (MET) when nothing was logged.
+ * - Strength / power / burn: a MET estimate for the class (duration × RPE ×
+ *   bodyweight) PLUS any measured erg kcal on top (these classes often finish
+ *   with an erg piece).
+ * Returns `measured` (the erg portion) and `estimated` (true when the number
+ * contains a guessed component) so callers can label it precisely.
  */
 export function trainingKcalForLog(
   l: WorkoutLog,
   weightKg: number,
-): { kcal: number; estimated: boolean } {
-  const measured = measuredKcal(l);
-  if (measured > 0) return { kcal: Math.round(measured), estimated: false };
-  // No measured kcal — estimate for a strength/power/burn class. Use the logged
-  // duration when available, else the assumed class length.
+): { kcal: number; estimated: boolean; measured: number } {
+  const measured = Math.round(measuredKcal(l));
   const cat = l.scheduled_category ?? "strength";
-  const met = MET[cat] ?? 5;
   const rpeMult = l.rpe ? l.rpe / 6 : 1;
-  const minutes = l.duration_min && l.duration_min > 0 ? l.duration_min : CLASS_MIN;
-  const kcal = (met * 3.5 * weightKg) / 200 * minutes * rpeMult;
-  return { kcal: Math.round(kcal), estimated: true };
+  const minutes =
+    l.duration_min && l.duration_min > 0 ? l.duration_min : CLASS_MIN;
+
+  if (cat === "endurance") {
+    if (measured > 0) return { kcal: measured, estimated: false, measured };
+    const kcal = ((MET.endurance ?? 7) * 3.5 * weightKg) / 200 * minutes * rpeMult;
+    return { kcal: Math.round(kcal), estimated: true, measured: 0 };
+  }
+
+  const met = MET[cat] ?? 5;
+  const estPortion = (met * 3.5 * weightKg) / 200 * minutes * rpeMult;
+  return {
+    kcal: Math.round(estPortion + measured),
+    estimated: estPortion > 0,
+    measured,
+  };
 }
 
 /** Sum training energy across a day's logs. */
