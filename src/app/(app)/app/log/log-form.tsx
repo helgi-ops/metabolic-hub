@@ -19,10 +19,26 @@ export const MACHINES: { value: string; label: string }[] = [
 // machine value, or null when it's a weightable movement.
 export function machineForExercise(name: string): string | null {
   const n = name.toLowerCase();
+  // Assault Airbike (fan bike) first, so "airbike" isn't caught by the generic
+  // bike rules below.
   if (n.includes("assault") || n.includes("airbike") || n.includes("air bike"))
     return "assault_airbike";
+  // SkiErg (incl. "Concept2 SkiErg").
   if (n.includes("skierg") || (n.includes("ski") && n.includes("erg")))
     return "concept2_ski";
+  // Concept2 BikeErg (endurance/power often write just "BikeErg").
+  if (n.includes("bikeerg") || n.includes("bike erg")) return "concept2_bike";
+  // Concept2 RowErg / rower (just "RowErg", "Rower", "Róðravél"). NB: plain
+  // "Róður"/"Row" stays a strength row — only the erg/machine spellings match.
+  if (
+    n.includes("rowerg") ||
+    n.includes("row erg") ||
+    n.includes("róðravél") ||
+    n.includes("róðrarvél") ||
+    n.includes("rower")
+  )
+    return "concept2_row";
+  // Explicit Concept2 / C2 with a modality word.
   if (n.includes("concept") || n.includes("c2")) {
     if (n.includes("ski")) return "concept2_ski";
     if (n.includes("bike") || n.includes("hjól")) return "concept2_bike";
