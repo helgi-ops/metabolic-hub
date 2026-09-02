@@ -229,11 +229,11 @@ export default async function LogPage() {
       </div>
 
       {list.length > 0 && (
-        <div className="mb-8 grid gap-4 sm:grid-cols-3">
-          <Stat label="Skráðar æfingar" value={list.length} />
-          <Stat label="Meðal RPE" value={avgRpe} />
+        <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-lg border border-border bg-muted px-4 py-2.5">
+          <Stat label="æfingar" value={list.length} />
+          <Stat label="meðal RPE" value={avgRpe} />
           <Stat
-            label="Kaloríur samtals"
+            label="kcal samtals"
             value={Math.round(totalCalories).toLocaleString("is-IS")}
           />
         </div>
@@ -329,11 +329,9 @@ export default async function LogPage() {
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-lg border border-border bg-muted p-4">
-      <div className="text-xs uppercase tracking-widest text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-1 text-2xl font-bold">{value}</div>
-    </div>
+    <span className="flex items-baseline gap-1.5">
+      <span className="text-lg font-bold">{value}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </span>
   );
 }
