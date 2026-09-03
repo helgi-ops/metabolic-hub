@@ -14,7 +14,21 @@ const MEAL_LABEL: Record<string, string> = {
 const MEAL_ORDER = ["breakfast", "lunch", "dinner", "snack", "__other__"];
 
 export function NaeringEntries({ entries }: { entries: Entry[] }) {
+  const router = useRouter();
   const [editing, setEditing] = useState<Entry | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function remove(id: string, name: string) {
+    if (!window.confirm(`Eyða "${name}" úr dagbókinni?`)) return;
+    setBusyId(id);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("nutrition_entries")
+      .delete()
+      .eq("id", id);
+    setBusyId(null);
+    if (!error) router.refresh();
+  }
 
   if (entries.length === 0) {
     return (
@@ -78,6 +92,16 @@ export function NaeringEntries({ entries }: { entries: Entry[] }) {
                         {Number(e.protein_g) || 0} · K {Number(e.carbs_g) || 0} · F{" "}
                         {Number(e.fat_g) || 0}
                       </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => remove(e.id, e.name)}
+                      disabled={busyId === e.id}
+                      aria-label={`Eyða ${e.name}`}
+                      title="Eyða færslu"
+                      className="shrink-0 rounded-md border border-transparent px-2 py-1 text-muted-foreground transition hover:border-red-400 hover:text-red-400 disabled:opacity-50"
+                    >
+                      {busyId === e.id ? "…" : "✕"}
                     </button>
                   </li>
                 ))}
