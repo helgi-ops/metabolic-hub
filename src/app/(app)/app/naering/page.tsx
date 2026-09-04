@@ -311,25 +311,20 @@ export default async function NaeringPage({
             const target = targets ? Number(targets[m.tkey]) || 0 : 0;
             const pct = target ? Math.min(100, Math.round((val / target) * 100)) : 0;
             return (
-              <div key={m.key}>
-                <div className="flex items-baseline justify-between text-sm">
-                  <span className="text-muted-foreground">{m.label}</span>
-                  <span className="font-medium">
-                    {val}
-                    {target ? (
-                      <span className="text-muted-foreground">
-                        {" "}
-                        / {target} {m.unit}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground"> {m.unit}</span>
-                    )}
+              <div key={m.key} className="rounded-lg border border-border bg-background p-4">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {m.label}
+                </div>
+                <div className="mt-1 flex items-baseline gap-1.5">
+                  <span className="text-3xl font-bold tabular-nums">{val}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {target ? `/ ${target} ${m.unit}` : m.unit}
                   </span>
                 </div>
                 {target > 0 && (
-                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-background">
+                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-accent/60"
+                      className="h-full rounded-full bg-accent"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -345,16 +340,8 @@ export default async function NaeringPage({
         )}
       </div>
 
-      {/* Estimated energy need */}
-      <EnergyCard
-        userId={user.id}
-        profile={profileRowData}
-        need={need}
-        suggested={suggested}
-        intakeKcal={totals.kcal}
-      />
-
-      {/* Add food */}
+      {/* Add food — kept right under the day's totals so it's reachable without
+          scrolling past the energy card. */}
       <div className="mb-8">
         <NaeringForm
           userId={user.id}
@@ -369,6 +356,15 @@ export default async function NaeringPage({
         <h2 className="mb-3 font-semibold">Skráð í dag</h2>
         <NaeringEntries entries={entries} />
       </div>
+
+      {/* Estimated energy need */}
+      <EnergyCard
+        userId={user.id}
+        profile={profileRowData}
+        need={need}
+        suggested={suggested}
+        intakeKcal={totals.kcal}
+      />
 
       {/* Trend + average (last 14 days) */}
       {daysWithData > 0 && (
