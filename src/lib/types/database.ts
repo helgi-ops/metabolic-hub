@@ -131,6 +131,30 @@ export type Database = {
           },
         ]
       }
+      coach_kudos: {
+        Row: {
+          coach_id: string
+          created_at: string
+          id: string
+          member_id: string
+          message: string
+        }
+        Insert: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          member_id: string
+          message: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          id?: string
+          member_id?: string
+          message?: string
+        }
+        Relationships: []
+      }
       comments: {
         Row: {
           author_id: string

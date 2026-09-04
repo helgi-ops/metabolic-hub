@@ -75,6 +75,15 @@ export default async function DashboardPage() {
     .eq("week_start", weekStart)
     .maybeSingle();
 
+  // Latest praise from a coach — a warm, motivating hello on the dashboard.
+  const { data: latestKudos } = await supabase
+    .from("coach_kudos")
+    .select("message, created_at")
+    .eq("member_id", user!.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   const firstName =
     profile?.full_name?.split(" ")[0] ?? user!.email?.split("@")[0];
 
@@ -91,6 +100,18 @@ export default async function DashboardPage() {
             "Þú ert admin — fullur aðgangur að öllu."}
         </p>
       </div>
+
+      {latestKudos && (
+        <div className="mb-8 flex items-start gap-4 rounded-lg border border-accent/40 bg-accent/10 p-5">
+          <div className="text-3xl">👏</div>
+          <div className="min-w-0">
+            <div className="font-mono text-xs uppercase tracking-widest text-accent">
+              Hrós frá þjálfara
+            </div>
+            <p className="mt-1 font-medium">{latestKudos.message}</p>
+          </div>
+        </div>
+      )}
 
       {/* Consistency streak */}
       <div className="mb-8 flex items-center gap-4 rounded-lg border border-accent/40 bg-accent/10 p-5">

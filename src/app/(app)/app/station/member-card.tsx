@@ -196,6 +196,24 @@ function ActivityModal({
   onClose: () => void;
 }) {
   const [logs, setLogs] = useState<LogRow[] | null>(null);
+  const [kudos, setKudos] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function sendKudos() {
+    const message = kudos.trim();
+    if (!message) return;
+    setSending(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("coach_kudos")
+      .insert({ member_id: member.id, message });
+    setSending(false);
+    if (!error) {
+      setKudos("");
+      setSent(true);
+    }
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -268,6 +286,40 @@ function ActivityModal({
         </div>
 
         <div className="max-h-[calc(80vh-4.5rem)] overflow-y-auto px-5 py-4">
+          {/* Send praise to the member */}
+          <div className="mb-4 rounded-lg border border-accent/40 bg-accent/10 p-3">
+            {sent ? (
+              <p className="text-sm text-accent">
+                👏 Hrós sent! {member.full_name?.split(" ")[0] ?? "Iðkandinn"} sér
+                það á forsíðunni sinni.
+              </p>
+            ) : (
+              <>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Senda hrós 👏
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    value={kudos}
+                    onChange={(e) => setKudos(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && sendKudos()}
+                    maxLength={200}
+                    placeholder="t.d. Flott vika — geggjuð mæting!"
+                    className="min-w-0 flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                  <button
+                    type="button"
+                    onClick={sendKudos}
+                    disabled={sending || !kudos.trim()}
+                    className="shrink-0 rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {sending ? "Sendi…" : "Senda"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
           {logs == null ? (
             <p className="text-sm text-muted-foreground">Sæki virkni…</p>
           ) : logs.length === 0 ? (
