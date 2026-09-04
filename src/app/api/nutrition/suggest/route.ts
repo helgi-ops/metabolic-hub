@@ -65,10 +65,6 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const macro = url.searchParams.get("macro") as Macro | null;
-  const remaining = Math.max(
-    0,
-    Math.round(Number(url.searchParams.get("remaining")) || 0),
-  );
   if (!macro || !(macro in FIELD)) {
     return NextResponse.json({ error: "Ógilt orkuefni" }, { status: 400 });
   }
@@ -91,10 +87,8 @@ export async function GET(req: Request) {
 
   const macroRe = SKIP_NAME_MACRO[macro];
 
-  // Aim a portion at the remaining gap (fall back to a typical 40 g of the macro
-  // when the day is already met), capped to a realistic 20–300 g serving.
-  const targetMacro = remaining > 0 ? remaining : 40;
-
+  // Educational: just show, per 100 g, how much of the macro (and kcal) each
+  // food has — independent of how much is left of the day's target.
   const foods = (data ?? [])
     .filter((f) => {
       if (f.name.length > 45 || SKIP_NAME.test(f.name)) return false;
@@ -103,24 +97,13 @@ export async function GET(req: Request) {
       if (macroRe && macroRe.test(f.name)) return false;
       return true;
     })
-    .slice(0, 12)
-    .map((f) => {
-      const per100 = Number(f[field]) || 0;
-      if (per100 <= 0) return null;
-      let grams = Math.round((targetMacro / per100) * 100 / 10) * 10;
-      grams = Math.min(300, Math.max(20, grams));
-      const factor = grams / 100;
-      return {
-        name: f.name,
-        grams,
-        kcal: Math.round((Number(f.kcal) || 0) * factor),
-        protein_g: Math.round(Number(f.protein_g) * factor),
-        carbs_g: Math.round(Number(f.carbs_g) * factor),
-        fat_g: Math.round(Number(f.fat_g) * factor),
-        gives: Math.round(per100 * factor), // amount of the chosen macro
-      };
-    })
-    .filter((x): x is NonNullable<typeof x> => x !== null);
+    .slice(0, 14)
+    .map((f) => ({
+      name: f.name,
+      gives: Math.round(Number(f[field]) || 0), // macro per 100 g
+      kcal: Math.round(Number(f.kcal) || 0), // kcal per 100 g
+    }))
+    .filter((f) => f.gives > 0);
 
   return NextResponse.json({ foods });
 }

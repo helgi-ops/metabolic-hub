@@ -308,7 +308,6 @@ export default async function NaeringPage({
         suggested={suggested}
         intakeKcal={totals.kcal}
         hasTargets={!!targets}
-        loggedOn={selected}
         targetsForm={<TargetsForm userId={user.id} targets={targets} />}
         dayMacros={MACROS.map((m) => ({
           label: m.label,

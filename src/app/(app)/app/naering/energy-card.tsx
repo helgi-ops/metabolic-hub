@@ -53,7 +53,6 @@ export function EnergyCard({
   dayMacros,
   hasTargets,
   targetsForm,
-  loggedOn,
 }: {
   userId: string;
   profile: ProfileRow | null;
@@ -63,7 +62,6 @@ export function EnergyCard({
   dayMacros: MacroTile[];
   hasTargets: boolean;
   targetsForm: React.ReactNode;
-  loggedOn: string;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -71,7 +69,6 @@ export function EnergyCard({
   const [suggest, setSuggest] = useState<{
     macro: MacroKey;
     label: string;
-    remaining: number;
   } | null>(null);
 
   async function useAsTarget() {
@@ -189,7 +186,7 @@ export function EnergyCard({
                   {m.label}
                 </div>
                 {m.macro && (
-                  <span className="text-[11px] text-accent">Hugmyndir →</span>
+                  <span className="text-[11px] text-accent">Matvæli →</span>
                 )}
               </div>
               <div className="mt-1 flex items-baseline gap-1.5">
@@ -216,13 +213,7 @@ export function EnergyCard({
             <button
               key={m.label}
               type="button"
-              onClick={() =>
-                setSuggest({
-                  macro: m.macro!,
-                  label: m.label,
-                  remaining: Math.max(0, m.target - m.value),
-                })
-              }
+              onClick={() => setSuggest({ macro: m.macro!, label: m.label })}
               className="rounded-lg border border-border bg-background p-4 text-left transition hover:border-accent"
             >
               {inner}
@@ -279,11 +270,8 @@ export function EnergyCard({
 
       {suggest && (
         <MacroSuggest
-          userId={userId}
-          loggedOn={loggedOn}
           macro={suggest.macro}
           label={suggest.label}
-          remaining={suggest.remaining}
           onClose={() => setSuggest(null)}
         />
       )}

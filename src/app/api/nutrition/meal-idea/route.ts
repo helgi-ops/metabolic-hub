@@ -25,12 +25,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const body = (await req.json().catch(() => ({}))) as {
-    macro?: string;
-    remaining?: number;
-  };
+  const body = (await req.json().catch(() => ({}))) as { macro?: string };
   const macro = body.macro && body.macro in LABEL ? body.macro : null;
-  const remaining = Math.max(0, Math.round(Number(body.remaining) || 0));
   if (!macro) {
     return NextResponse.json({ error: "Ógilt orkuefni" }, { status: 400 });
   }
@@ -46,7 +42,7 @@ export async function POST(req: Request) {
     messages: [
       {
         role: "user",
-        content: `Iðkanda vantar um það bil ${remaining} g af ${label} til að klára daginn. Gefðu 2-3 fljótlegar, hollar hugmyndir (matur eða millimál) sem eru ríkar af ${label}. Hafðu hverja hugmynd á einni línu með áætluðu magni og hversu mikið ${label} hún gefur, t.d. "• 170 g skyr — ~17 g prótein". Engin inngangsorð eða útskýring, bara punktalínurnar.`,
+        content: `Gefðu 2-3 fljótlegar, hollar hugmyndir að máltíðum eða millimálum sem eru ríkar af ${label}. Hafðu hverja hugmynd á einni línu með áætluðu magni og hversu mikið ${label} hún gefur, t.d. "• 170 g skyr — ~17 g prótein". Engin inngangsorð eða útskýring, bara punktalínurnar.`,
       },
     ],
   });
