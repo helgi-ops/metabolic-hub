@@ -118,6 +118,9 @@ export function EnergyCard({
                 grunnur {need.base.toLocaleString("is-IS")} + æfing{" "}
                 {need.training.toLocaleString("is-IS")}
                 {need.estimated && " (áætluð)"}
+                {need.training === 0 && (
+                  <span> · skráðu æfingu dagsins svo hún telji með</span>
+                )}
               </div>
             </div>
             {(() => {
