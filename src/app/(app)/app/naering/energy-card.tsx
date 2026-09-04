@@ -101,60 +101,70 @@ export function EnergyCard({
       </div>
 
       {/* Energy need + intake balance */}
-      {profile && need ? (
-        <div className="mb-4 rounded-lg border border-border bg-background p-4">
-          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-            <div>
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Áætluð orkuþörf í dag
-              </div>
-              <div className="mt-0.5 text-2xl font-bold tabular-nums">
-                {need.total.toLocaleString("is-IS")}
-                <span className="ml-1 text-sm font-normal text-muted-foreground">
-                  kcal
-                </span>
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                grunnur {need.base.toLocaleString("is-IS")} + æfing{" "}
-                {need.training.toLocaleString("is-IS")}
-                {need.estimated && " (áætluð)"}
-                {need.training === 0 && (
-                  <span> · skráðu æfingu dagsins svo hún telji með</span>
-                )}
-              </div>
-            </div>
-            {(() => {
-              // Balance against the member's goal (markmið) when set — that's
-              // what the kcal bar shows and what's actionable; otherwise fall
-              // back to the estimated need.
-              const kcalTarget =
-                dayMacros.find((m) => m.unit === "kcal")?.target ?? 0;
-              const goal = kcalTarget > 0 ? kcalTarget : need.total;
-              const remaining = goal - Math.round(intakeKcal);
-              const over = remaining < 0;
-              const suffix = kcalTarget > 0 ? " að markmiði" : "";
-              return (
-                <div className="text-right text-sm">
-                  <div className="text-muted-foreground">Inntaka í dag</div>
-                  <div className="text-lg font-semibold tabular-nums">
-                    {Math.round(intakeKcal).toLocaleString("is-IS")} kcal
+      {profile && need
+        ? (() => {
+            // Balance against the member's goal (markmið) when set — that's what
+            // the kcal bar shows and what's actionable; else fall back to need.
+            const kcalTarget =
+              dayMacros.find((m) => m.unit === "kcal")?.target ?? 0;
+            const goal = kcalTarget > 0 ? kcalTarget : need.total;
+            const remaining = goal - Math.round(intakeKcal);
+            const over = remaining < 0;
+            const suffix = kcalTarget > 0 ? " að markmiði" : "";
+            return (
+              <div className="mb-4 rounded-lg border border-border bg-background p-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Orkuþörf */}
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Orkuþörf í dag
+                    </div>
+                    <div className="mt-0.5 text-2xl font-bold tabular-nums">
+                      {need.total.toLocaleString("is-IS")}
+                      <span className="ml-1 text-sm font-normal text-muted-foreground">
+                        kcal
+                      </span>
+                    </div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      grunnur {need.base.toLocaleString("is-IS")} + æfing{" "}
+                      {need.training.toLocaleString("is-IS")}
+                      {need.estimated && " (áætluð)"}
+                    </div>
                   </div>
-                  <div className={over ? "text-amber-400" : "text-accent"}>
-                    {Math.abs(remaining).toLocaleString("is-IS")} kcal{" "}
-                    {over ? "yfir" : "eftir"}
-                    {suffix}
+                  {/* Inntaka */}
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Inntaka í dag
+                    </div>
+                    <div className="mt-0.5 text-2xl font-bold tabular-nums">
+                      {Math.round(intakeKcal).toLocaleString("is-IS")}
+                      <span className="ml-1 text-sm font-normal text-muted-foreground">
+                        kcal
+                      </span>
+                    </div>
+                    <div
+                      className={`mt-0.5 text-xs ${over ? "text-amber-400" : "text-accent"}`}
+                    >
+                      {Math.abs(remaining).toLocaleString("is-IS")} kcal{" "}
+                      {over ? "yfir" : "eftir"}
+                      {suffix}
+                    </div>
                   </div>
                 </div>
-              );
-            })()}
-          </div>
-        </div>
-      ) : (
-        <p className="mb-4 text-sm text-muted-foreground">
-          Reiknaðu orkuþörf (kyn, aldur, hæð, þyngd) til að sjá stöðuna á
-          deginum miðað við hreyfingu.
-        </p>
-      )}
+                {need.training === 0 && (
+                  <div className="mt-3 border-t border-border pt-2 text-xs text-muted-foreground">
+                    Skráðu æfingu dagsins svo hún telji með í orkuþörfina.
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        : (
+            <p className="mb-4 text-sm text-muted-foreground">
+              Reiknaðu orkuþörf (kyn, aldur, hæð, þyngd) til að sjá stöðuna á
+              deginum miðað við hreyfingu.
+            </p>
+          )}
 
       {/* Macro totals vs targets */}
       <div className="grid gap-4 sm:grid-cols-2">
