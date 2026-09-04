@@ -121,8 +121,15 @@ export function EnergyCard({
               </div>
             </div>
             {(() => {
-              const diff = Math.round(intakeKcal) - need.total;
-              const over = diff > 0;
+              // Balance against the member's goal (markmið) when set — that's
+              // what the kcal bar shows and what's actionable; otherwise fall
+              // back to the estimated need.
+              const kcalTarget =
+                dayMacros.find((m) => m.unit === "kcal")?.target ?? 0;
+              const goal = kcalTarget > 0 ? kcalTarget : need.total;
+              const remaining = goal - Math.round(intakeKcal);
+              const over = remaining < 0;
+              const suffix = kcalTarget > 0 ? " að markmiði" : "";
               return (
                 <div className="text-right text-sm">
                   <div className="text-muted-foreground">Inntaka í dag</div>
@@ -130,9 +137,9 @@ export function EnergyCard({
                     {Math.round(intakeKcal).toLocaleString("is-IS")} kcal
                   </div>
                   <div className={over ? "text-amber-400" : "text-accent"}>
-                    {over ? "+" : "−"}
-                    {Math.abs(diff).toLocaleString("is-IS")} kcal{" "}
+                    {Math.abs(remaining).toLocaleString("is-IS")} kcal{" "}
                     {over ? "yfir" : "eftir"}
+                    {suffix}
                   </div>
                 </div>
               );
@@ -162,10 +169,12 @@ export function EnergyCard({
               </div>
               <div className="mt-1 flex items-baseline gap-1.5">
                 <span className="text-3xl font-bold tabular-nums">
-                  {m.value}
+                  {m.value.toLocaleString("is-IS")}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  {m.target ? `/ ${m.target} ${m.unit}` : m.unit}
+                  {m.target
+                    ? `/ ${m.target.toLocaleString("is-IS")} ${m.unit}`
+                    : m.unit}
                 </span>
               </div>
               {m.target > 0 && (
