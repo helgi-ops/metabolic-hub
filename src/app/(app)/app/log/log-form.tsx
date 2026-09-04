@@ -205,6 +205,7 @@ export function LogForm({
   exerciseBests,
   exerciseCatalog,
   weightKg,
+  isFirstLog,
   recent,
 }: {
   userId: string;
@@ -215,6 +216,7 @@ export function LogForm({
   exerciseBests: Record<string, number>;
   exerciseCatalog: Record<string, string[]>;
   weightKg: number | null;
+  isFirstLog: boolean;
   recent: RecentLog[];
 }) {
   const router = useRouter();
@@ -411,6 +413,11 @@ export function LogForm({
   const [durationMin, setDurationMin] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Post-save celebration: new exercise PRs and/or the member's first-ever log.
+  const [celebration, setCelebration] = useState<{
+    first: boolean;
+    prs: { name: string; kg: number }[];
+  } | null>(null);
 
   const isOther = workoutId === OTHER;
   const selected =
@@ -701,6 +708,26 @@ export function LogForm({
     setDurationMin("");
     setNotes("");
     setSaving(false);
+
+    // Celebrate new PRs (beat an existing best) and/or the first-ever log.
+    const prMap = new Map<string, number>();
+    for (const e of collected) {
+      const mx = exMaxKg(e);
+      const best = exerciseBests[e.name];
+      if (mx > 0 && best != null && mx > best) {
+        prMap.set(e.name, Math.max(prMap.get(e.name) ?? 0, mx));
+      }
+    }
+    const prs = [...prMap.entries()].map(([name, kg]) => ({ name, kg }));
+    if (prs.length || isFirstLog) {
+      setCelebration({ first: isFirstLog, prs });
+    } else {
+      router.refresh();
+    }
+  }
+
+  function closeCelebration() {
+    setCelebration(null);
     router.refresh();
   }
 
@@ -1393,6 +1420,56 @@ export function LogForm({
       >
         {saving ? "Vista…" : "Vista færslu"}
       </button>
+
+      {celebration && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={closeCelebration}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-accent/50 bg-background p-6 text-center shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-5xl">🎉</div>
+            {celebration.first && (
+              <>
+                <p className="mt-3 text-lg font-semibold">
+                  Fyrsta æfingin skráð!
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Vel gert — þú ert komin/n af stað. 💪
+                </p>
+              </>
+            )}
+            {celebration.prs.length > 0 && (
+              <>
+                <p
+                  className={`text-lg font-semibold text-accent ${celebration.first ? "mt-4" : "mt-3"}`}
+                >
+                  🏆 Nýtt met!
+                </p>
+                <ul className="mt-2 space-y-1 text-sm">
+                  {celebration.prs.map((p) => (
+                    <li key={p.name}>
+                      <span className="font-medium">{p.name}</span> — {p.kg} kg
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Þyngsta sem þú hefur lyft í þessari æfingu. Frábært! 🔥
+                </p>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={closeCelebration}
+              className="mt-5 w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90"
+            >
+              Flott!
+            </button>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

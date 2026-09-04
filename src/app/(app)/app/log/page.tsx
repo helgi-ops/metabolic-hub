@@ -259,6 +259,7 @@ export default async function LogPage() {
           exerciseBests={exerciseBests}
           exerciseCatalog={exerciseCatalog}
           weightKg={weightKg}
+          isFirstLog={list.length === 0}
           recent={list
             .filter((l) => l.structure_source_id)
             .map((l) => ({
