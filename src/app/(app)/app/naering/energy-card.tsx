@@ -9,6 +9,7 @@ import {
   type BaseActivity,
   type Goal,
 } from "@/lib/nutrition/energy";
+import { MacroSuggest, type MacroKey } from "./macro-suggest";
 
 export type ProfileRow = {
   sex: string | null;
@@ -38,6 +39,7 @@ export type MacroTile = {
   unit: string;
   value: number;
   target: number;
+  macro?: MacroKey | null;
 };
 
 // The day's status in one card: macro totals vs targets (big numbers), the
@@ -51,6 +53,7 @@ export function EnergyCard({
   dayMacros,
   hasTargets,
   targetsForm,
+  loggedOn,
 }: {
   userId: string;
   profile: ProfileRow | null;
@@ -60,10 +63,16 @@ export function EnergyCard({
   dayMacros: MacroTile[];
   hasTargets: boolean;
   targetsForm: React.ReactNode;
+  loggedOn: string;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [suggest, setSuggest] = useState<{
+    macro: MacroKey;
+    label: string;
+    remaining: number;
+  } | null>(null);
 
   async function useAsTarget() {
     if (!suggested) return;
@@ -166,19 +175,22 @@ export function EnergyCard({
             </p>
           )}
 
-      {/* Macro totals vs targets */}
+      {/* Macro totals vs targets — the macros (P/K/F) are tappable for food
+          ideas to close the day's gap. */}
       <div className="grid gap-4 sm:grid-cols-2">
         {dayMacros.map((m) => {
           const pct = m.target
             ? Math.min(100, Math.round((m.value / m.target) * 100))
             : 0;
-          return (
-            <div
-              key={m.label}
-              className="rounded-lg border border-border bg-background p-4"
-            >
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                {m.label}
+          const inner = (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {m.label}
+                </div>
+                {m.macro && (
+                  <span className="text-[11px] text-accent">Hugmyndir →</span>
+                )}
               </div>
               <div className="mt-1 flex items-baseline gap-1.5">
                 <span className="text-3xl font-bold tabular-nums">
@@ -198,6 +210,29 @@ export function EnergyCard({
                   />
                 </div>
               )}
+            </>
+          );
+          return m.macro ? (
+            <button
+              key={m.label}
+              type="button"
+              onClick={() =>
+                setSuggest({
+                  macro: m.macro!,
+                  label: m.label,
+                  remaining: Math.max(0, m.target - m.value),
+                })
+              }
+              className="rounded-lg border border-border bg-background p-4 text-left transition hover:border-accent"
+            >
+              {inner}
+            </button>
+          ) : (
+            <div
+              key={m.label}
+              className="rounded-lg border border-border bg-background p-4"
+            >
+              {inner}
             </div>
           );
         })}
@@ -239,6 +274,17 @@ export function EnergyCard({
             setEditing(false);
             router.refresh();
           }}
+        />
+      )}
+
+      {suggest && (
+        <MacroSuggest
+          userId={userId}
+          loggedOn={loggedOn}
+          macro={suggest.macro}
+          label={suggest.label}
+          remaining={suggest.remaining}
+          onClose={() => setSuggest(null)}
         />
       )}
     </div>
