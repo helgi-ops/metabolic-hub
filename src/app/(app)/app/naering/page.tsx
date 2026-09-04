@@ -18,7 +18,7 @@ import {
   type WorkoutLog,
 } from "@/lib/nutrition/energy";
 
-export const metadata = { title: "Næringardagbók · Metabolic" };
+export const metadata = { title: "Matardagbók · Metabolic" };
 
 export type Entry = {
   id: string;
@@ -257,9 +257,9 @@ export default async function NaeringPage({
     <main className="mx-auto max-w-3xl px-6 py-12">
       <div className="mb-6">
         <div className="font-mono text-xs tracking-widest text-accent uppercase">
-          Næringardagbók
+          Matardagbók
         </div>
-        <h1 className="mt-2 text-3xl font-bold">Næringardagbók</h1>
+        <h1 className="mt-2 text-3xl font-bold">Matardagbók</h1>
         <p className="mt-2 text-muted-foreground">
           Skráðu matinn þinn — leitaðu, veldu úr þínum matvælum eða sláðu inn
           handvirkt. Dagurinn leggst saman á móti markmiðunum þínum.

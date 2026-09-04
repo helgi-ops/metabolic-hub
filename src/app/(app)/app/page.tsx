@@ -138,10 +138,10 @@ export default async function DashboardPage() {
           cta="Skrá æfingu →"
         />
         <Card
-          title="Næringardagbók"
+          title="Matardagbók"
           description="Skráðu máltíðir og fylgstu með macro-um og kaloríum á móti markmiði."
           href="/app/naering"
-          cta="Skrá næringu →"
+          cta="Skrá mat →"
         />
         <Card
           title="Mín met"
