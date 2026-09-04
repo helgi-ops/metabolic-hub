@@ -299,49 +299,26 @@ export default async function NaeringPage({
         )}
       </div>
 
-      {/* Totals vs targets */}
-      <div className="mb-8 rounded-lg border border-border bg-muted p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold">Dagurinn</h2>
-          <TargetsForm userId={user.id} targets={targets} />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {MACROS.map((m) => {
-            const val = Math.round(totals[m.key]);
-            const target = targets ? Number(targets[m.tkey]) || 0 : 0;
-            const pct = target ? Math.min(100, Math.round((val / target) * 100)) : 0;
-            return (
-              <div key={m.key} className="rounded-lg border border-border bg-background p-4">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {m.label}
-                </div>
-                <div className="mt-1 flex items-baseline gap-1.5">
-                  <span className="text-3xl font-bold tabular-nums">{val}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {target ? `/ ${target} ${m.unit}` : m.unit}
-                  </span>
-                </div>
-                {target > 0 && (
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-accent"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        {!targets && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Settu þér markmið til að sjá framvindu.
-          </p>
-        )}
-      </div>
+      {/* Dagurinn — combined day status: macro totals vs targets + estimated
+          energy need and intake balance, all in one card. */}
+      <EnergyCard
+        userId={user.id}
+        profile={profileRowData}
+        need={need}
+        suggested={suggested}
+        intakeKcal={totals.kcal}
+        hasTargets={!!targets}
+        targetsForm={<TargetsForm userId={user.id} targets={targets} />}
+        dayMacros={MACROS.map((m) => ({
+          label: m.label,
+          unit: m.unit,
+          value: Math.round(totals[m.key]),
+          target: targets ? Number(targets[m.tkey]) || 0 : 0,
+        }))}
+      />
 
-      {/* Add food — kept right under the day's totals so it's reachable without
-          scrolling past the energy card. */}
+      {/* Add food — right under the day's card so it's reachable without
+          scrolling. */}
       <div className="mb-8">
         <NaeringForm
           userId={user.id}
@@ -356,15 +333,6 @@ export default async function NaeringPage({
         <h2 className="mb-3 font-semibold">Skráð í dag</h2>
         <NaeringEntries entries={entries} />
       </div>
-
-      {/* Estimated energy need */}
-      <EnergyCard
-        userId={user.id}
-        profile={profileRowData}
-        need={need}
-        suggested={suggested}
-        intakeKcal={totals.kcal}
-      />
 
       {/* Trend + average (last 14 days) */}
       {daysWithData > 0 && (

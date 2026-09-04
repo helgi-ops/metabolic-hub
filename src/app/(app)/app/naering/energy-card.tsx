@@ -33,18 +33,33 @@ export type Suggested = {
   fat_g: number;
 };
 
+export type MacroTile = {
+  label: string;
+  unit: string;
+  value: number;
+  target: number;
+};
+
+// The day's status in one card: macro totals vs targets (big numbers), the
+// estimated energy need + intake balance, and the goal-based target suggestion.
 export function EnergyCard({
   userId,
   profile,
   need,
   suggested,
   intakeKcal,
+  dayMacros,
+  hasTargets,
+  targetsForm,
 }: {
   userId: string;
   profile: ProfileRow | null;
   need: Need | null;
   suggested: Suggested | null;
   intakeKcal: number;
+  dayMacros: MacroTile[];
+  hasTargets: boolean;
+  targetsForm: React.ReactNode;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -71,77 +86,126 @@ export function EnergyCard({
 
   return (
     <div className="mb-8 rounded-lg border border-border bg-muted p-5">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="font-semibold">Orkuþörf</h2>
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition hover:text-foreground"
-        >
-          {profile ? "Uppfæra" : "Reikna orkuþörf"}
-        </button>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h2 className="font-semibold">Dagurinn</h2>
+        <div className="flex items-center gap-2">
+          {targetsForm}
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground transition hover:text-foreground"
+          >
+            {profile ? "Orkuþörf" : "Reikna orkuþörf"}
+          </button>
+        </div>
       </div>
 
-      {!profile || !need ? (
-        <p className="text-sm text-muted-foreground">
-          Sláðu inn kyn, aldur, hæð og þyngd til að fá áætlaða daglega orkuþörf
-          miðað við hreyfingu.
-        </p>
+      {/* Energy need + intake balance */}
+      {profile && need ? (
+        <div className="mb-4 rounded-lg border border-border bg-background p-4">
+          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                Áætluð orkuþörf í dag
+              </div>
+              <div className="mt-0.5 text-2xl font-bold tabular-nums">
+                {need.total.toLocaleString("is-IS")}
+                <span className="ml-1 text-sm font-normal text-muted-foreground">
+                  kcal
+                </span>
+              </div>
+              <div className="mt-0.5 text-xs text-muted-foreground">
+                grunnur {need.base.toLocaleString("is-IS")} + æfing{" "}
+                {need.training.toLocaleString("is-IS")}
+                {need.estimated && " (áætluð)"}
+              </div>
+            </div>
+            {(() => {
+              const diff = Math.round(intakeKcal) - need.total;
+              const over = diff > 0;
+              return (
+                <div className="text-right text-sm">
+                  <div className="text-muted-foreground">Inntaka í dag</div>
+                  <div className="text-lg font-semibold tabular-nums">
+                    {Math.round(intakeKcal).toLocaleString("is-IS")} kcal
+                  </div>
+                  <div className={over ? "text-amber-400" : "text-accent"}>
+                    {over ? "+" : "−"}
+                    {Math.abs(diff).toLocaleString("is-IS")} kcal{" "}
+                    {over ? "yfir" : "eftir"}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
       ) : (
-        <>
-          <div className="text-2xl font-bold">
-            {need.total.toLocaleString("is-IS")} kcal
-            <span className="ml-1 text-sm font-normal text-muted-foreground">
-              /dag
+        <p className="mb-4 text-sm text-muted-foreground">
+          Reiknaðu orkuþörf (kyn, aldur, hæð, þyngd) til að sjá stöðuna á
+          deginum miðað við hreyfingu.
+        </p>
+      )}
+
+      {/* Macro totals vs targets */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {dayMacros.map((m) => {
+          const pct = m.target
+            ? Math.min(100, Math.round((m.value / m.target) * 100))
+            : 0;
+          return (
+            <div
+              key={m.label}
+              className="rounded-lg border border-border bg-background p-4"
+            >
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                {m.label}
+              </div>
+              <div className="mt-1 flex items-baseline gap-1.5">
+                <span className="text-3xl font-bold tabular-nums">
+                  {m.value}
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  {m.target ? `/ ${m.target} ${m.unit}` : m.unit}
+                </span>
+              </div>
+              {m.target > 0 && (
+                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-accent"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {!hasTargets && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Settu þér markmið (eða notaðu tillöguna hér að neðan) til að sjá
+          framvindu.
+        </p>
+      )}
+
+      {suggested && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-3">
+          <div className="text-xs text-muted-foreground">
+            Tillaga ({GOAL_LABEL[(profile?.goal as Goal) ?? "maintain"]}):{" "}
+            <span className="text-foreground">
+              {suggested.kcal} kcal · P {suggested.protein_g} · K{" "}
+              {suggested.carbs_g} · F {suggested.fat_g}
             </span>
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Grunnur {need.base.toLocaleString("is-IS")} + æfing{" "}
-            {need.training.toLocaleString("is-IS")} kcal
-            {need.estimated && " (æfing áætluð)"}
-          </p>
-
-          {/* Balance vs intake */}
-          {(() => {
-            const diff = Math.round(intakeKcal) - need.total;
-            const over = diff > 0;
-            return (
-              <div className="mt-3 text-sm">
-                Inntaka í dag:{" "}
-                <span className="font-medium">
-                  {Math.round(intakeKcal).toLocaleString("is-IS")} kcal
-                </span>{" "}
-                <span
-                  className={over ? "text-amber-400" : "text-accent"}
-                >
-                  ({over ? "+" : "−"}
-                  {Math.abs(diff).toLocaleString("is-IS")} kcal{" "}
-                  {over ? "yfir" : "undir"})
-                </span>
-              </div>
-            );
-          })()}
-
-          {suggested && (
-            <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-3">
-              <div className="text-xs text-muted-foreground">
-                Tillaga ({GOAL_LABEL[(profile.goal as Goal) ?? "maintain"]}):{" "}
-                <span className="text-foreground">
-                  {suggested.kcal} kcal · P {suggested.protein_g} · K{" "}
-                  {suggested.carbs_g} · F {suggested.fat_g}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={useAsTarget}
-                disabled={busy}
-                className="ml-auto rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition hover:opacity-90 disabled:opacity-50"
-              >
-                {busy ? "Set…" : "Nota sem markmið"}
-              </button>
-            </div>
-          )}
-        </>
+          <button
+            type="button"
+            onClick={useAsTarget}
+            disabled={busy}
+            className="ml-auto rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition hover:opacity-90 disabled:opacity-50"
+          >
+            {busy ? "Set…" : "Nota sem markmið"}
+          </button>
+        </div>
       )}
 
       {editing && (
