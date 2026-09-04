@@ -12,14 +12,49 @@ const FIELD: Record<Macro, "protein_g" | "carbs_g" | "fat_g"> = {
   fat: "fat_g",
 };
 // Only suggest foods genuinely dense in the macro (per 100 g).
-const MIN_PER_100: Record<Macro, number> = { protein: 10, carbs: 20, fat: 12 };
+const MIN_PER_100: Record<Macro, number> = { protein: 10, carbs: 8, fat: 12 };
+// For carbs, cap the density so pure sugar, syrup, flour and raw grains (all
+// 70–100 g/100 g) drop out and real carb sources (pasta/rice cooked, potatoes,
+// fruit, vegetables) remain.
+const MAX_PER_100: Partial<Record<Macro, number>> = { carbs: 40 };
 
-// Skip supplement/powder/oddity categories and garbled ÍSGEM rows.
+// Skip supplement/powder/oddity/sweet/snack categories and garbled ÍSGEM rows.
 const SKIP_CATEGORY = new Set([
   "Fæðubótarefni og sérfæði",
   "Krydd, salt, edik",
+  "Sykur, hunang, sælgæti",
+  "Snakk, popp, flögur",
 ]);
 const SKIP_NAME = /µg|retinol|vítamín steinefni|duft|matarlím|þurrger|^ger\b/i;
+// For fat, drop pure oils/margarine (prefer real foods like cheese, nuts, avocado).
+const SKIP_NAME_MACRO: Record<Macro, RegExp | null> = {
+  protein: null,
+  carbs: null,
+  fat: /olía|olíu|smjörlíki|tólg|ístr|jurtafeiti|dýrafita/i,
+};
+
+// Carbs are whitelisted to real sources (pasta/rice/bread/oats/barley,
+// vegetables/potatoes, fruit/berries) rather than blacklisting the endless
+// sweets — this keeps the list to foods you'd actually eat for carbs.
+function allowCarb(name: string, category: string | null): boolean {
+  const n = name.toLowerCase();
+  if (category === "Grænmeti og kartöflur")
+    return !/hvítlauk|olíu|franskar|steikt|djúpst|sagó|mjöl/.test(n);
+  if (category === "Ávextir, ber, hnetur og fræ")
+    return !/hneta|hnetur|fræ|möndl|kasjú|pistas|valhnet|heslihnet|jarðhnet|saft|safi|þykkni|þurrk/.test(
+      n,
+    );
+  if (category === "Kornmatur, brauð, kökur")
+    return (
+      /pasta|spaghett|makkar|núðl|tortellini|hrísgrjón|brauð|hafragraut|bygg|kínóa|quinoa|couscous|bulgur/.test(
+        n,
+      ) &&
+      !/döðlu|kaka|kök|köku|vínarbrauð|skonsur|vöffl|klein|bolla|marens|kex|snúð/.test(
+        n,
+      )
+    );
+  return false;
+}
 
 export async function GET(req: Request) {
   const supabase = await createClient();
@@ -40,28 +75,34 @@ export async function GET(req: Request) {
   const field = FIELD[macro];
 
   // Pull a generous ranked slice, then clean + shape in JS.
-  const { data, error } = await supabase
+  let query = supabase
     .from("foods_is")
     .select("name, category, kcal, protein_g, carbs_g, fat_g")
     .gte(field, MIN_PER_100[macro])
-    .lte("kcal", 500)
+    .lte("kcal", 500);
+  const max = MAX_PER_100[macro];
+  if (max != null) query = query.lte(field, max);
+  const { data, error } = await query
     .order(field, { ascending: false })
     .limit(80);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const macroRe = SKIP_NAME_MACRO[macro];
+
   // Aim a portion at the remaining gap (fall back to a typical 40 g of the macro
   // when the day is already met), capped to a realistic 20–300 g serving.
   const targetMacro = remaining > 0 ? remaining : 40;
 
   const foods = (data ?? [])
-    .filter(
-      (f) =>
-        f.name.length <= 45 &&
-        !SKIP_NAME.test(f.name) &&
-        !(f.category && SKIP_CATEGORY.has(f.category)),
-    )
+    .filter((f) => {
+      if (f.name.length > 45 || SKIP_NAME.test(f.name)) return false;
+      if (f.category && SKIP_CATEGORY.has(f.category)) return false;
+      if (macro === "carbs") return allowCarb(f.name, f.category);
+      if (macroRe && macroRe.test(f.name)) return false;
+      return true;
+    })
     .slice(0, 12)
     .map((f) => {
       const per100 = Number(f[field]) || 0;
