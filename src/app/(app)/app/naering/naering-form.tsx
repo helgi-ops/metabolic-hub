@@ -85,6 +85,13 @@ export function NaeringForm({
 
   const num = (v: string) => parseFloat(v.replace(",", ".")) || 0;
 
+  // Atwater factors (protein 4, carbs 4, fat 9 kcal/g). When a member edits a
+  // macro on the photo estimate, keep kcal in step with the grams they entered.
+  function recalcPhotoKcal(protein: string, carbs: string, fat: string) {
+    const kcal = num(protein) * 4 + num(carbs) * 4 + num(fat) * 9;
+    setPKcal(String(Math.round(kcal)));
+  }
+
   // Downscale an image file to keep the upload small, return base64 (no prefix).
   function fileToBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -644,15 +651,42 @@ export function NaeringForm({
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs text-muted-foreground">Prótein (g)</span>
-                    <input inputMode="decimal" value={pProtein} onChange={(e) => setPProtein(e.target.value)} placeholder="g" className={field} />
+                    <input
+                      inputMode="decimal"
+                      value={pProtein}
+                      onChange={(e) => {
+                        setPProtein(e.target.value);
+                        recalcPhotoKcal(e.target.value, pCarbs, pFat);
+                      }}
+                      placeholder="g"
+                      className={field}
+                    />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs text-muted-foreground">Kolvetni (g)</span>
-                    <input inputMode="decimal" value={pCarbs} onChange={(e) => setPCarbs(e.target.value)} placeholder="g" className={field} />
+                    <input
+                      inputMode="decimal"
+                      value={pCarbs}
+                      onChange={(e) => {
+                        setPCarbs(e.target.value);
+                        recalcPhotoKcal(pProtein, e.target.value, pFat);
+                      }}
+                      placeholder="g"
+                      className={field}
+                    />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs text-muted-foreground">Fita (g)</span>
-                    <input inputMode="decimal" value={pFat} onChange={(e) => setPFat(e.target.value)} placeholder="g" className={field} />
+                    <input
+                      inputMode="decimal"
+                      value={pFat}
+                      onChange={(e) => {
+                        setPFat(e.target.value);
+                        recalcPhotoKcal(pProtein, pCarbs, e.target.value);
+                      }}
+                      placeholder="g"
+                      className={field}
+                    />
                   </label>
                 </div>
                 <button
