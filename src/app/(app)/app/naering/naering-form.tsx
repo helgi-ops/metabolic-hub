@@ -604,10 +604,12 @@ export function NaeringForm({
         {mode === "photo" && (
           <div className="space-y-3">
             <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-background px-4 py-6 text-sm text-muted-foreground transition hover:border-accent hover:text-foreground">
+              {/* No `capture` attribute: on a phone this lets iOS/Android offer
+                  BOTH "Take Photo" and "Photo Library", so a member can upload a
+                  meal photo they snapped earlier offline — not only shoot live. */}
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
                 className="hidden"
                 onChange={(e) => onPhoto(e.target.files?.[0] ?? null)}
               />
@@ -615,7 +617,9 @@ export function NaeringForm({
             </label>
             <p className="text-xs text-muted-foreground">
               Claude áætlar macros og kaloríur út frá myndinni. Þetta er
-              ágiskun — yfirfarðu og lagaðu áður en þú skráir.
+              ágiskun — yfirfarðu og lagaðu áður en þú skráir. Þú getur tekið
+              mynd núna eða valið mynd sem þú tókst fyrr (t.d. úti að borða án
+              nets) og hlaðið henni upp þegar þú ert komin/n aftur á netið.
             </p>
 
             {pReady && (
