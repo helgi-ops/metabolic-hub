@@ -163,8 +163,12 @@ export default async function LogPage() {
   // Movements members do that aren't in the video bank yet — added so they can
   // still be picked when self-logging "önnur æfing".
   const EXTRA_CATALOG: Record<string, string[]> = {
-    "Framan á læri": ["Thruster"],
-    "Framan á læri nr. 2": ["Afturstig + armkreppa", "Afturstig + pressa"],
+    "Framan á læri": ["Thruster", "BB Squat", "BB Front Squat", "BB Box Squat"],
+    "Framan á læri nr. 2": [
+      "Afturstig + armkreppa",
+      "Afturstig + pressa",
+      "Hliðarstig",
+    ],
     // The video bank's "Lárétt pressa" is only push-up variations — add the
     // barbell/dumbbell bench presses members actually load, plus floor press
     // (used in the programming) and a machine option.
