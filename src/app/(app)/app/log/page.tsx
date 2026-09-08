@@ -181,6 +181,7 @@ export default async function LogPage() {
       "DB Floor press",
       "Bekkpressa í tæki",
     ],
+    "Lóðrétt pressa": ["Lateral raise", "Front raise"],
   };
   for (const [cat, names] of Object.entries(EXTRA_CATALOG)) {
     const listForCat = (exerciseCatalog[cat] ??= []);
