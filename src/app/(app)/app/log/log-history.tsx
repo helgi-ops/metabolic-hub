@@ -34,11 +34,39 @@ export type Log = {
   machine: string | null;
   machines_json: Record<string, string> | null;
   machine_distance_json: Record<string, string> | null;
+  volume_json: VolumeJson | null;
   total_volume: number | null;
   est_calories: number | null;
   notes: string | null;
   activity: string | null;
 };
+
+// Structured per-exercise sets (name → {sets:[{reps,kg}], volume}). Preferred for
+// display because it collapses cleanly no matter how many sets were logged.
+type VolumeJson = Record<
+  string,
+  { sets: { reps: number; kg: number }[]; volume: number }
+>;
+
+// Compact one-liner from volume_json: "Bekkpressa ×30 (55–65kg) · Squat ×5 (80kg)".
+// A 30-set exercise becomes one short entry instead of 30 — keeps the row tidy.
+function summarizeVolume(vj: VolumeJson | null): string {
+  if (!vj) return "";
+  const parts: string[] = [];
+  for (const [name, info] of Object.entries(vj)) {
+    const sets = info?.sets ?? [];
+    if (!sets.length) continue;
+    const kgs = sets.map((s) => Number(s.kg)).filter((k) => k > 0);
+    let load = "";
+    if (kgs.length) {
+      const min = Math.min(...kgs);
+      const max = Math.max(...kgs);
+      load = min === max ? ` (${min}kg)` : ` (${min}–${max}kg)`;
+    }
+    parts.push(`${name} ×${sets.length}${load}`);
+  }
+  return parts.join(" · ");
+}
 
 // "Bekkpressa 60kg, Bekkpressa 65kg" → "Bekkpressa ×2 (60–65kg)".
 function summarizeWeights(weights: string | null): string {
@@ -141,7 +169,7 @@ export function LogHistory({ logs }: { logs: Log[] }) {
                       🚲 {l.activity}
                     </span>
                   ) : (
-                    summarizeWeights(l.weights)
+                    summarizeVolume(l.volume_json) || summarizeWeights(l.weights)
                   )}
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-right text-muted-foreground">

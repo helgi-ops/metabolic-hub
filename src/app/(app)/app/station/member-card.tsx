@@ -43,6 +43,7 @@ type LogRow = {
   machine: string | null;
   machines_json: Record<string, string> | null;
   machine_distance_json: Record<string, string> | null;
+  volume_json: VolumeJson | null;
   weights: string | null;
   activity: string | null;
   scheduled_day: string | null;
@@ -55,6 +56,31 @@ const RISK_TEXT: Record<Risk, string> = {
   warn: "text-amber-400",
   at: "text-red-400",
 };
+
+type VolumeJson = Record<
+  string,
+  { sets: { reps: number; kg: number }[]; volume: number }
+>;
+
+// Compact one-liner from structured sets: "Bekkpressa ×30 (55–65kg)". Preferred
+// over the raw weights string so a 30-set log is one entry, not thirty.
+function summarizeVolume(vj: VolumeJson | null): string {
+  if (!vj) return "";
+  const parts: string[] = [];
+  for (const [name, info] of Object.entries(vj)) {
+    const sets = info?.sets ?? [];
+    if (!sets.length) continue;
+    const kgs = sets.map((s) => Number(s.kg)).filter((k) => k > 0);
+    let load = "";
+    if (kgs.length) {
+      const min = Math.min(...kgs);
+      const max = Math.max(...kgs);
+      load = min === max ? ` (${min}kg)` : ` (${min}–${max}kg)`;
+    }
+    parts.push(`${name} ×${sets.length}${load}`);
+  }
+  return parts.join(" · ");
+}
 
 // Compact "Bekkpressa 60kg, Bekkpressa 65kg" → "Bekkpressa ×2 (60–65kg)".
 function summarizeWeights(weights: string | null): string {
@@ -232,7 +258,7 @@ function ActivityModal({
       const { data } = await supabase
         .from("workout_logs")
         .select(
-          "id, logged_on, rpe, calories, machine, machines_json, machine_distance_json, weights, activity, scheduled_day, scheduled_category, level",
+          "id, logged_on, rpe, calories, machine, machines_json, machine_distance_json, volume_json, weights, activity, scheduled_day, scheduled_category, level",
         )
         .eq("user_id", member.id)
         .order("logged_on", { ascending: false })
@@ -344,7 +370,7 @@ function ActivityModal({
                     ]
                       .filter(Boolean)
                       .join(" · ") || "Æfing";
-                const w = summarizeWeights(l.weights);
+                const w = summarizeVolume(l.volume_json) || summarizeWeights(l.weights);
                 return (
                   <li
                     key={l.id}
