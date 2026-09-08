@@ -1272,6 +1272,7 @@ export type Database = {
           level: string | null
           logged_on: string
           machine: string | null
+          machine_distance_json: Json | null
           machines_json: Json | null
           notes: string | null
           rpe: number | null
@@ -1297,6 +1298,7 @@ export type Database = {
           level?: string | null
           logged_on?: string
           machine?: string | null
+          machine_distance_json?: Json | null
           machines_json?: Json | null
           notes?: string | null
           rpe?: number | null
@@ -1322,6 +1324,7 @@ export type Database = {
           level?: string | null
           logged_on?: string
           machine?: string | null
+          machine_distance_json?: Json | null
           machines_json?: Json | null
           notes?: string | null
           rpe?: number | null

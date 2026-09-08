@@ -7,11 +7,15 @@ import { trainingKcalForLog, type WorkoutLog } from "@/lib/nutrition/energy";
 
 export const MACHINES: { value: string; label: string }[] = [
   { value: "assault_airbike", label: "Assault Airbike" },
+  { value: "assault_runner", label: "Assault Runner" },
   { value: "concept2_row", label: "Concept2 Róður" },
   { value: "concept2_bike", label: "Concept2 Bike" },
   { value: "concept2_ski", label: "Concept2 Ski" },
   { value: "other", label: "Annað" },
 ];
+
+// Machines a member can also log a distance (metres) for, alongside kcal.
+export const DISTANCE_MACHINES = new Set(["assault_runner"]);
 
 // Cardio ergs (Assault Airbike, Concept2 row/bike/ski) are ALWAYS logged as
 // kcal — never sett × reps × kg — no matter where they appear in a workout.
@@ -19,7 +23,10 @@ export const MACHINES: { value: string; label: string }[] = [
 // machine value, or null when it's a weightable movement.
 export function machineForExercise(name: string): string | null {
   const n = name.toLowerCase();
-  // Assault Airbike (fan bike) first, so "airbike" isn't caught by the generic
+  // Assault Runner (curved treadmill) before the airbike rule — "Assault Runner"
+  // also contains "assault", so match "runner" first.
+  if (n.includes("runner") || n.includes("air runner")) return "assault_runner";
+  // Assault Airbike (fan bike) next, so "airbike" isn't caught by the generic
   // bike rules below.
   if (n.includes("assault") || n.includes("airbike") || n.includes("air bike"))
     return "assault_airbike";
@@ -246,6 +253,7 @@ export function LogForm({
     setSwaps({});
     setSwapOpen(null);
     setMachineKcal({});
+    setMachineDist({});
     setManualExercises([]);
   }
 
@@ -392,6 +400,9 @@ export function LogForm({
   // kcal per machine (endurance / önnur æfing): member rotates through the ergs,
   // keyed by machine value (assault_airbike, concept2_row, …).
   const [machineKcal, setMachineKcal] = useState<Record<string, string>>({});
+  // Distance in metres per machine (only DISTANCE_MACHINES show a field), e.g.
+  // { assault_runner: "2000" }. Logged alongside the machine's kcal.
+  const [machineDist, setMachineDist] = useState<Record<string, string>>({});
   // "Önnur æfing": exercises the member picked via movement-pattern → exercise.
   // Each pick is its own row (duplicates allowed), with its own sets/reps/kg.
   const [manualExercises, setManualExercises] = useState<
@@ -613,11 +624,21 @@ export function LogForm({
       : null;
     const machinesTotal = machineEntries.reduce((sum, [, v]) => sum + v, 0);
 
+    // Distance (metres) for machines that track it (Assault Runner). Only
+    // positive values are kept; stored per machine alongside the kcal.
+    const distEntries = Object.entries(machineDist)
+      .map(([k, v]) => [k, Math.round(parseFloat(v.replace(",", ".")) || 0)] as const)
+      .filter(([k, v]) => v > 0 && DISTANCE_MACHINES.has(k));
+    const machineDistanceJson = distEntries.length
+      ? Object.fromEntries(distEntries.map(([k, v]) => [k, String(v)]))
+      : null;
+
     if (
       !rpe &&
       !weightsText &&
       cal == null &&
       !machinesJson &&
+      !machineDistanceJson &&
       !notes.trim() &&
       !activityName
     ) {
@@ -676,6 +697,7 @@ export function LogForm({
       calories: totalCalories,
       machine: singleMachine,
       machines_json: machinesJson,
+      machine_distance_json: machineDistanceJson,
       est_calories: estCalories,
       duration_min: durMin > 0 ? durMin : null,
       notes: notes.trim() || null,
@@ -701,6 +723,7 @@ export function LogForm({
     setSwapCat("");
     setSwapEx("");
     setMachineKcal({});
+    setMachineDist({});
     setManualExercises([]);
     setWeights("");
     setCalories("");
@@ -805,6 +828,7 @@ export function LogForm({
               setSwaps({});
               setSwapOpen(null);
               setMachineKcal({});
+              setMachineDist({});
               setManualExercises([]);
             }}
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
@@ -1019,6 +1043,18 @@ export function LogForm({
                   {CARDIO_MACHINES.map((m) => (
                     <div key={m.value} className="flex items-center gap-2">
                       <span className="flex-1 text-sm">{m.label}</span>
+                      {DISTANCE_MACHINES.has(m.value) && (
+                        <input
+                          inputMode="numeric"
+                          value={machineDist[m.value] ?? ""}
+                          onChange={(e) =>
+                            setMachineDist((p) => ({ ...p, [m.value]: e.target.value }))
+                          }
+                          placeholder="metrar"
+                          aria-label={`${m.label} — vegalengd í metrum`}
+                          className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                        />
+                      )}
                       <input
                         inputMode="decimal"
                         value={machineKcal[m.value] ?? ""}
@@ -1050,6 +1086,18 @@ export function LogForm({
               {CARDIO_MACHINES.map((m) => (
                 <div key={m.value} className="flex items-center gap-2">
                   <span className="flex-1 text-sm">{m.label}</span>
+                  {DISTANCE_MACHINES.has(m.value) && (
+                    <input
+                      inputMode="numeric"
+                      value={machineDist[m.value] ?? ""}
+                      onChange={(e) =>
+                        setMachineDist((p) => ({ ...p, [m.value]: e.target.value }))
+                      }
+                      placeholder="metrar"
+                      aria-label={`${m.label} — vegalengd í metrum`}
+                      className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                  )}
                   <input
                     inputMode="decimal"
                     value={machineKcal[m.value] ?? ""}

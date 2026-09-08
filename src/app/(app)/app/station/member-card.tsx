@@ -17,6 +17,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 const MACHINE_LABEL: Record<string, string> = {
   assault_airbike: "Assault Airbike",
+  assault_runner: "Assault Runner",
   concept2_row: "Concept2 Róður",
   concept2_bike: "Concept2 Bike",
   concept2_ski: "Concept2 Ski",
@@ -41,6 +42,7 @@ type LogRow = {
   calories: number | null;
   machine: string | null;
   machines_json: Record<string, string> | null;
+  machine_distance_json: Record<string, string> | null;
   weights: string | null;
   activity: string | null;
   scheduled_day: string | null;
@@ -230,7 +232,7 @@ function ActivityModal({
       const { data } = await supabase
         .from("workout_logs")
         .select(
-          "id, logged_on, rpe, calories, machine, machines_json, weights, activity, scheduled_day, scheduled_category, level",
+          "id, logged_on, rpe, calories, machine, machines_json, machine_distance_json, weights, activity, scheduled_day, scheduled_category, level",
         )
         .eq("user_id", member.id)
         .order("logged_on", { ascending: false })
@@ -364,6 +366,18 @@ function ActivityModal({
                             : ""}
                         </span>
                       )}
+                      {l.machine_distance_json &&
+                        Object.values(l.machine_distance_json).some(
+                          (v) => Number(v) > 0,
+                        ) && (
+                          <span>
+                            🏃{" "}
+                            {Object.values(l.machine_distance_json)
+                              .reduce((a, v) => a + (Number(v) || 0), 0)
+                              .toLocaleString("is-IS")}{" "}
+                            m
+                          </span>
+                        )}
                     </div>
                     {w && (
                       <div className="mt-1 text-xs text-foreground/80">{w}</div>

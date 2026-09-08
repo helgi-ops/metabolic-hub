@@ -26,6 +26,7 @@ type Log = {
   calories: number | null;
   machine: string | null;
   machines_json: Record<string, string> | null;
+  machine_distance_json: Record<string, string> | null;
   total_volume: number | null;
   est_calories: number | null;
   notes: string | null;
@@ -118,7 +119,7 @@ export default async function LogPage() {
   const { data: logs } = await supabase
     .from("workout_logs")
     .select(
-      "id, logged_on, rpe, weights, weights_json, level, calories, machine, machines_json, total_volume, est_calories, notes, activity, structure_source_id, scheduled_day, scheduled_category",
+      "id, logged_on, rpe, weights, weights_json, level, calories, machine, machines_json, machine_distance_json, total_volume, est_calories, notes, activity, structure_source_id, scheduled_day, scheduled_category",
     )
     .eq("user_id", user!.id)
     .order("logged_on", { ascending: false })

@@ -8,6 +8,7 @@ export const metadata = { title: "Kcal Leaderboard · Metabolic" };
 const MACHINE_FILTERS = [
   { value: "", label: "Öll tæki" },
   { value: "assault_airbike", label: "Assault Airbike" },
+  { value: "assault_runner", label: "Assault Runner" },
   { value: "concept2", label: "Concept2" },
 ];
 
@@ -96,7 +97,7 @@ export default async function LeaderboardPage({
       <h1 className="text-3xl font-bold">Brennslan</h1>
       <p className="mt-2 text-muted-foreground">
         {period === "month" ? "Kaloríur þennan mánuð" : "Uppsafnaðar kaloríur"} á
-        Assault Airbike og Concept2. {!isAdmin && "Þín stöð."}
+        Assault Airbike, Assault Runner og Concept2. {!isAdmin && "Þín stöð."}
       </p>
 
       <OptOutToggle

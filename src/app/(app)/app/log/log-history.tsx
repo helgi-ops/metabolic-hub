@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const MACHINE_LABEL: Record<string, string> = {
   assault_airbike: "Assault Airbike",
+  assault_runner: "Assault Runner",
   concept2_row: "Concept2 Róður",
   concept2_bike: "Concept2 Bike",
   concept2_ski: "Concept2 Ski",
@@ -14,6 +15,7 @@ const MACHINE_LABEL: Record<string, string> = {
 
 const CARDIO_MACHINES = [
   "assault_airbike",
+  "assault_runner",
   "concept2_row",
   "concept2_bike",
   "concept2_ski",
@@ -31,6 +33,7 @@ export type Log = {
   calories: number | null;
   machine: string | null;
   machines_json: Record<string, string> | null;
+  machine_distance_json: Record<string, string> | null;
   total_volume: number | null;
   est_calories: number | null;
   notes: string | null;
@@ -184,6 +187,18 @@ export function LogHistory({ logs }: { logs: Log[] }) {
                     }
                     return "";
                   })()}
+                  {l.machine_distance_json &&
+                    Object.values(l.machine_distance_json).some(
+                      (v) => Number(v) > 0,
+                    ) && (
+                      <span className="ml-2 whitespace-nowrap" title="Vegalengd">
+                        🏃{" "}
+                        {Object.values(l.machine_distance_json)
+                          .reduce((a, v) => a + (Number(v) || 0), 0)
+                          .toLocaleString("is-IS")}{" "}
+                        m
+                      </span>
+                    )}
                 </td>
                 <td className="px-4 py-2 text-muted-foreground">
                   {l.notes ?? ""}
