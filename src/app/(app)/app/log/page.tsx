@@ -165,6 +165,18 @@ export default async function LogPage() {
   const EXTRA_CATALOG: Record<string, string[]> = {
     "Framan á læri": ["Thruster"],
     "Framan á læri nr. 2": ["Afturstig + armkreppa", "Afturstig + pressa"],
+    // The video bank's "Lárétt pressa" is only push-up variations — add the
+    // barbell/dumbbell bench presses members actually load, plus floor press
+    // (used in the programming) and a machine option.
+    "Lárétt pressa": [
+      "BB Bekkpressa",
+      "BB Incline Bekkpressa",
+      "DB Bekkpressa",
+      "DB Incline Bekkpressa",
+      "BB Floor press",
+      "DB Floor press",
+      "Bekkpressa í tæki",
+    ],
   };
   for (const [cat, names] of Object.entries(EXTRA_CATALOG)) {
     const listForCat = (exerciseCatalog[cat] ??= []);
