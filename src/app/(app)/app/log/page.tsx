@@ -182,6 +182,22 @@ export default async function LogPage() {
       "Bekkpressa í tæki",
     ],
     "Lóðrétt pressa": ["Lateral raise", "Front raise"],
+    // Biceps/triceps aren't their own category in the video bank — add them as
+    // dedicated patterns so members can log arm work directly.
+    Biceps: [
+      "BB Armkreppa",
+      "DB Armkreppa",
+      "Hammer curl",
+      "Kaðal armkreppa",
+      "Preacher curl",
+    ],
+    Triceps: [
+      "Kaðal armrétta",
+      "DB Skull crusher",
+      "Overhead armrétta",
+      "Þröng bekkpressa",
+      "Dýfur",
+    ],
   };
   for (const [cat, names] of Object.entries(EXTRA_CATALOG)) {
     const listForCat = (exerciseCatalog[cat] ??= []);
