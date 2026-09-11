@@ -64,6 +64,12 @@ export function EditClient({
   }, [structures, level]);
 
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
+  // The category each slot was saved with — the day's focus text describes that
+  // category, so if the coach changes it the focus no longer applies.
+  const initialCategories = useMemo(
+    () => initialSlots.map((s) => s.category),
+    [initialSlots],
+  );
   // Editable exercise text per slot — starts from the saved override, else the
   // structure's library preview.
   const [previews, setPreviews] = useState<string[]>(() =>
@@ -106,6 +112,9 @@ export function EditClient({
       const edited = previews[i] ?? "";
       const { preview: _omit, ...rest } = s;
       void _omit;
+      // Drop the focus text if the coach changed the category — it described the
+      // original category and would otherwise stick around stale.
+      if (s.category !== initialCategories[i]) delete rest.focus;
       return edited.trim() && edited !== lib
         ? { ...rest, preview: edited }
         : rest;
@@ -157,11 +166,17 @@ export function EditClient({
               {slot.day && (
                 <div className="mb-3 border-b border-border pb-2">
                   <span className="text-sm font-semibold">{slot.day}</span>
-                  {slot.focus && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {slot.focus}
-                    </span>
-                  )}
+                  {slot.focus &&
+                    (slot.category === initialCategories[i] ? (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {slot.focus}
+                      </span>
+                    ) : (
+                      <span className="ml-2 text-xs italic text-muted-foreground">
+                        Flokki breytt í{" "}
+                        {CATEGORY_LABEL[slot.category] ?? slot.category}
+                      </span>
+                    ))}
                 </div>
               )}
               <div className="flex items-center gap-3">

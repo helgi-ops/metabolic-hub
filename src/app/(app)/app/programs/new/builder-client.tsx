@@ -264,6 +264,14 @@ export function BuilderClient({
         const st = byId.get(s.structureId);
         if (!st) return null;
         const cd = cycleDays?.[i];
+        // Keep the day label, but only persist the focus text when the coach
+        // left the slot on its periodization category — if they overrode it
+        // (e.g. → Burn/Endurance) the focus no longer describes the day, so drop
+        // it rather than saving a stale description.
+        const expectedCat = cycleWeek
+          ? PERIODIZATION[cycleWeek][variant][i]
+          : null;
+        const keepFocus = cd != null && s.category === expectedCat;
         // Save the edited exercise text only when it differs from the library
         // preview, so untouched slots keep tracking the structure library.
         const edited = (previews[i] ?? "").trim();
@@ -273,7 +281,8 @@ export function BuilderClient({
           category: s.category,
           structure_source_id: st.source_id,
           name: st.name,
-          ...(cd ? { day: cd.day, focus: cd.focus } : {}),
+          ...(cd ? { day: cd.day } : {}),
+          ...(keepFocus ? { focus: cd.focus } : {}),
           ...(edited && previews[i] !== lib ? { preview: previews[i] } : {}),
         };
       })
@@ -443,6 +452,13 @@ export function BuilderClient({
           const pool = byCategory.get(slot.category) ?? [];
           const chosen = slot.structureId ? byId.get(slot.structureId) : null;
           const cd = cycleDays?.[i];
+          // The day's focus text describes the periodization category for that
+          // slot. If the coach overrides the category (e.g. → Burn/Endurance),
+          // the focus no longer applies, so hide it and show what it became.
+          const expectedCat = cycleWeek
+            ? PERIODIZATION[cycleWeek][variant][i]
+            : null;
+          const focusApplies = expectedCat == null || slot.category === expectedCat;
           return (
             <div
               key={i}
@@ -451,9 +467,15 @@ export function BuilderClient({
               {cd && (
                 <div className="mb-3 border-b border-border pb-2">
                   <span className="text-sm font-semibold">{cd.day}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {cd.focus}
-                  </span>
+                  {focusApplies ? (
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {cd.focus}
+                    </span>
+                  ) : (
+                    <span className="ml-2 text-xs italic text-muted-foreground">
+                      Flokki breytt í {CATEGORY_LABEL[slot.category] ?? slot.category}
+                    </span>
+                  )}
                 </div>
               )}
               <div className="flex items-center gap-3">
