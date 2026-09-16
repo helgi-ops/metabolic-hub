@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trainingKcalForLog, type WorkoutLog } from "@/lib/nutrition/energy";
@@ -198,6 +198,27 @@ const LEVELS = ["MB1", "MB2", "MB3"] as const;
 // Sentinel for "logged an alternative activity instead of the day's workout".
 const OTHER = "__other__";
 
+const DAYS_IS = [
+  "Sunnudagur",
+  "Mánudagur",
+  "Þriðjudagur",
+  "Miðvikudagur",
+  "Fimmtudagur",
+  "Föstudagur",
+  "Laugardagur",
+];
+
+// Monday (ISO week start) for a YYYY-MM-DD date — used to tell whether a chosen
+// log date falls in the current week or an earlier one.
+function weekStartISO(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  const dow = (d.getDay() + 6) % 7; // 0 = Monday
+  d.setDate(d.getDate() - dow);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
 // One logged set of an exercise: reps done in that set and the weight used.
 // A list of these lets a member log varied weights/reps (e.g. a wave 2-4-6).
 type SetEntry = { reps: string; kg: string };
@@ -231,23 +252,40 @@ export function LogForm({
   // out what the workout was after you've done it and given it an RPE.
   const loggedSet = new Set(loggedSourceIds);
 
-  // The member chooses which level they did today (they can move between
-  // MB1/MB2/MB3 each session). Default to the first level that has a plan.
+  // The member chooses which level they did (they can move between MB1/MB2/MB3
+  // each session). Default to the first level that has a plan this week.
   const availableLevels = LEVELS.filter(
     (l) => (weekByLevel[l]?.length ?? 0) > 0,
   );
-  const [level, setLevel] = useState<string>(availableLevels[0] ?? "MB1");
-  const workouts = weekByLevel[level] ?? [];
-  const todays = workouts.find((w) => w.day === todayDay) ?? null;
-
+  const initialLevel = availableLevels[0] ?? "MB1";
+  const [level, setLevel] = useState<string>(initialLevel);
   const [loggedOn, setLoggedOn] = useState(today);
+
+  // Backdating to a previous week: load that week's plan so the exact planned
+  // workout is still selectable and the log ties to the right structure. Null =
+  // the selected date is in the current week → use the server-provided prop.
+  const [pastWeek, setPastWeek] = useState<Record<string, WeekWorkout[]> | null>(
+    null,
+  );
+  const [loadingWeek, setLoadingWeek] = useState(false);
+  const inCurrentWeek = weekStartISO(loggedOn) === weekStartISO(today);
+  const effectiveWeekByLevel = inCurrentWeek ? weekByLevel : pastWeek ?? {};
+  const workouts = effectiveWeekByLevel[level] ?? [];
+  // The plan day matching the selected date (its weekday name).
+  const selectedDayName = DAYS_IS[new Date(`${loggedOn}T00:00:00`).getDay()];
+  const todays = workouts.find((w) => w.day === selectedDayName) ?? null;
+
   const [workoutId, setWorkoutId] = useState<string>(
-    todays?.structure_source_id ?? "",
+    () =>
+      (weekByLevel[initialLevel] ?? []).find((w) => w.day === todayDay)
+        ?.structure_source_id ?? "",
   );
 
   function changeLevel(l: string) {
     setLevel(l);
-    const t = (weekByLevel[l] ?? []).find((w) => w.day === todayDay) ?? null;
+    const t =
+      (effectiveWeekByLevel[l] ?? []).find((w) => w.day === selectedDayName) ??
+      null;
     setWorkoutId(t?.structure_source_id ?? "");
     setExSets({});
     setSwaps({});
@@ -256,6 +294,67 @@ export function LogForm({
     setMachineDist({});
     setManualExercises([]);
   }
+
+  // Load the selected date's week plan when it isn't the current week.
+  useEffect(() => {
+    let alive = true;
+    if (weekStartISO(loggedOn) === weekStartISO(today)) {
+      setPastWeek(null);
+      setLoadingWeek(false);
+      return;
+    }
+    setLoadingWeek(true);
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase.rpc("plans_by_level_for_date", {
+        target: loggedOn,
+      });
+      if (!alive) return;
+      const byLevel: Record<string, WeekWorkout[]> = {};
+      for (const r of (data ?? []) as {
+        level: string;
+        slot: number;
+        structure_source_id: string;
+        category: string;
+        name: string;
+        day: string | null;
+        preview: string | null;
+      }[]) {
+        (byLevel[r.level] ??= []).push({
+          slot: r.slot,
+          structure_source_id: r.structure_source_id,
+          category: r.category,
+          name: r.name,
+          day: r.day,
+          preview: r.preview ?? "",
+        });
+      }
+      setPastWeek(byLevel);
+      setLoadingWeek(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [loggedOn, today]);
+
+  // Keep the workout selection valid for the current week/level — if the chosen
+  // workout isn't in the effective list (e.g. after switching to another week),
+  // fall back to the one matching the selected day.
+  const workoutsKey = workouts.map((w) => w.structure_source_id).join(",");
+  useEffect(() => {
+    if (workoutId === OTHER) return;
+    const ids = new Set(workouts.map((w) => w.structure_source_id));
+    if (workoutId && ids.has(workoutId)) return;
+    const match = workouts.find((w) => w.day === selectedDayName) ?? null;
+    setWorkoutId(match?.structure_source_id ?? "");
+    setExSets({});
+    setSwaps({});
+    setSwapOpen(null);
+    setMachineKcal({});
+    setMachineDist({});
+    setManualExercises([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workoutsKey, selectedDayName]);
 
   function addManualExercise() {
     const name = exerciseSel.trim();
@@ -776,6 +875,10 @@ export function LogForm({
           <span className="mt-1 block text-xs text-muted-foreground">
             Veldu fyrri dagsetningu til að skrá æfingu aftur í tímann — bæði
             Metabolic-æfingu og önnur æfing.
+            {!inCurrentWeek &&
+              (loadingWeek
+                ? " Sæki plan þeirrar viku…"
+                : " Sýni plan vikunnar sem dagsetningin tilheyrir.")}
           </span>
         </label>
 
@@ -785,7 +888,7 @@ export function LogForm({
           </span>
           <div className="flex flex-wrap gap-2">
             {LEVELS.map((l) => {
-              const has = (weekByLevel[l]?.length ?? 0) > 0;
+              const has = (effectiveWeekByLevel[l]?.length ?? 0) > 0;
               return (
                 <button
                   key={l}
@@ -807,8 +910,10 @@ export function LogForm({
           </div>
           {todays && !isOther && (
             <div className="mt-2 rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs">
-              <span className="font-medium">Æfing dagsins ({level}):</span>{" "}
-              {todayDay} ·{" "}
+              <span className="font-medium">
+                {inCurrentWeek ? "Æfing dagsins" : "Æfing valins dags"} ({level}):
+              </span>{" "}
+              {selectedDayName} ·{" "}
               {CATEGORY_LABEL[todays.category] ?? todays.category}
               {!loggedSet.has(todays.structure_source_id) &&
                 " · 🔒 nafn birtist eftir skráningu"}
