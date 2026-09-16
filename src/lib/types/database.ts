@@ -1372,6 +1372,18 @@ export type Database = {
           structure_source_id: string
         }[]
       }
+      plans_by_level_for_date: {
+        Args: { target: string }
+        Returns: {
+          category: string
+          day: string
+          level: string
+          name: string
+          preview: string
+          slot: number
+          structure_source_id: string
+        }[]
+      }
       delete_member: { Args: { member: string }; Returns: undefined }
       is_active_member: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
