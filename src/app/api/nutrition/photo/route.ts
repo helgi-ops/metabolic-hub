@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { estimateFoodFromImage } from "@/lib/ai/food-photo";
+import {
+  estimateFoodItemsFromImage,
+  estimateProductFromImage,
+} from "@/lib/ai/food-photo";
 
-// Estimate macros from a food photo via Claude vision. Members only.
+// Estimate nutrition from a photo via Claude vision. Members only.
+//  - mode "meal" (default): a meal photo → a list of foods (each with totals).
+//  - mode "product": a product's nutrition label → macros per 100 g.
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -12,7 +17,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  let body: { image?: string; mediaType?: string };
+  let body: { image?: string; mediaType?: string; mode?: string };
   try {
     body = await request.json();
   } catch {
@@ -21,13 +26,18 @@ export async function POST(request: Request) {
 
   const image = body.image ?? "";
   const mediaType = body.mediaType ?? "image/jpeg";
+  const mode = body.mode === "product" ? "product" : "meal";
   if (!image || image.length > 8_000_000) {
     return NextResponse.json({ error: "invalid image" }, { status: 400 });
   }
 
   try {
-    const estimate = await estimateFoodFromImage(image, mediaType);
-    return NextResponse.json({ estimate });
+    if (mode === "product") {
+      const product = await estimateProductFromImage(image, mediaType);
+      return NextResponse.json({ product });
+    }
+    const items = await estimateFoodItemsFromImage(image, mediaType);
+    return NextResponse.json({ items });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "estimate failed";
     const missingKey = msg.includes("ANTHROPIC_API_KEY");

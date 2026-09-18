@@ -46,7 +46,7 @@ export function NaeringForm({
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<
-    "search" | "custom" | "manual" | "photo"
+    "search" | "custom" | "manual" | "photo" | "product"
   >("search");
   const [meal, setMeal] = useState("breakfast");
   const [saving, setSaving] = useState(false);
@@ -72,25 +72,64 @@ export function NaeringForm({
   const [mCarbs, setMCarbs] = useState("");
   const [mFat, setMFat] = useState("");
 
-  // Photo state — the estimate returned by Claude, editable before logging.
+  const num = (v: string) => parseFloat(v.replace(",", ".")) || 0;
+  const kcalFromMacros = (protein: string, carbs: string, fat: string) =>
+    String(Math.round(num(protein) * 4 + num(carbs) * 4 + num(fat) * 9));
+
+  // Photo (meal) state — the list of foods Claude found, editable before logging.
+  type PhotoItem = {
+    name: string;
+    grams: string;
+    kcal: string;
+    protein: string;
+    carbs: string;
+    fat: string;
+    note: string;
+  };
+  const emptyPhotoItem = (): PhotoItem => ({
+    name: "",
+    grams: "",
+    kcal: "",
+    protein: "",
+    carbs: "",
+    fat: "",
+    note: "",
+  });
   const [photoBusy, setPhotoBusy] = useState(false);
-  const [pName, setPName] = useState("");
-  const [pGrams, setPGrams] = useState("");
-  const [pKcal, setPKcal] = useState("");
-  const [pProtein, setPProtein] = useState("");
-  const [pCarbs, setPCarbs] = useState("");
-  const [pFat, setPFat] = useState("");
-  const [pNote, setPNote] = useState("");
+  const [pItems, setPItems] = useState<PhotoItem[]>([]);
   const [pReady, setPReady] = useState(false);
 
-  const num = (v: string) => parseFloat(v.replace(",", ".")) || 0;
-
-  // Atwater factors (protein 4, carbs 4, fat 9 kcal/g). When a member edits a
-  // macro on the photo estimate, keep kcal in step with the grams they entered.
-  function recalcPhotoKcal(protein: string, carbs: string, fat: string) {
-    const kcal = num(protein) * 4 + num(carbs) * 4 + num(fat) * 9;
-    setPKcal(String(Math.round(kcal)));
+  // Edit one meal item; recompute kcal (Atwater 4/4/9) when a macro changes.
+  function setPItem(i: number, patch: Partial<PhotoItem>) {
+    setPItems((prev) =>
+      prev.map((it, idx) => {
+        if (idx !== i) return it;
+        const next = { ...it, ...patch };
+        if (
+          patch.protein !== undefined ||
+          patch.carbs !== undefined ||
+          patch.fat !== undefined
+        ) {
+          next.kcal = kcalFromMacros(next.protein, next.carbs, next.fat);
+        }
+        return next;
+      }),
+    );
   }
+  const addPhotoItem = () => setPItems((p) => [...p, emptyPhotoItem()]);
+  const removePhotoItem = (i: number) =>
+    setPItems((p) => p.filter((_, idx) => idx !== i));
+
+  // Product (label) state — per-100g, saved into "mín matvæli".
+  const [prodBusy, setProdBusy] = useState(false);
+  const [prodReady, setProdReady] = useState(false);
+  const [prodSaved, setProdSaved] = useState(false);
+  const [prodName, setProdName] = useState("");
+  const [prodBrand, setProdBrand] = useState("");
+  const [prodKcal, setProdKcal] = useState("");
+  const [prodProtein, setProdProtein] = useState("");
+  const [prodCarbs, setProdCarbs] = useState("");
+  const [prodFat, setProdFat] = useState("");
 
   // Downscale an image file to keep the upload small, return base64 (no prefix).
   function fileToBase64(file: File): Promise<string> {
@@ -130,7 +169,7 @@ export function NaeringForm({
       const res = await fetch("/api/nutrition/photo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64, mediaType: "image/jpeg" }),
+        body: JSON.stringify({ image: base64, mediaType: "image/jpeg", mode: "meal" }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -138,14 +177,26 @@ export function NaeringForm({
         setPhotoBusy(false);
         return;
       }
-      const e = json.estimate;
-      setPName(String(e.name ?? "Matur"));
-      setPGrams(e.quantity_g != null ? String(e.quantity_g) : "");
-      setPKcal(String(e.kcal ?? 0));
-      setPProtein(String(e.protein_g ?? 0));
-      setPCarbs(String(e.carbs_g ?? 0));
-      setPFat(String(e.fat_g ?? 0));
-      setPNote(e.note ? String(e.note) : "");
+      const items = (json.items ?? []) as {
+        name?: string;
+        quantity_g?: number | null;
+        kcal?: number;
+        protein_g?: number;
+        carbs_g?: number;
+        fat_g?: number;
+        note?: string | null;
+      }[];
+      setPItems(
+        items.map((e) => ({
+          name: String(e.name ?? "Matur"),
+          grams: e.quantity_g != null ? String(e.quantity_g) : "",
+          kcal: String(e.kcal ?? 0),
+          protein: String(e.protein_g ?? 0),
+          carbs: String(e.carbs_g ?? 0),
+          fat: String(e.fat_g ?? 0),
+          note: e.note ? String(e.note) : "",
+        })),
+      );
       setPReady(true);
     } catch {
       setError("Gat ekki lesið myndina.");
@@ -153,28 +204,100 @@ export function NaeringForm({
     setPhotoBusy(false);
   }
 
-  async function addPhoto() {
-    if (!pName.trim()) return;
-    const ok = await insert({
-      name: pName.trim(),
+  // Log every (named) item from the photo as its own entry for the day/meal.
+  async function addAllPhotoItems() {
+    const items = pItems.filter((it) => it.name.trim());
+    if (!items.length) return;
+    setSaving(true);
+    setError(null);
+    const supabase = createClient();
+    const rows = items.map((it) => ({
+      user_id: userId,
+      logged_on: loggedOn,
+      meal,
+      name: it.name.trim(),
       brand: null,
       source: "photo",
       off_code: null,
-      quantity_g: pGrams.trim() ? Math.round(num(pGrams)) : null,
-      kcal: Math.round(num(pKcal)),
-      protein_g: round(num(pProtein)),
-      carbs_g: round(num(pCarbs)),
-      fat_g: round(num(pFat)),
-    });
-    if (!ok) return;
+      quantity_g: it.grams.trim() ? Math.round(num(it.grams)) : null,
+      kcal: Math.round(num(it.kcal)),
+      protein_g: round(num(it.protein)),
+      carbs_g: round(num(it.carbs)),
+      fat_g: round(num(it.fat)),
+    }));
+    const { error: e } = await supabase.from("nutrition_entries").insert(rows);
+    setSaving(false);
+    if (e) {
+      setError(e.message);
+      return;
+    }
+    setPItems([]);
     setPReady(false);
-    setPName("");
-    setPGrams("");
-    setPKcal("");
-    setPProtein("");
-    setPCarbs("");
-    setPFat("");
-    setPNote("");
+    router.refresh();
+  }
+
+  async function onProductPhoto(file: File | null) {
+    if (!file) return;
+    setError(null);
+    setProdReady(false);
+    setProdSaved(false);
+    setProdBusy(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const res = await fetch("/api/nutrition/photo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64, mediaType: "image/jpeg", mode: "product" }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json.error ?? "Gat ekki lesið vöruna.");
+        setProdBusy(false);
+        return;
+      }
+      const p = json.product ?? {};
+      setProdName(String(p.name ?? "Vara"));
+      setProdBrand(p.brand ? String(p.brand) : "");
+      setProdKcal(String(p.per100g?.kcal ?? 0));
+      setProdProtein(String(p.per100g?.protein_g ?? 0));
+      setProdCarbs(String(p.per100g?.carbs_g ?? 0));
+      setProdFat(String(p.per100g?.fat_g ?? 0));
+      setProdReady(true);
+    } catch {
+      setError("Gat ekki lesið myndina.");
+    }
+    setProdBusy(false);
+  }
+
+  // Save the scanned product into "mín matvæli" (custom_foods, per 100 g).
+  async function saveProduct() {
+    if (!prodName.trim()) return;
+    setSaving(true);
+    setError(null);
+    const supabase = createClient();
+    const { error: e } = await supabase.from("custom_foods").insert({
+      user_id: userId,
+      name: prodName.trim(),
+      brand: prodBrand.trim() || null,
+      basis: "per_100g",
+      kcal: Math.round(num(prodKcal)),
+      protein_g: round(num(prodProtein)),
+      carbs_g: round(num(prodCarbs)),
+      fat_g: round(num(prodFat)),
+    });
+    setSaving(false);
+    if (e) {
+      setError(e.message);
+      return;
+    }
+    setProdReady(false);
+    setProdSaved(true);
+    setProdName("");
+    setProdBrand("");
+    setProdKcal("");
+    setProdProtein("");
+    setProdCarbs("");
+    setProdFat("");
     router.refresh();
   }
 
@@ -386,7 +509,8 @@ export function NaeringForm({
       <div className="mt-4 flex gap-2 border-b border-border">
         {([
           ["search", "Leita"],
-          ["photo", "📷 Mynd"],
+          ["photo", "📷 Máltíð"],
+          ["product", "📷 Vara"],
           ["custom", "Mín matvæli"],
           ["manual", "Handvirkt"],
         ] as const).map(([v, label]) => (
@@ -623,79 +747,150 @@ export function NaeringForm({
               {photoBusy ? "Greini mynd…" : "📷 Taktu mynd eða veldu mynd af matnum"}
             </label>
             <p className="text-xs text-muted-foreground">
-              Claude áætlar macros og kaloríur út frá myndinni. Þetta er
-              ágiskun — yfirfarðu og lagaðu áður en þú skráir. Þú getur tekið
-              mynd núna eða valið mynd sem þú tókst fyrr (t.d. úti að borða án
-              nets) og hlaðið henni upp þegar þú ert komin/n aftur á netið.
+              Claude sundurliðar máltíðina í einstaka rétti og áætlar macros.
+              Þetta er ágiskun — yfirfarðu, lagaðu, eyddu röngu og bættu við því
+              sem vantar (t.d. kjúklingaskinku) áður en þú skráir. Þú getur tekið
+              mynd núna eða valið eldri mynd úr albúminu.
             </p>
 
             {pReady && (
+              <div className="space-y-3">
+                {pItems.map((it, i) => (
+                  <div
+                    key={i}
+                    className="space-y-2 rounded-md border border-border bg-background p-3"
+                  >
+                    <div className="flex items-start gap-2">
+                      <input
+                        value={it.name}
+                        onChange={(e) => setPItem(i, { name: e.target.value })}
+                        placeholder="Heiti réttar"
+                        className={field}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePhotoItem(i)}
+                        aria-label="Fjarlægja"
+                        className="shrink-0 rounded-md border border-border px-2 py-2 text-xs text-muted-foreground hover:text-red-400"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {it.note && (
+                      <p className="text-xs text-muted-foreground">{it.note}</p>
+                    )}
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                      <label className="block">
+                        <span className="mb-1 block text-xs text-muted-foreground">Magn (g)</span>
+                        <input inputMode="decimal" value={it.grams} onChange={(e) => setPItem(i, { grams: e.target.value })} placeholder="g" className={field} />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs text-muted-foreground">Kaloríur</span>
+                        <input inputMode="decimal" value={it.kcal} onChange={(e) => setPItem(i, { kcal: e.target.value })} placeholder="kcal" className={field} />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs text-muted-foreground">Prótein (g)</span>
+                        <input inputMode="decimal" value={it.protein} onChange={(e) => setPItem(i, { protein: e.target.value })} placeholder="g" className={field} />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs text-muted-foreground">Kolvetni (g)</span>
+                        <input inputMode="decimal" value={it.carbs} onChange={(e) => setPItem(i, { carbs: e.target.value })} placeholder="g" className={field} />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs text-muted-foreground">Fita (g)</span>
+                        <input inputMode="decimal" value={it.fat} onChange={(e) => setPItem(i, { fat: e.target.value })} placeholder="g" className={field} />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addPhotoItem}
+                  className="text-sm text-accent hover:underline"
+                >
+                  + Bæta við mat (t.d. kjúklingaskinku)
+                </button>
+                <div>
+                  <button
+                    type="button"
+                    onClick={addAllPhotoItems}
+                    disabled={saving || !pItems.some((it) => it.name.trim())}
+                    className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
+                  >
+                    {saving
+                      ? "Skrái…"
+                      : `Skrá ${pItems.filter((it) => it.name.trim()).length} atriði`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {mode === "product" && (
+          <div className="space-y-3">
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-background px-4 py-6 text-sm text-muted-foreground transition hover:border-accent hover:text-foreground">
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => onProductPhoto(e.target.files?.[0] ?? null)}
+              />
+              {prodBusy
+                ? "Les næringartöflu…"
+                : "📷 Taktu mynd af næringartöflunni á vörunni"}
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Claude les næringartöfluna (per 100 g) og vistar vöruna undir „mín
+              matvæli" svo þú getir skráð hana aftur síðar. Yfirfarðu tölurnar
+              áður en þú vistar.
+            </p>
+            {prodSaved && !prodReady && (
+              <p className="text-sm text-accent">
+                ✓ Vistað í „mín matvæli". Þú finnur það undir flipanum Mín
+                matvæli.
+              </p>
+            )}
+            {prodReady && (
               <div className="space-y-3 rounded-md border border-border bg-background p-3">
-                <input
-                  value={pName}
-                  onChange={(e) => setPName(e.target.value)}
-                  placeholder="Heiti"
-                  className={field}
-                />
-                {pNote && (
-                  <p className="text-xs text-muted-foreground">{pNote}</p>
-                )}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <label className="block">
-                    <span className="mb-1 block text-xs text-muted-foreground">Magn (g)</span>
-                    <input inputMode="decimal" value={pGrams} onChange={(e) => setPGrams(e.target.value)} placeholder="g" className={field} />
+                    <span className="mb-1 block text-xs text-muted-foreground">Heiti</span>
+                    <input value={prodName} onChange={(e) => setProdName(e.target.value)} placeholder="Heiti vöru" className={field} />
                   </label>
                   <label className="block">
+                    <span className="mb-1 block text-xs text-muted-foreground">Framleiðandi</span>
+                    <input value={prodBrand} onChange={(e) => setProdBrand(e.target.value)} placeholder="(valfrjálst)" className={field} />
+                  </label>
+                </div>
+                <span className="block text-xs text-muted-foreground">
+                  Gildi per 100 g
+                </span>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <label className="block">
                     <span className="mb-1 block text-xs text-muted-foreground">Kaloríur</span>
-                    <input inputMode="decimal" value={pKcal} onChange={(e) => setPKcal(e.target.value)} placeholder="kcal" className={field} />
+                    <input inputMode="decimal" value={prodKcal} onChange={(e) => setProdKcal(e.target.value)} placeholder="kcal" className={field} />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs text-muted-foreground">Prótein (g)</span>
-                    <input
-                      inputMode="decimal"
-                      value={pProtein}
-                      onChange={(e) => {
-                        setPProtein(e.target.value);
-                        recalcPhotoKcal(e.target.value, pCarbs, pFat);
-                      }}
-                      placeholder="g"
-                      className={field}
-                    />
+                    <input inputMode="decimal" value={prodProtein} onChange={(e) => { setProdProtein(e.target.value); setProdKcal(kcalFromMacros(e.target.value, prodCarbs, prodFat)); }} placeholder="g" className={field} />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs text-muted-foreground">Kolvetni (g)</span>
-                    <input
-                      inputMode="decimal"
-                      value={pCarbs}
-                      onChange={(e) => {
-                        setPCarbs(e.target.value);
-                        recalcPhotoKcal(pProtein, e.target.value, pFat);
-                      }}
-                      placeholder="g"
-                      className={field}
-                    />
+                    <input inputMode="decimal" value={prodCarbs} onChange={(e) => { setProdCarbs(e.target.value); setProdKcal(kcalFromMacros(prodProtein, e.target.value, prodFat)); }} placeholder="g" className={field} />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-xs text-muted-foreground">Fita (g)</span>
-                    <input
-                      inputMode="decimal"
-                      value={pFat}
-                      onChange={(e) => {
-                        setPFat(e.target.value);
-                        recalcPhotoKcal(pProtein, pCarbs, e.target.value);
-                      }}
-                      placeholder="g"
-                      className={field}
-                    />
+                    <input inputMode="decimal" value={prodFat} onChange={(e) => { setProdFat(e.target.value); setProdKcal(kcalFromMacros(prodProtein, prodCarbs, e.target.value)); }} placeholder="g" className={field} />
                   </label>
                 </div>
                 <button
                   type="button"
-                  onClick={addPhoto}
-                  disabled={saving}
+                  onClick={saveProduct}
+                  disabled={saving || !prodName.trim()}
                   className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
                 >
-                  {saving ? "Bæti við…" : "Bæta við"}
+                  {saving ? "Vista…" : "Vista í mín matvæli"}
                 </button>
               </div>
             )}
