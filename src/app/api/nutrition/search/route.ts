@@ -27,11 +27,16 @@ type Product = {
   nutriments?: Nutriments;
 };
 
-function num(v: number | string | undefined): number | null {
+function num(v: unknown): number | null {
   if (v == null || v === "") return null;
-  const n = typeof v === "number" ? v : parseFloat(v);
+  const n = typeof v === "number" ? v : parseFloat(String(v));
   return Number.isFinite(n) ? n : null;
 }
+
+// Open Food Facts fields are not always strings (some come back as arrays or
+// objects), so coerce defensively — calling .trim()/.split() on a non-string
+// throws and would 500 the whole search.
+const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 function energyKcal(n: Nutriments): number | null {
   const kcal = num(n["energy-kcal_100g"]);
@@ -43,12 +48,12 @@ function energyKcal(n: Nutriments): number | null {
 function normalizeOff(p: Product): Result | null {
   const n = p.nutriments ?? {};
   const kcal = energyKcal(n);
-  const name = (p.product_name || p.product_name_is || "").trim();
+  const name = (str(p.product_name) || str(p.product_name_is)).trim();
   if (!name || kcal == null) return null;
   return {
-    code: p.code ?? null,
+    code: p.code != null ? String(p.code) : null,
     name,
-    brand: (p.brands ?? "").split(",")[0]?.trim() || null,
+    brand: str(p.brands).split(",")[0]?.trim() || null,
     per100g: {
       kcal,
       protein: num(n["proteins_100g"]) ?? 0,
@@ -111,21 +116,31 @@ async function searchIcelandic(q: string): Promise<Result[]> {
 }
 
 async function searchOff(q: string): Promise<Result[]> {
-  const enc = encodeURIComponent(q);
-  const sal = (await fetchJson(
-    `https://search.openfoodfacts.org/search?q=${enc}&page_size=25`,
-  )) as { hits?: Product[] } | null;
-  let products: Product[] = sal?.hits ?? [];
-  if (products.length === 0) {
-    const legacy = (await fetchJson(
-      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${enc}` +
-        `&json=1&page_size=25&fields=code,product_name,product_name_is,brands,nutriments,serving_quantity`,
-    )) as { products?: Product[] } | null;
-    products = legacy?.products ?? [];
+  try {
+    const enc = encodeURIComponent(q);
+    const sal = (await fetchJson(
+      `https://search.openfoodfacts.org/search?q=${enc}&page_size=25`,
+    )) as { hits?: Product[] } | null;
+    let products: Product[] = Array.isArray(sal?.hits) ? sal!.hits! : [];
+    if (products.length === 0) {
+      const legacy = (await fetchJson(
+        `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${enc}` +
+          `&json=1&page_size=25&fields=code,product_name,product_name_is,brands,nutriments,serving_quantity`,
+      )) as { products?: Product[] } | null;
+      products = Array.isArray(legacy?.products) ? legacy!.products! : [];
+    }
+    return products
+      .map((p) => {
+        try {
+          return normalizeOff(p);
+        } catch {
+          return null;
+        }
+      })
+      .filter((r): r is Result => r !== null);
+  } catch {
+    return [];
   }
-  return products
-    .map(normalizeOff)
-    .filter((r): r is Result => r !== null);
 }
 
 export async function GET(request: Request) {
