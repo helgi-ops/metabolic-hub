@@ -77,6 +77,8 @@ export function NaeringForm({
     String(Math.round(num(protein) * 4 + num(carbs) * 4 + num(fat) * 9));
 
   // Photo (meal) state — the list of foods Claude found, editable before logging.
+  // p100 = per-100g basis so changing grams scales the macros + kcal (like the
+  // search flow); null until we can derive it (needs macros + grams).
   type PhotoItem = {
     name: string;
     grams: string;
@@ -85,6 +87,7 @@ export function NaeringForm({
     carbs: string;
     fat: string;
     note: string;
+    p100: { protein: number; carbs: number; fat: number } | null;
   };
   const emptyPhotoItem = (): PhotoItem => ({
     name: "",
@@ -94,28 +97,62 @@ export function NaeringForm({
     carbs: "",
     fat: "",
     note: "",
+    p100: null,
   });
   const [photoBusy, setPhotoBusy] = useState(false);
   const [pItems, setPItems] = useState<PhotoItem[]>([]);
   const [pReady, setPReady] = useState(false);
 
-  // Edit one meal item; recompute kcal (Atwater 4/4/9) when a macro changes.
-  function setPItem(i: number, patch: Partial<PhotoItem>) {
-    setPItems((prev) =>
-      prev.map((it, idx) => {
-        if (idx !== i) return it;
-        const next = { ...it, ...patch };
-        if (
-          patch.protein !== undefined ||
-          patch.carbs !== undefined ||
-          patch.fat !== undefined
-        ) {
-          next.kcal = kcalFromMacros(next.protein, next.carbs, next.fat);
-        }
-        return next;
-      }),
-    );
+  const editItem = (i: number, fn: (it: PhotoItem) => PhotoItem) =>
+    setPItems((prev) => prev.map((it, idx) => (idx === i ? fn(it) : it)));
+
+  const itemSetName = (i: number, name: string) =>
+    editItem(i, (it) => ({ ...it, name }));
+  const itemSetKcal = (i: number, kcal: string) =>
+    editItem(i, (it) => ({ ...it, kcal }));
+
+  // Changing grams scales the macros from the per-100g basis and recomputes kcal.
+  function itemSetGrams(i: number, grams: string) {
+    editItem(i, (it) => {
+      const g = num(grams);
+      if (!it.p100 || g <= 0) return { ...it, grams };
+      const protein = String(round((it.p100.protein * g) / 100));
+      const carbs = String(round((it.p100.carbs * g) / 100));
+      const fat = String(round((it.p100.fat * g) / 100));
+      return {
+        ...it,
+        grams,
+        protein,
+        carbs,
+        fat,
+        kcal: kcalFromMacros(protein, carbs, fat),
+      };
+    });
   }
+
+  // Changing a macro recomputes kcal and updates the per-100g basis (so a later
+  // grams change scales from the corrected value).
+  function itemSetMacro(
+    i: number,
+    field: "protein" | "carbs" | "fat",
+    value: string,
+  ) {
+    editItem(i, (it) => {
+      const next = { ...it, [field]: value };
+      next.kcal = kcalFromMacros(next.protein, next.carbs, next.fat);
+      const g = num(next.grams);
+      next.p100 =
+        g > 0
+          ? {
+              protein: (num(next.protein) * 100) / g,
+              carbs: (num(next.carbs) * 100) / g,
+              fat: (num(next.fat) * 100) / g,
+            }
+          : it.p100;
+      return next;
+    });
+  }
+
   const addPhotoItem = () => setPItems((p) => [...p, emptyPhotoItem()]);
   const removePhotoItem = (i: number) =>
     setPItems((p) => p.filter((_, idx) => idx !== i));
@@ -187,15 +224,26 @@ export function NaeringForm({
         note?: string | null;
       }[];
       setPItems(
-        items.map((e) => ({
-          name: String(e.name ?? "Matur"),
-          grams: e.quantity_g != null ? String(e.quantity_g) : "",
-          kcal: String(e.kcal ?? 0),
-          protein: String(e.protein_g ?? 0),
-          carbs: String(e.carbs_g ?? 0),
-          fat: String(e.fat_g ?? 0),
-          note: e.note ? String(e.note) : "",
-        })),
+        items.map((e) => {
+          const g = e.quantity_g ?? 0;
+          return {
+            name: String(e.name ?? "Matur"),
+            grams: e.quantity_g != null ? String(e.quantity_g) : "",
+            kcal: String(e.kcal ?? 0),
+            protein: String(e.protein_g ?? 0),
+            carbs: String(e.carbs_g ?? 0),
+            fat: String(e.fat_g ?? 0),
+            note: e.note ? String(e.note) : "",
+            p100:
+              g > 0
+                ? {
+                    protein: ((e.protein_g ?? 0) * 100) / g,
+                    carbs: ((e.carbs_g ?? 0) * 100) / g,
+                    fat: ((e.fat_g ?? 0) * 100) / g,
+                  }
+                : null,
+          };
+        }),
       );
       setPReady(true);
     } catch {
@@ -763,7 +811,7 @@ export function NaeringForm({
                     <div className="flex items-start gap-2">
                       <input
                         value={it.name}
-                        onChange={(e) => setPItem(i, { name: e.target.value })}
+                        onChange={(e) => itemSetName(i, e.target.value)}
                         placeholder="Heiti réttar"
                         className={field}
                       />
@@ -782,23 +830,23 @@ export function NaeringForm({
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                       <label className="block">
                         <span className="mb-1 block text-xs text-muted-foreground">Magn (g)</span>
-                        <input inputMode="decimal" value={it.grams} onChange={(e) => setPItem(i, { grams: e.target.value })} placeholder="g" className={field} />
+                        <input inputMode="decimal" value={it.grams} onChange={(e) => itemSetGrams(i, e.target.value)} placeholder="g" className={field} />
                       </label>
                       <label className="block">
                         <span className="mb-1 block text-xs text-muted-foreground">Kaloríur</span>
-                        <input inputMode="decimal" value={it.kcal} onChange={(e) => setPItem(i, { kcal: e.target.value })} placeholder="kcal" className={field} />
+                        <input inputMode="decimal" value={it.kcal} onChange={(e) => itemSetKcal(i, e.target.value)} placeholder="kcal" className={field} />
                       </label>
                       <label className="block">
                         <span className="mb-1 block text-xs text-muted-foreground">Prótein (g)</span>
-                        <input inputMode="decimal" value={it.protein} onChange={(e) => setPItem(i, { protein: e.target.value })} placeholder="g" className={field} />
+                        <input inputMode="decimal" value={it.protein} onChange={(e) => itemSetMacro(i, "protein", e.target.value)} placeholder="g" className={field} />
                       </label>
                       <label className="block">
                         <span className="mb-1 block text-xs text-muted-foreground">Kolvetni (g)</span>
-                        <input inputMode="decimal" value={it.carbs} onChange={(e) => setPItem(i, { carbs: e.target.value })} placeholder="g" className={field} />
+                        <input inputMode="decimal" value={it.carbs} onChange={(e) => itemSetMacro(i, "carbs", e.target.value)} placeholder="g" className={field} />
                       </label>
                       <label className="block">
                         <span className="mb-1 block text-xs text-muted-foreground">Fita (g)</span>
-                        <input inputMode="decimal" value={it.fat} onChange={(e) => setPItem(i, { fat: e.target.value })} placeholder="g" className={field} />
+                        <input inputMode="decimal" value={it.fat} onChange={(e) => itemSetMacro(i, "fat", e.target.value)} placeholder="g" className={field} />
                       </label>
                     </div>
                   </div>
