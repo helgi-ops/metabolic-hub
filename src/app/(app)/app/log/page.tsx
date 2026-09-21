@@ -16,6 +16,15 @@ const CATEGORY_LABEL: Record<string, string> = {
   burn: "Burn",
 };
 
+const MACHINE_LABEL: Record<string, string> = {
+  assault_airbike: "Assault Airbike",
+  assault_runner: "Assault Runner",
+  concept2_row: "Concept2 Róður",
+  concept2_bike: "Concept2 Bike",
+  concept2_ski: "Concept2 Ski",
+  other: "Annað",
+};
+
 type Log = {
   id: string;
   logged_on: string;
@@ -48,6 +57,30 @@ type WeekWorkout = {
   day: string | null;
   preview: string;
 };
+
+// Which machine(s) a log was done on, with per-machine kcal and (for the runner)
+// distance — so a comparison shows whether you used e.g. the airbike or Concept2.
+function machinesText(e: Log): string {
+  const dist = e.machine_distance_json ?? {};
+  if (e.machines_json && Object.keys(e.machines_json).length) {
+    return Object.entries(e.machines_json)
+      .map(([k, v]) => {
+        const label = MACHINE_LABEL[k] ?? k;
+        const kcal = Number(v) || 0;
+        const m = Number(dist[k]) || 0;
+        const bits = [
+          kcal > 0 ? `${Math.round(kcal)} kcal` : "",
+          m > 0 ? `${Math.round(m)} m` : "",
+        ]
+          .filter(Boolean)
+          .join(", ");
+        return bits ? `${label} (${bits})` : label;
+      })
+      .join(" · ");
+  }
+  if (e.machine) return MACHINE_LABEL[e.machine] ?? e.machine;
+  return "";
+}
 
 function todayISO() {
   const d = new Date();
@@ -326,19 +359,24 @@ export default async function LogPage() {
                     ? (CATEGORY_LABEL[g.category] ?? g.category)
                     : ""}
                 </div>
-                <ul className="mt-2 space-y-1 text-sm">
-                  {g.entries.map((e) => (
-                    <li
-                      key={e.id}
-                      className="flex items-center justify-between text-muted-foreground"
-                    >
-                      <span>{e.logged_on}</span>
-                      <span>
-                        {e.rpe != null ? `RPE ${e.rpe}/10` : "—"}
-                        {e.calories != null ? ` · ${e.calories} kcal` : ""}
-                      </span>
-                    </li>
-                  ))}
+                <ul className="mt-2 space-y-1.5 text-sm">
+                  {g.entries.map((e) => {
+                    const machines = machinesText(e);
+                    return (
+                      <li key={e.id} className="text-muted-foreground">
+                        <div className="flex items-center justify-between">
+                          <span>{e.logged_on}</span>
+                          <span>
+                            {e.rpe != null ? `RPE ${e.rpe}/10` : "—"}
+                            {e.calories != null ? ` · ${e.calories} kcal` : ""}
+                          </span>
+                        </div>
+                        {machines && (
+                          <div className="mt-0.5 text-xs">🚲 {machines}</div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ))}
