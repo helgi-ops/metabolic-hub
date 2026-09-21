@@ -128,6 +128,19 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Per-100g basis so editing grams scales the macros + kcal (like the add-food
+  // form). Derived from the entry's saved macros and quantity; null when unknown.
+  const initG = entry.quantity_g != null ? Number(entry.quantity_g) : 0;
+  const [p100, setP100] = useState<{ protein: number; carbs: number; fat: number } | null>(
+    initG > 0
+      ? {
+          protein: ((Number(entry.protein_g) || 0) * 100) / initG,
+          carbs: ((Number(entry.carbs_g) || 0) * 100) / initG,
+          fat: ((Number(entry.fat_g) || 0) * 100) / initG,
+        }
+      : null,
+  );
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
@@ -135,6 +148,42 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
   }, [onClose]);
 
   const num = (v: string) => (v.trim() ? parseFloat(v.replace(",", ".")) : null);
+  const n = (v: string) => parseFloat(v.replace(",", ".")) || 0;
+  const r1 = (x: number) => Math.round(x * 10) / 10;
+  const kcalOf = (p: string, c: string, f: string) =>
+    String(Math.round(n(p) * 4 + n(c) * 4 + n(f) * 9));
+
+  // Grams change → scale macros from the per-100g basis, recompute kcal.
+  function onQty(v: string) {
+    setQty(v);
+    const g = n(v);
+    if (p100 && g > 0) {
+      const pr = String(r1((p100.protein * g) / 100));
+      const cb = String(r1((p100.carbs * g) / 100));
+      const ft = String(r1((p100.fat * g) / 100));
+      setProtein(pr);
+      setCarbs(cb);
+      setFat(ft);
+      setKcal(kcalOf(pr, cb, ft));
+    }
+  }
+
+  // Macro change → recompute kcal and refresh the per-100g basis.
+  function onMacro(field: "protein" | "carbs" | "fat", v: string) {
+    const vals = { protein, carbs, fat, [field]: v };
+    if (field === "protein") setProtein(v);
+    else if (field === "carbs") setCarbs(v);
+    else setFat(v);
+    setKcal(kcalOf(vals.protein, vals.carbs, vals.fat));
+    const g = n(qty);
+    if (g > 0) {
+      setP100({
+        protein: (n(vals.protein) * 100) / g,
+        carbs: (n(vals.carbs) * 100) / g,
+        fat: (n(vals.fat) * 100) / g,
+      });
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -208,7 +257,7 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
             <span className="mb-1 block text-sm text-muted-foreground">Grömm</span>
-            <input inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="g" className={field} />
+            <input inputMode="decimal" value={qty} onChange={(e) => onQty(e.target.value)} placeholder="g" className={field} />
           </label>
           <label className="block">
             <span className="mb-1 block text-sm text-muted-foreground">Kaloríur</span>
@@ -216,15 +265,15 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
           </label>
           <label className="block">
             <span className="mb-1 block text-sm text-muted-foreground">Prótein (g)</span>
-            <input inputMode="decimal" value={protein} onChange={(e) => setProtein(e.target.value)} placeholder="g" className={field} />
+            <input inputMode="decimal" value={protein} onChange={(e) => onMacro("protein", e.target.value)} placeholder="g" className={field} />
           </label>
           <label className="block">
             <span className="mb-1 block text-sm text-muted-foreground">Kolvetni (g)</span>
-            <input inputMode="decimal" value={carbs} onChange={(e) => setCarbs(e.target.value)} placeholder="g" className={field} />
+            <input inputMode="decimal" value={carbs} onChange={(e) => onMacro("carbs", e.target.value)} placeholder="g" className={field} />
           </label>
           <label className="block">
             <span className="mb-1 block text-sm text-muted-foreground">Fita (g)</span>
-            <input inputMode="decimal" value={fat} onChange={(e) => setFat(e.target.value)} placeholder="g" className={field} />
+            <input inputMode="decimal" value={fat} onChange={(e) => onMacro("fat", e.target.value)} placeholder="g" className={field} />
           </label>
         </div>
 
