@@ -1036,6 +1036,7 @@ export type Database = {
           intro: string | null
           maps_url: string | null
           name: string
+          pricing: Json | null
           slug: string
         }
         Insert: {
@@ -1046,6 +1047,7 @@ export type Database = {
           intro?: string | null
           maps_url?: string | null
           name: string
+          pricing?: Json | null
           slug: string
         }
         Update: {
@@ -1056,6 +1058,7 @@ export type Database = {
           intro?: string | null
           maps_url?: string | null
           name?: string
+          pricing?: Json | null
           slug?: string
         }
         Relationships: []

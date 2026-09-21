@@ -18,6 +18,14 @@ type StationClass = {
   note: string | null;
 };
 
+type PricePlan = {
+  title: string;
+  price: string;
+  per?: string | null;
+  note?: string | null;
+  features?: string[];
+};
+
 export async function generateMetadata({
   params,
 }: {
@@ -49,11 +57,15 @@ export default async function StationPage({
 
   const { data: station } = await supabase
     .from("stations")
-    .select("id, name, city, intro, address, maps_url")
+    .select("id, name, city, intro, address, maps_url, pricing")
     .eq("slug", slug)
     .single();
 
   if (!station) notFound();
+
+  const pricing = Array.isArray(station.pricing)
+    ? (station.pricing as PricePlan[])
+    : [];
 
   const { data: classes } = await supabase
     .from("station_classes")
@@ -152,8 +164,46 @@ export default async function StationPage({
           )}
         </div>
 
-        {/* Location + CTA */}
+        {/* Pricing + Location + CTA */}
         <aside className="space-y-6">
+          {pricing.length > 0 && (
+            <div className="rounded-lg border border-border bg-muted p-5">
+              <h2 className="font-semibold">Verðskrá</h2>
+              <div className="mt-4 space-y-4">
+                {pricing.map((plan, i) => (
+                  <div
+                    key={i}
+                    className="rounded-lg border border-border bg-background p-4"
+                  >
+                    <div className="text-sm font-medium">{plan.title}</div>
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                      <span className="text-2xl font-bold">{plan.price}</span>
+                      {plan.per && (
+                        <span className="text-xs text-muted-foreground">
+                          {plan.per}
+                        </span>
+                      )}
+                    </div>
+                    {plan.features && plan.features.length > 0 && (
+                      <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+                        {plan.features.map((f, j) => (
+                          <li key={j} className="flex gap-2">
+                            <span className="text-accent">✓</span>
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {plan.note && (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        {plan.note}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="rounded-lg border border-border bg-muted p-5">
             <h2 className="font-semibold">Staðsetning</h2>
             {station.address ? (
