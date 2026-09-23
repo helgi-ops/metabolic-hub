@@ -77,6 +77,7 @@ export default async function AppLayout({
     { href: "/app/leaderboard", label: "Leaderboard" },
     { href: "/app/afrek", label: "Afrek" },
     { href: "/app/akademia", label: "Akademía" },
+    { href: "/app/profill", label: "Mínar upplýsingar" },
     ...(isStaff ? [{ href: "/app/station", label: "Stöðin" }] : []),
   ];
 
