@@ -84,14 +84,26 @@ export default async function DashboardPage() {
     .limit(1)
     .maybeSingle();
 
+  // Which periodization week (Vika 1–4) the member's station is on this week.
+  const { data: planRows } = await supabase.rpc("current_week_plans_by_level");
+  const currentCycleWeek =
+    (planRows ?? []).find((r) => r.cycle_week)?.cycle_week ?? null;
+
   const firstName =
     profile?.full_name?.split(" ")[0] ?? user!.email?.split("@")[0];
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
       <div className="mb-12">
-        <div className="font-mono text-xs tracking-widest text-accent uppercase">
-          Yfirlit
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-mono text-xs tracking-widest text-accent uppercase">
+            Yfirlit
+          </span>
+          {currentCycleWeek && (
+            <span className="rounded-full border border-accent/40 bg-accent/10 px-3 py-0.5 text-xs font-medium text-accent">
+              {currentCycleWeek} í gangi
+            </span>
+          )}
         </div>
         <h1 className="mt-2 text-3xl font-bold">Hæ, {firstName}.</h1>
         <p className="mt-2 text-muted-foreground">
