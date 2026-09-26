@@ -93,7 +93,7 @@ export default async function ProgramsPage({
   // Weeks for my station (oversight of the studio). If I have no station, my own.
   let weekQuery = supabase
     .from("weekly_plans")
-    .select("id, title, level, week_starting, programs_json, created_at, owner_id")
+    .select("id, title, level, week_starting, cycle_week, programs_json, created_at, owner_id")
     .order("created_at", { ascending: false })
     .limit(8);
   weekQuery = profile?.station_id
@@ -244,6 +244,11 @@ export default async function ProgramsPage({
                       <span className="ml-2 font-mono text-xs text-accent">
                         {w.level}
                       </span>
+                      {w.cycle_week && (
+                        <span className="ml-2 rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent">
+                          {w.cycle_week}
+                        </span>
+                      )}
                       <div className="text-xs text-muted-foreground">
                         {ownerName.get(w.owner_id) ?? "—"}
                       </div>

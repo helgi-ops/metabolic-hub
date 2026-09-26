@@ -1192,6 +1192,7 @@ export type Database = {
       weekly_plans: {
         Row: {
           created_at: string
+          cycle_week: string | null
           generated_pdf_url: string | null
           id: string
           level: Database["public"]["Enums"]["mb_level"]
@@ -1205,6 +1206,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          cycle_week?: string | null
           generated_pdf_url?: string | null
           id?: string
           level: Database["public"]["Enums"]["mb_level"]
@@ -1218,6 +1220,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          cycle_week?: string | null
           generated_pdf_url?: string | null
           id?: string
           level?: Database["public"]["Enums"]["mb_level"]
@@ -1357,6 +1360,7 @@ export type Database = {
         Args: never
         Returns: {
           category: string
+          cycle_week: string
           day: string
           level: string
           name: string

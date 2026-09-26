@@ -298,6 +298,7 @@ export function BuilderClient({
       title: title.trim() || defaultTitle,
       level,
       week_starting: weekStarting,
+      cycle_week: cycleWeek || null,
       programs_json,
     });
 

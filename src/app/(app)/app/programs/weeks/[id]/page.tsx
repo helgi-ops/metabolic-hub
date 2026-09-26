@@ -38,7 +38,7 @@ export default async function WeekPage({
   const { data: week } = await supabase
     .from("weekly_plans")
     .select(
-      "id, title, level, week_starting, programs_json, created_at, generated_pdf_url, optisigns_pushed_at",
+      "id, title, level, week_starting, cycle_week, programs_json, created_at, generated_pdf_url, optisigns_pushed_at",
     )
     .eq("id", id)
     .single();
@@ -79,13 +79,19 @@ export default async function WeekPage({
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <div className="print-accent font-mono text-xs tracking-widest text-accent uppercase">
-            Metabolic · {week.level} · Vika {week.week_starting}
+            Metabolic · {week.level}
+            {week.cycle_week ? ` · ${week.cycle_week}` : ""}
           </div>
-          <h1 className="mt-2 text-3xl font-bold">
+          <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-bold">
             {week.title || `Vika ${week.week_starting}`}
+            {week.cycle_week && (
+              <span className="rounded-full border border-accent/40 bg-accent/10 px-3 py-0.5 text-sm font-medium text-accent">
+                {week.cycle_week}
+              </span>
+            )}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {slots.length} tímar
+            Hefst {week.week_starting} · {slots.length} tímar
           </p>
         </div>
         <div className="no-print flex flex-col items-end gap-2">

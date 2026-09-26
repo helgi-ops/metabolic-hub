@@ -125,7 +125,10 @@ export default async function LogPage() {
     name: string;
     day: string | null;
     preview: string | null;
+    cycle_week: string | null;
   }[];
+  // Which periodization week the member's station is on right now (Vika 1–4).
+  const currentCycleWeek = rows.find((r) => r.cycle_week)?.cycle_week ?? null;
 
   // Fall back to the library prescription when a slot has no per-week override.
   const planSourceIds = [
@@ -296,9 +299,17 @@ export default async function LogPage() {
         <div className="font-mono text-xs tracking-widest text-accent uppercase">
           Æfingadagbók
         </div>
-        <h1 className="mt-2 text-3xl font-bold">Æfingadagbók</h1>
+        <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-bold">
+          Æfingadagbók
+          {currentCycleWeek && (
+            <span className="rounded-full border border-accent/40 bg-accent/10 px-3 py-0.5 text-sm font-medium text-accent">
+              {currentCycleWeek}
+            </span>
+          )}
+        </h1>
         <p className="mt-2 text-muted-foreground">
           Skráðu hvernig æfingin var — álag, þyngdir og kaloríur á tækjunum.
+          {currentCycleWeek ? ` Þessa viku er ${currentCycleWeek} í gangi á þinni stöð.` : ""}
         </p>
         <a
           href="/app/tengingar"
