@@ -73,11 +73,15 @@ function stripLevel(sourceId: string): string {
 export async function updateWeekSlots(
   planId: string,
   slots: Slot[],
+  cycleWeek?: string | null,
 ): Promise<{ ok: boolean; error?: string }> {
   const { supabase } = await requireProgramBuilder();
   const { error } = await supabase
     .from("weekly_plans")
-    .update({ programs_json: slots })
+    .update({
+      programs_json: slots,
+      ...(cycleWeek !== undefined ? { cycle_week: cycleWeek } : {}),
+    })
     .eq("id", planId);
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/app/programs/weeks/${planId}`);

@@ -36,6 +36,7 @@ export function EditClient({
   title,
   level,
   weekStarting,
+  cycleWeek: initialCycleWeek,
   slots: initialSlots,
   structures,
 }: {
@@ -43,10 +44,12 @@ export function EditClient({
   title: string;
   level: string;
   weekStarting: string;
+  cycleWeek: string;
   slots: Slot[];
   structures: Structure[];
 }) {
   const router = useRouter();
+  const [cycleWeek, setCycleWeek] = useState(initialCycleWeek);
   const bySource = useMemo(
     () => new Map(structures.map((s) => [s.source_id, s])),
     [structures],
@@ -119,7 +122,7 @@ export function EditClient({
         ? { ...rest, preview: edited }
         : rest;
     });
-    const res = await updateWeekSlots(planId, payload);
+    const res = await updateWeekSlots(planId, payload, cycleWeek || null);
     if (!res.ok) {
       setError(res.error ?? "Tókst ekki að vista.");
       setSaving(false);
@@ -148,6 +151,25 @@ export function EditClient({
           Skiptu út stökum æfingum í þessari viku. Þetta breytir aðeins vikunni
           — ekki structure-safninu.
         </p>
+      </div>
+
+      <div className="mb-6 rounded-lg border border-border bg-muted p-4">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">
+            Vika í lotu (birtist iðkendum og á planinu)
+          </span>
+          <select
+            value={cycleWeek}
+            onChange={(e) => setCycleWeek(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent sm:w-64"
+          >
+            <option value="">Engin (birtist ekki)</option>
+            <option value="Vika 1">Vika 1</option>
+            <option value="Vika 2">Vika 2</option>
+            <option value="Vika 3">Vika 3</option>
+            <option value="Vika 4">Vika 4</option>
+          </select>
+        </label>
       </div>
 
       <div className="space-y-3">

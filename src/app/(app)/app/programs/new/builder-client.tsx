@@ -167,6 +167,9 @@ export function BuilderClient({
     DEFAULT_SLOT_CATEGORIES.map(() => ""),
   );
   const [cycleWeek, setCycleWeek] = useState("");
+  // Cycle-week label for a standalone ("stök") week — lets a coach tag the week
+  // as Vika 1–4 without applying the 4-week category pattern.
+  const [manualWeek, setManualWeek] = useState("");
   const [variant, setVariant] = useState<"A" | "B">("A");
   const cycleDays = cycleWeek ? PERIODIZATION[cycleWeek].days : null;
   const [saving, setSaving] = useState(false);
@@ -298,7 +301,7 @@ export function BuilderClient({
       title: title.trim() || defaultTitle,
       level,
       week_starting: weekStarting,
-      cycle_week: cycleWeek || null,
+      cycle_week: cycleWeek || manualWeek || null,
       programs_json,
     });
 
@@ -426,6 +429,25 @@ export function BuilderClient({
               } útgáfa). Veldu structure í hvern dag.`
             : "Veldu viku úr 4ra vikna lotunni til að fá sjálfvirkt dag-mynstur og fókus, eða smíðaðu staka viku frjálst."}
         </p>
+
+        {!cycleWeek && (
+          <label className="mt-3 block border-t border-border pt-3">
+            <span className="mb-1 block text-xs font-medium text-muted-foreground">
+              Vika í lotu (valfrjálst) — birtist iðkendum og á planinu
+            </span>
+            <select
+              value={manualWeek}
+              onChange={(e) => setManualWeek(e.target.value)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent sm:w-64"
+            >
+              <option value="">Engin</option>
+              <option value="Vika 1">Vika 1</option>
+              <option value="Vika 2">Vika 2</option>
+              <option value="Vika 3">Vika 3</option>
+              <option value="Vika 4">Vika 4</option>
+            </select>
+          </label>
+        )}
       </div>
 
       {/* Toolbar */}

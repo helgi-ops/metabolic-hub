@@ -30,7 +30,7 @@ export default async function EditWeekPage({
 
   const { data: week } = await supabase
     .from("weekly_plans")
-    .select("id, title, level, week_starting, programs_json")
+    .select("id, title, level, week_starting, cycle_week, programs_json")
     .eq("id", id)
     .single();
   if (!week) notFound();
@@ -75,6 +75,7 @@ export default async function EditWeekPage({
       title={week.title ?? ""}
       level={week.level}
       weekStarting={week.week_starting}
+      cycleWeek={week.cycle_week ?? ""}
       slots={slots}
       structures={structures}
     />
