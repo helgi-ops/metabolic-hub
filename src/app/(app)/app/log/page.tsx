@@ -278,7 +278,14 @@ export default async function LogPage() {
   const avgRpe = rpeValues.length
     ? (rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length).toFixed(1)
     : "—";
-  const totalCalories = list.reduce((sum, l) => sum + (l.calories ?? 0), 0);
+  // Total burn for the stat: the estimated session burn (est_calories already
+  // includes any measured erg kcal) so cardio "önnur æfing" like a run or bike
+  // counts even without logged erg kcal. Fall back to measured calories for
+  // legacy rows that predate est_calories.
+  const totalCalories = list.reduce(
+    (sum, l) => sum + (Number(l.est_calories ?? l.calories) || 0),
+    0,
+  );
 
   // Volume trend: total training load (sett × reps × kg) summed per week. Every
   // strength workout in a week adds up, so the trend tracks weekly load over time.
