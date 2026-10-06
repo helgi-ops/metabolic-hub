@@ -6,6 +6,7 @@ import { NaeringEntries } from "./naering-entries";
 import { TargetsForm } from "./targets-form";
 import { ProgressChart } from "../personal-bests/progress-chart";
 import { EnergyCard, type Need, type Suggested } from "./energy-card";
+import { QuickTips } from "./quick-tips";
 import {
   ageFromBirthYear,
   baseMaintenance,
@@ -356,6 +357,11 @@ export default async function NaeringPage({
           )}
         </div>
       )}
+
+      {/* Flexible Diet quick references (full guide at /app/fraedsla) */}
+      <div className="mt-8">
+        <QuickTips />
+      </div>
     </main>
   );
 }

@@ -177,6 +177,12 @@ export default async function DashboardPage() {
           cta="Skrá mat →"
         />
         <Card
+          title="Fræðsla"
+          description="Flexible Diet handbók — hugarfar, orkuefni, skammtastærðir og gullnu venjurnar."
+          href="/app/fraedsla"
+          cta="Lesa →"
+        />
+        <Card
           title="Mín met"
           description="Skráðu Personal Best og fylgstu með framvindunni þinni."
           href="/app/personal-bests"
