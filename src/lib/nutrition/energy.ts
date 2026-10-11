@@ -101,9 +101,22 @@ export function trainingKcalForLog(
     l.duration_min && l.duration_min > 0 ? l.duration_min : CLASS_MIN;
 
   if (cat === "endurance") {
-    if (measured > 0) return { kcal: measured, estimated: false, measured };
-    const kcal = ((MET.endurance ?? 7) * 3.5 * weightKg) / 200 * minutes * rpeMult;
-    return { kcal: Math.round(kcal), estimated: true, measured: 0 };
+    // Duration × RPE × bodyweight estimate for the piece.
+    const estPortion =
+      ((MET.endurance ?? 7) * 3.5 * weightKg) / 200 * minutes * rpeMult;
+    // The erg's own calorie display — especially the Assault bikes — is
+    // conservative: a long, hard session (e.g. 45 min at RPE 8) burns far more
+    // than the little screen shows. So take the HIGHER of the measured number
+    // and the estimate, instead of blindly trusting a stingy readout. Short,
+    // intense intervals (where Assault calories spike) keep the measured value.
+    // The Kcal Leaderboard uses the raw measured kcal separately, so it is
+    // unaffected by this.
+    if (measured > 0) {
+      return estPortion > measured
+        ? { kcal: Math.round(estPortion), estimated: true, measured }
+        : { kcal: measured, estimated: false, measured };
+    }
+    return { kcal: Math.round(estPortion), estimated: true, measured: 0 };
   }
 
   const met = MET[cat] ?? 5;
