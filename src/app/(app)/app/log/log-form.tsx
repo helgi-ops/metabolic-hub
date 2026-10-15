@@ -1080,9 +1080,10 @@ export function LogForm({
               <div>
                 <span className="mb-1 block text-sm text-muted-foreground">
                   Sett, reps og þyngd{" "}
-                  <span className="text-foreground/60">(valfrjálst)</span> — kerfið
-                  reiknar heildar-álag (volume). Slepptu þessu ef þú trackar
-                  annars staðar; RPE eitt dugar.
+                  <span className="text-foreground/60">(valfrjálst)</span> — ýttu á
+                  æfingu til að opna hana. Þyngdir frá síðustu skráningu fyllast
+                  sjálfkrafa. Slepptu þessu ef þú trackar annars staðar; RPE eitt
+                  dugar.
                 </span>
                 {fillableExercises().length > 0 && (
                   <button
@@ -1106,7 +1107,9 @@ export function LogForm({
                     );
                     const isPr = maxKg > 0 && (best == null || maxKg > best);
                     const hasHistory = (lastSets[eff]?.length ?? 0) > 0;
-                    const expandedNow = expOverride[ex] ?? !hasHistory;
+                    // Collapsed by default always, so a long plan stays short;
+                    // tap a row to open it and enter/confirm sets.
+                    const expandedNow = expOverride[ex] ?? false;
                     const filledCount = sets.filter(
                       (s) =>
                         (parseFloat((s.reps || "").replace(",", ".")) || 0) > 0 ||
@@ -1114,7 +1117,7 @@ export function LogForm({
                     ).length;
                     const summary = filledCount
                       ? `${filledCount} sett${maxKg > 0 ? ` · ${maxKg} kg` : ""}`
-                      : "engin sett";
+                      : "+ skrá sett";
                     return (
                       <div key={ex} className="rounded-md border border-border bg-background">
                         {/* Collapsed by default when sets were auto-filled from
@@ -1124,7 +1127,7 @@ export function LogForm({
                           onClick={() =>
                             setExpOverride((p) => ({
                               ...p,
-                              [ex]: !(p[ex] ?? !hasHistory),
+                              [ex]: !(p[ex] ?? false),
                             }))
                           }
                           className="flex w-full items-center gap-2 p-2 text-left text-sm"
