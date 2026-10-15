@@ -148,61 +148,64 @@ export function MemberCard({
   const isStudent = member.role === "student";
 
   return (
-    <li className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted px-3 py-2.5 text-sm">
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex min-w-0 flex-col text-left transition hover:opacity-80"
-        title="Sjá virkni"
-      >
-        <span className="flex items-center gap-2">
-          <span className="truncate font-medium">
-            {member.full_name ?? "—"}
+    <li className="rounded-lg border border-border bg-muted px-3 py-2.5 text-sm">
+      {/* Name on its own row so it's always fully visible — the action buttons
+          wrap onto a second row below instead of squeezing it out. */}
+      <div className="flex items-start justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex min-w-0 flex-col text-left transition hover:opacity-80"
+          title="Sjá virkni"
+        >
+          <span className="flex items-center gap-2">
+            <span className="truncate font-medium">
+              {member.full_name ?? "—"}
+            </span>
+            {member.role !== "student" && (
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-accent">
+                {member.role}
+              </span>
+            )}
+            {isStudent && member.status === "suspended" && (
+              <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-red-400">
+                Lokað
+              </span>
+            )}
           </span>
-          {member.role !== "student" && (
-            <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-accent">
-              {member.role}
-            </span>
-          )}
-          {isStudent && member.status === "suspended" && (
-            <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-red-400">
-              Lokað
-            </span>
-          )}
-        </span>
-        <span className="text-xs">
-          {isStudent ? (
-            <span className={RISK_TEXT[risk]}>
-              {lastLabel}
-              {risk === "at" && " ⚠"}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">{pbCount} met</span>
-          )}
-        </span>
-      </button>
-      <span className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        {isStudent && (
-          <>
-            <NutritionCoachingToggle
-              memberId={member.id}
-              enabled={!!member.nutrition_coaching}
-            />
-            <MemberActions
-              memberId={member.id}
-              memberName={member.full_name}
-              status={member.status}
-              canDelete={isAdmin}
-            />
-          </>
-        )}
+          <span className="text-xs">
+            {isStudent ? (
+              <span className={RISK_TEXT[risk]}>
+                {lastLabel}
+                {risk === "at" && " ⚠"}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">{pbCount} met</span>
+            )}
+          </span>
+        </button>
         {isAdmin && member.role === "coach" && (
           <ProgramBuilderToggle
             memberId={member.id}
             enabled={member.can_build_programs ?? false}
           />
         )}
-      </span>
+      </div>
+
+      {isStudent && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <NutritionCoachingToggle
+            memberId={member.id}
+            enabled={!!member.nutrition_coaching}
+          />
+          <MemberActions
+            memberId={member.id}
+            memberName={member.full_name}
+            status={member.status}
+            canDelete={isAdmin}
+          />
+        </div>
+      )}
 
       {open && (
         <ActivityModal

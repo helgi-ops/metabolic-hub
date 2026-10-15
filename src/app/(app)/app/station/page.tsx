@@ -256,16 +256,19 @@ export default async function StationPage({
             {pendingMembers.map((m) => (
               <li
                 key={m.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-sm"
+                className="rounded-md border border-border bg-background px-3 py-2 text-sm"
               >
-                <span className="min-w-0 truncate font-medium">
+                <div className="truncate font-medium">
                   {m.full_name ?? "—"}
-                </span>
-                <MemberActions
-                  memberId={m.id}
-                  status={m.status}
-                  canDelete={isAdmin}
-                />
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  <MemberActions
+                    memberId={m.id}
+                    memberName={m.full_name}
+                    status={m.status}
+                    canDelete={isAdmin}
+                  />
+                </div>
               </li>
             ))}
           </ul>
