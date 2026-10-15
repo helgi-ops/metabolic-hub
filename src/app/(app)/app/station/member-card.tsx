@@ -190,6 +190,7 @@ export function MemberCard({
             />
             <MemberActions
               memberId={member.id}
+              memberName={member.full_name}
               status={member.status}
               canDelete={isAdmin}
             />
