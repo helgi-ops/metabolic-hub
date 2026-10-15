@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatMeasure } from "@/lib/format";
 import { OptOutToggle } from "./opt-out-toggle";
+import { BenchmarkPicker, type PickerDropdown } from "./benchmark-picker";
 
 export const metadata = { title: "Leaderboard · Metabolic" };
 
@@ -66,6 +67,31 @@ export default async function LeaderboardPage({
     .select("id, name, category, unit, higher_is_better")
     .order("position", { ascending: true });
   const benchList = (benchmarks ?? []) as Benchmark[];
+
+  // Group benchmarks into two compact dropdowns (strength / conditioning) so the
+  // leaderboard isn't a wall of ~20 chips. Each dropdown keeps optgroup
+  // sub-headings by benchmark category.
+  const SUBGROUP_LABEL: Record<string, string> = {
+    lyfta: "Lyftur",
+    likamsthyngd: "Líkamsþyngd",
+    thol: "Þol",
+    timataka: "Tímatökur (WOD)",
+  };
+  const buildDropdown = (label: string, cats: string[]): PickerDropdown => ({
+    label,
+    subgroups: cats
+      .map((cat) => ({
+        label: SUBGROUP_LABEL[cat] ?? cat,
+        options: benchList
+          .filter((b) => b.category === cat)
+          .map((b) => ({ id: b.id, name: b.name })),
+      }))
+      .filter((sg) => sg.options.length > 0),
+  });
+  const dropdowns: PickerDropdown[] = [
+    buildDropdown("Styrktaræfingar", ["lyfta", "likamsthyngd"]),
+    buildDropdown("Þol & tímar", ["thol", "timataka"]),
+  ].filter((d) => d.subgroups.length > 0);
 
   // Which view: a valid benchmark id → that test; otherwise the kcal leaderboard.
   const selectedBenchmark = benchList.find((b) => b.id === metParam) ?? null;
@@ -164,25 +190,22 @@ export default async function LeaderboardPage({
         />
       )}
 
-      {/* What to rank: kcal (brennsla) or a specific test/benchmark. */}
-      <div className="mt-6 flex flex-wrap gap-2">
+      {/* What to rank: kcal (brennsla) or a specific test/benchmark picked from
+          the compact strength / conditioning dropdowns. */}
+      <div className="mt-6 flex flex-wrap items-center gap-2">
         <Link href={qs({ met: "" })} className={chip(isKcal)}>
           🔥 Brennsla
         </Link>
-        {benchList.map((b) => (
-          <Link
-            key={b.id}
-            href={qs({ met: b.id })}
-            className={chip(selectedBenchmark?.id === b.id)}
-          >
-            {b.name}
-          </Link>
-        ))}
+        <BenchmarkPicker
+          dropdowns={dropdowns}
+          selectedId={selectedBenchmark?.id ?? null}
+          stationParam={isAdmin ? stationParam : undefined}
+        />
       </div>
 
-      {/* Kcal-only sub-filters */}
+      {/* Kcal-only sub-filters: period + machine on one compact row. */}
       {isKcal && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           {PERIOD_FILTERS.map((p) => (
             <Link
               key={p.value}
@@ -192,10 +215,7 @@ export default async function LeaderboardPage({
               {p.label}
             </Link>
           ))}
-        </div>
-      )}
-      {isKcal && (
-        <div className="mt-3 flex flex-wrap gap-2">
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           {MACHINE_FILTERS.map((m) => (
             <Link
               key={m.value}
