@@ -1,29 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { siteUrl } from "@/lib/site-url";
+import { useState, useTransition } from "react";
+import { requestPasswordReset } from "./actions";
 
 export function ForgotForm() {
   const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
+  function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${siteUrl()}/auth/callback?next=/breyta-lykilord`,
+    startTransition(async () => {
+      const res = await requestPasswordReset(email);
+      if (!res.ok) {
+        setError(
+          "Ekki tókst að senda póst í augnablikinu. Reyndu aftur eða biddu þjálfarann þinn að endurstilla lykilorðið.",
+        );
+        return;
+      }
+      setSent(true);
     });
-    setLoading(false);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    setSent(true);
   }
 
   if (sent) {
@@ -32,7 +30,8 @@ export function ForgotForm() {
         <div className="font-semibold text-accent">Tékkaðu á netfanginu</div>
         <div className="mt-2 text-sm text-muted-foreground">
           Ef til er aðgangur fyrir {email} sendum við hlekk til að endurstilla
-          lykilorðið. Smelltu á hann og veldu nýtt lykilorð.
+          lykilorðið. Smelltu á hann og veldu nýtt lykilorð. Athugaðu ruslpóstinn
+          ef hann birtist ekki strax.
         </div>
       </div>
     );
@@ -60,10 +59,10 @@ export function ForgotForm() {
       {error && <div className="text-sm text-red-400">{error}</div>}
       <button
         type="submit"
-        disabled={loading}
+        disabled={pending}
         className="w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
       >
-        {loading ? "Sendi…" : "Senda endurstillingar-hlekk"}
+        {pending ? "Sendi…" : "Senda endurstillingar-hlekk"}
       </button>
     </form>
   );
