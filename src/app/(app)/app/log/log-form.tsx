@@ -144,6 +144,9 @@ function SetsEditor({
 }) {
   const cell =
     "w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent";
+  // "+ Sett" copies the previous set's reps + kg (see addPlannedSet), so logging
+  // many similar sets is one tap each instead of retyping.
+  const lastFilled = sets.some((s) => s.reps.trim() || s.kg.trim());
   return (
     <div className="mt-1.5 space-y-1.5">
       {sets.map((s, si) => {
@@ -166,7 +169,7 @@ function SetsEditor({
               inputMode="decimal"
               value={s.kg}
               onChange={(e) => onChange(si, "kg", e.target.value)}
-              placeholder="kg"
+              placeholder={best ? `kg (met ${best})` : "kg"}
               className={isPr ? cell.replace("border-border", "border-accent") : cell}
             />
             {sets.length > 1 && (
@@ -187,7 +190,7 @@ function SetsEditor({
         onClick={onAdd}
         className="text-xs text-accent hover:underline"
       >
-        + Bæta við setti
+        {lastFilled ? "+ Sett (afritar síðasta)" : "+ Bæta við setti"}
       </button>
     </div>
   );
@@ -214,6 +217,15 @@ function weekStartISO(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
   const dow = (d.getDay() + 6) % 7; // 0 = Monday
   d.setDate(d.getDate() - dow);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+// YYYY-MM-DD shifted by n days — for the "Í gær" quick-log button.
+function addDaysISO(iso: string, n: number): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + n);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate(),
   ).padStart(2, "0")}`;
@@ -861,26 +873,51 @@ export function LogForm({
       <h2 className="font-semibold">Skrá æfingu</h2>
 
       <div className="mt-4 space-y-4">
-        <label className="block">
+        <div className="block">
           <span className="mb-1 block text-sm text-muted-foreground">
-            Dagsetning
+            Hvaða dag var æfingin?
           </span>
-          <input
-            type="date"
-            value={loggedOn}
-            max={today}
-            onChange={(e) => setLoggedOn(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent sm:w-auto"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setLoggedOn(today)}
+              className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                loggedOn === today
+                  ? "border-accent bg-accent text-accent-foreground"
+                  : "border-border bg-background text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Í dag
+            </button>
+            <button
+              type="button"
+              onClick={() => setLoggedOn(addDaysISO(today, -1))}
+              className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                loggedOn === addDaysISO(today, -1)
+                  ? "border-accent bg-accent text-accent-foreground"
+                  : "border-border bg-background text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Í gær
+            </button>
+            <input
+              type="date"
+              value={loggedOn}
+              max={today}
+              onChange={(e) => setLoggedOn(e.target.value)}
+              aria-label="Veldu dagsetningu"
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
           <span className="mt-1 block text-xs text-muted-foreground">
-            Veldu fyrri dagsetningu til að skrá æfingu aftur í tímann — bæði
-            Metabolic-æfingu og önnur æfing.
+            Gleymdirðu að skrá? Veldu „Í gær" eða eldri dag — þú getur alltaf
+            skráð aftur í tímann.
             {!inCurrentWeek &&
               (loadingWeek
                 ? " Sæki plan þeirrar viku…"
                 : " Sýni plan vikunnar sem dagsetningin tilheyrir.")}
           </span>
-        </label>
+        </div>
 
         <div>
           <span className="mb-1 block text-sm text-muted-foreground">
@@ -981,7 +1018,10 @@ export function LogForm({
             {strengthExercises.length > 0 && (
               <div>
                 <span className="mb-1 block text-sm text-muted-foreground">
-                  Sett, reps og þyngd — kerfið reiknar heildar-álag (volume)
+                  Sett, reps og þyngd{" "}
+                  <span className="text-foreground/60">(valfrjálst)</span> — kerfið
+                  reiknar heildar-álag (volume). Slepptu þessu ef þú trackar
+                  annars staðar; RPE eitt dugar.
                 </span>
                 <div className="space-y-2">
                   {strengthExercises.map((ex) => {
@@ -1566,13 +1606,18 @@ export function LogForm({
       </div>
 
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
-      <button
-        type="submit"
-        disabled={saving}
-        className="mt-4 rounded-md bg-accent px-5 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
-      >
-        {saving ? "Vista…" : "Vista færslu"}
-      </button>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-md bg-accent px-5 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
+        >
+          {saving ? "Vista…" : "✓ Skrá æfingu"}
+        </button>
+        <span className="text-xs text-muted-foreground">
+          Nóg að velja stig/æfingu og RPE — þyngdir eru valfrjálsar.
+        </span>
+      </div>
 
       {celebration && (
         <div
