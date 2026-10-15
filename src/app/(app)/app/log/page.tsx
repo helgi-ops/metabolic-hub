@@ -173,6 +173,21 @@ export default async function LogPage() {
 
   const list = (logs ?? []) as Log[];
 
+  // Most recently logged sets (reps + kg) per exercise, for the "Sama og síðast"
+  // one-tap fill in the log form. `list` is newest-first, so the first time a
+  // name appears is its latest log.
+  const lastSetsByExercise: Record<string, { reps: number; kg: number }[]> = {};
+  for (const l of list) {
+    if (!l.volume_json) continue;
+    for (const [name, info] of Object.entries(l.volume_json)) {
+      if (lastSetsByExercise[name]) continue;
+      const sets = (info?.sets ?? [])
+        .map((s) => ({ reps: Number(s.reps) || 0, kg: Number(s.kg) || 0 }))
+        .filter((s) => s.reps > 0 || s.kg > 0);
+      if (sets.length) lastSetsByExercise[name] = sets;
+    }
+  }
+
   // Auto-tracked best working weight per exercise (maintained by a DB trigger
   // from weights_json). Lets the form flag a new PR per movement as you type.
   const { data: exBests } = await supabase
@@ -357,6 +372,7 @@ export default async function LogPage() {
           loggedSourceIds={loggedSourceIds}
           exerciseBests={exerciseBests}
           exerciseCatalog={exerciseCatalog}
+          lastSets={lastSetsByExercise}
           weightKg={weightKg}
           isFirstLog={list.length === 0}
           recent={list

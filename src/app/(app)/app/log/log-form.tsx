@@ -244,6 +244,7 @@ export function LogForm({
   loggedSourceIds,
   exerciseBests,
   exerciseCatalog,
+  lastSets,
   weightKg,
   isFirstLog,
   recent,
@@ -255,6 +256,7 @@ export function LogForm({
   loggedSourceIds: string[];
   exerciseBests: Record<string, number>;
   exerciseCatalog: Record<string, string[]>;
+  lastSets: Record<string, { reps: number; kg: number }[]>;
   weightKg: number | null;
   isFirstLog: boolean;
   recent: RecentLog[];
@@ -461,6 +463,22 @@ export function LogForm({
       return { ...p, [name]: cur.filter((_, j) => j !== si) };
     });
   }
+
+  // "Sama og síðast": fill an exercise's sets (reps + kg) from the last time it
+  // was logged, so the member confirms/tweaks instead of typing from scratch.
+  function fillFromLast(name: string) {
+    const prev = lastSets[name];
+    if (!prev?.length) return;
+    setExSets((p) => ({
+      ...p,
+      [name]: prev.map((s) => ({ reps: String(s.reps), kg: String(s.kg) })),
+    }));
+  }
+  // The planned strength exercises that have last-time data to fill.
+  const fillableExercises = () =>
+    strengthExercises
+      .map((ex) => swaps[ex] ?? ex)
+      .filter((eff) => (lastSets[eff]?.length ?? 0) > 0);
 
   const [activity, setActivity] = useState("");
   // Per exercise (keyed by movement name parsed from the prescription): sets,
@@ -1032,6 +1050,15 @@ export function LogForm({
                   reiknar heildar-álag (volume). Slepptu þessu ef þú trackar
                   annars staðar; RPE eitt dugar.
                 </span>
+                {fillableExercises().length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => fillableExercises().forEach(fillFromLast)}
+                    className="mb-2 rounded-md border border-accent px-3 py-1 text-xs font-medium text-accent transition hover:bg-accent/10"
+                  >
+                    ↺ Sama og síðast (öll æfingin)
+                  </button>
+                )}
                 <div className="space-y-2">
                   {strengthExercises.map((ex) => {
                     const eff = swaps[ex] ?? ex;
@@ -1071,6 +1098,16 @@ export function LogForm({
                               <span className="text-xs text-muted-foreground">
                                 {Math.round(vol).toLocaleString("is-IS")} kg
                               </span>
+                            )}
+                            {(lastSets[eff]?.length ?? 0) > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => fillFromLast(eff)}
+                                title="Fylla reps + kg frá síðustu æfingu"
+                                className="rounded border border-border px-1.5 py-0.5 text-xs text-muted-foreground transition hover:text-foreground"
+                              >
+                                ↺ Síðast
+                              </button>
                             )}
                             <button
                               type="button"
