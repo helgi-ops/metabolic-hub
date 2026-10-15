@@ -5,6 +5,7 @@ import { formatMeasure, formatTime, isTimeUnit } from "@/lib/format";
 import { PbForm } from "./pb-form";
 import { ProgressChart } from "./progress-chart";
 import { SharePbToggle } from "./share-toggle";
+import { DeletePbButton } from "./delete-pb-button";
 
 export const metadata = {
   title: "Mín met · Metabolic",
@@ -324,6 +325,9 @@ export default async function PersonalBestsPage({
                   <th className="px-4 py-2 font-medium">Gildi</th>
                   <th className="px-4 py-2 font-medium">Dagsetning</th>
                   <th className="px-4 py-2 font-medium">Athugasemd</th>
+                  <th className="px-4 py-2 font-medium text-right">
+                    <span className="sr-only">Aðgerðir</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -338,6 +342,9 @@ export default async function PersonalBestsPage({
                     </td>
                     <td className="px-4 py-2 text-muted-foreground">
                       {e.notes ?? ""}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      <DeletePbButton id={e.id} />
                     </td>
                   </tr>
                 ))}
