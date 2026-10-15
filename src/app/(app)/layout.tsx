@@ -74,7 +74,6 @@ export default async function AppLayout({
     { href: "/app/personal-bests", label: "Mín met" },
     { href: "/app/log", label: "Æfingadagbók" },
     { href: "/app/naering", label: "Matardagbók" },
-    { href: "/app/fraedsla", label: "Fræðsla" },
     { href: "/app/leaderboard", label: "Leaderboard" },
     { href: "/app/afrek", label: "Afrek" },
     { href: "/app/akademia", label: "Akademía" },

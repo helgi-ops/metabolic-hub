@@ -8,6 +8,11 @@ export const metadata = {
   title: "Æfingadagbók · Metabolic",
 };
 
+// Automatic watch sync (Garmin/Apple Watch/Polar via Terra) isn't working yet,
+// so the "Tengja úr" entry point is hidden. The feature code (/app/tengingar +
+// API routes) is kept — flip to true to re-enable once sync works.
+const WATCH_SYNC_ENABLED = false;
+
 const CATEGORY_LABEL: Record<string, string> = {
   strength: "Strength",
   power_strength: "Power/Strength",
@@ -318,13 +323,18 @@ export default async function LogPage() {
           Skráðu hvernig æfingin var — álag, þyngdir og kaloríur á tækjunum.
           {currentCycleWeek ? ` Þessa viku er ${currentCycleWeek} í gangi á þinni stöð.` : ""}
         </p>
-        <a
-          href="/app/tengingar"
-          className="mt-3 inline-flex items-center gap-1 text-sm text-accent hover:underline"
-        >
-          ⌚ Tengja úr (Garmin, Apple Watch, Polar…) — láttu æfingar skrást
-          sjálfkrafa →
-        </a>
+        {/* Hidden until automatic watch sync (Garmin/Terra) works end-to-end.
+            The /app/tengingar page + API routes are kept — flip this to true to
+            bring the entry point back. */}
+        {WATCH_SYNC_ENABLED && (
+          <a
+            href="/app/tengingar"
+            className="mt-3 inline-flex items-center gap-1 text-sm text-accent hover:underline"
+          >
+            ⌚ Tengja úr (Garmin, Apple Watch, Polar…) — láttu æfingar skrást
+            sjálfkrafa →
+          </a>
+        )}
       </div>
 
       {list.length > 0 && (
