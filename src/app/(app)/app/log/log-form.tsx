@@ -633,9 +633,18 @@ export function LogForm({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    await submitLog();
+  }
+
+  // attendance = one-tap "I showed up and did the day's workout": logs the picked
+  // workout with a marker note (and whatever RPE is set), so no weights/sets are
+  // needed. Everything else is the normal submit path.
+  async function submitLog(opts?: { attendance?: boolean }) {
     setError(null);
     const cal = calories.trim() ? parseFloat(calories.replace(",", ".")) : null;
     const activityName = isOther ? activity.trim() : "";
+    const noteText =
+      notes.trim() || (opts?.attendance ? "Mæting skráð" : "");
 
     // Per-exercise sets. Planned workouts fill exSets (keyed by effective
     // movement name); "önnur æfing" adds manualExercises (each its own row with
@@ -750,7 +759,7 @@ export function LogForm({
       cal == null &&
       !machinesJson &&
       !machineDistanceJson &&
-      !notes.trim() &&
+      !noteText &&
       !activityName
     ) {
       setError("Skráðu að minnsta kosti eitt atriði.");
@@ -811,7 +820,7 @@ export function LogForm({
       machine_distance_json: machineDistanceJson,
       est_calories: estCalories,
       duration_min: durMin > 0 ? durMin : null,
-      notes: notes.trim() || null,
+      notes: noteText || null,
       ...tag,
     });
     if (insertError) {
@@ -1614,6 +1623,17 @@ export function LogForm({
         >
           {saving ? "Vista…" : "✓ Skrá æfingu"}
         </button>
+        {!isOther && workoutId !== "" && (
+          <button
+            type="button"
+            onClick={() => submitLog({ attendance: true })}
+            disabled={saving}
+            title="Skrá bara að þú mættir og tókst æfingu dagsins — engar þyngdir"
+            className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent transition hover:bg-accent/10 disabled:opacity-50"
+          >
+            ✓ Merkja mætingu
+          </button>
+        )}
         <span className="text-xs text-muted-foreground">
           Nóg að velja stig/æfingu og RPE — þyngdir eru valfrjálsar.
         </span>
