@@ -494,6 +494,10 @@ export function LogForm({
   const [swapOpen, setSwapOpen] = useState<string | null>(null);
   const [swapCat, setSwapCat] = useState("");
   const [swapEx, setSwapEx] = useState("");
+  // Explicit expand/collapse overrides per planned exercise (keyed by original
+  // parsed name). Default: collapsed when sets were auto-filled from last time
+  // (just confirm), expanded when there's no history to fill (type it in).
+  const [expOverride, setExpOverride] = useState<Record<string, boolean>>({});
 
   // Drop any sets typed under a name (used when the effective name of a slot
   // changes so no orphan values are submitted).
@@ -579,6 +583,29 @@ export function LogForm({
           (r) => r.structure_source_id === workoutId && r.level === level,
         ) ?? recent.find((r) => r.structure_source_id === workoutId))
       : undefined;
+
+  // Auto-fill planned strength sets from the last time each movement was logged,
+  // so logging is confirm/tweak instead of typing. Non-destructive: only fills
+  // slots not already in exSets, so it never clobbers edits (or a cleared set).
+  // Runs whenever the effective movement list changes (workout/level/swaps).
+  const strengthEffKey = strengthExercises.map((ex) => swaps[ex] ?? ex).join("|");
+  useEffect(() => {
+    const effNames = strengthExercises.map((ex) => swaps[ex] ?? ex);
+    setExSets((p) => {
+      let changed = false;
+      const next = { ...p };
+      for (const eff of effNames) {
+        if (next[eff]) continue;
+        const prev = lastSets[eff];
+        if (prev?.length) {
+          next[eff] = prev.map((s) => ({ reps: String(s.reps), kg: String(s.kg) }));
+          changed = true;
+        }
+      }
+      return changed ? next : p;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [strengthEffKey]);
 
   // Effective bodyweight for the burn estimate: the profile value, else what the
   // member typed in the fallback field below.
@@ -679,7 +706,14 @@ export function LogForm({
         .filter((s) => s.reps > 0 || s.kg > 0);
       if (parsed.length) collected.push({ name, sets: parsed });
     };
-    for (const [name, sets] of Object.entries(exSets)) gather(name, sets);
+    // Only the currently-effective planned movements — never a slot that was
+    // auto-filled then swapped out (its stale entry lingers in exSets).
+    const effStrengthNames = new Set(
+      strengthExercises.map((ex) => swaps[ex] ?? ex),
+    );
+    for (const [name, sets] of Object.entries(exSets)) {
+      if (effStrengthNames.has(name)) gather(name, sets);
+    }
     for (const m of manualExercises) {
       // Cardio ergs are logged as kcal (handled with the machine map), never as
       // sett × reps × kg — skip them here.
@@ -1066,19 +1100,38 @@ export function LogForm({
                     const open = swapOpen === ex;
                     const best = exerciseBests[eff];
                     const sets = setsForEx(eff);
-                    const vol = sets.reduce((a, s) => {
-                      const r = parseFloat((s.reps || "").replace(",", ".")) || 0;
-                      const k = parseFloat((s.kg || "").replace(",", ".")) || 0;
-                      return a + (r > 0 && k > 0 ? r * k : 0);
-                    }, 0);
                     const maxKg = sets.reduce(
                       (a, s) => Math.max(a, parseFloat((s.kg || "").replace(",", ".")) || 0),
                       0,
                     );
                     const isPr = maxKg > 0 && (best == null || maxKg > best);
+                    const hasHistory = (lastSets[eff]?.length ?? 0) > 0;
+                    const expandedNow = expOverride[ex] ?? !hasHistory;
+                    const filledCount = sets.filter(
+                      (s) =>
+                        (parseFloat((s.reps || "").replace(",", ".")) || 0) > 0 ||
+                        (parseFloat((s.kg || "").replace(",", ".")) || 0) > 0,
+                    ).length;
+                    const summary = filledCount
+                      ? `${filledCount} sett${maxKg > 0 ? ` · ${maxKg} kg` : ""}`
+                      : "engin sett";
                     return (
-                      <div key={ex} className="rounded-md border border-border bg-background p-2">
-                        <div className="flex items-center justify-between gap-2 text-sm">
+                      <div key={ex} className="rounded-md border border-border bg-background">
+                        {/* Collapsed by default when sets were auto-filled from
+                            last time — tap to open and tweak. */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpOverride((p) => ({
+                              ...p,
+                              [ex]: !(p[ex] ?? !hasHistory),
+                            }))
+                          }
+                          className="flex w-full items-center gap-2 p-2 text-left text-sm"
+                        >
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {expandedNow ? "▾" : "▸"}
+                          </span>
                           <span className="min-w-0 truncate">
                             {eff}
                             {swapped && (
@@ -1086,59 +1139,65 @@ export function LogForm({
                                 (í stað {ex})
                               </span>
                             )}
-                            {best != null && (
-                              <span className="ml-2 text-xs text-muted-foreground">met: {best} kg</span>
-                            )}
-                            {isPr && (
-                              <span className="ml-2 text-xs font-medium text-accent">🎉 Nýtt met!</span>
-                            )}
                           </span>
-                          <span className="flex shrink-0 items-center gap-2">
-                            {vol > 0 && (
-                              <span className="text-xs text-muted-foreground">
-                                {Math.round(vol).toLocaleString("is-IS")} kg
-                              </span>
-                            )}
-                            {(lastSets[eff]?.length ?? 0) > 0 && (
+                          {best != null && (
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              met: {best} kg
+                            </span>
+                          )}
+                          {isPr && (
+                            <span className="shrink-0 text-xs font-medium text-accent">
+                              🎉
+                            </span>
+                          )}
+                          {!expandedNow && (
+                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                              {summary}
+                            </span>
+                          )}
+                        </button>
+                        {expandedNow && (
+                          <div className="px-2 pb-2">
+                            <div className="mb-1.5 flex flex-wrap gap-2">
+                              {hasHistory && (
+                                <button
+                                  type="button"
+                                  onClick={() => fillFromLast(eff)}
+                                  title="Fylla reps + kg frá síðustu æfingu"
+                                  className="rounded border border-border px-1.5 py-0.5 text-xs text-muted-foreground transition hover:text-foreground"
+                                >
+                                  ↺ Síðast
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => fillFromLast(eff)}
-                                title="Fylla reps + kg frá síðustu æfingu"
-                                className="rounded border border-border px-1.5 py-0.5 text-xs text-muted-foreground transition hover:text-foreground"
+                                onClick={() => {
+                                  if (open) setSwapOpen(null);
+                                  else {
+                                    setSwapOpen(ex);
+                                    setSwapCat("");
+                                    setSwapEx("");
+                                  }
+                                }}
+                                title="Skipta út fyrir aðra æfingu úr sama flokki"
+                                className={`rounded border px-1.5 py-0.5 text-xs transition ${
+                                  open || swapped
+                                    ? "border-accent text-accent"
+                                    : "border-border text-muted-foreground hover:text-foreground"
+                                }`}
                               >
-                                ↺ Síðast
+                                ⇄ Skipta
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (open) setSwapOpen(null);
-                                else {
-                                  setSwapOpen(ex);
-                                  setSwapCat("");
-                                  setSwapEx("");
-                                }
-                              }}
-                              title="Skipta út fyrir aðra æfingu úr sama flokki"
-                              className={`rounded border px-1.5 py-0.5 text-xs transition ${
-                                open || swapped
-                                  ? "border-accent text-accent"
-                                  : "border-border text-muted-foreground hover:text-foreground"
-                              }`}
-                            >
-                              ⇄ Skipta
-                            </button>
-                          </span>
-                        </div>
-                        <SetsEditor
-                          sets={sets}
-                          best={best}
-                          onChange={(si, f, v) => setPlannedSet(eff, si, f, v)}
-                          onAdd={() => addPlannedSet(eff)}
-                          onRemove={(si) => removePlannedSet(eff, si)}
-                        />
-                        {open && (
-                          <div className="mt-2 space-y-2 rounded-md border border-border bg-muted p-2">
+                            </div>
+                            <SetsEditor
+                              sets={sets}
+                              best={best}
+                              onChange={(si, f, v) => setPlannedSet(eff, si, f, v)}
+                              onAdd={() => addPlannedSet(eff)}
+                              onRemove={(si) => removePlannedSet(eff, si)}
+                            />
+                            {open && (
+                              <div className="mt-2 space-y-2 rounded-md border border-border bg-muted p-2">
                             <span className="block text-xs text-muted-foreground">
                               Getur ekki gert {ex}? Veldu aðra æfingu úr sama
                               flokki.
@@ -1189,6 +1248,8 @@ export function LogForm({
                               >
                                 ↩ Til baka í {ex}
                               </button>
+                            )}
+                              </div>
                             )}
                           </div>
                         )}
