@@ -189,8 +189,8 @@ export default async function DashboardPage() {
           cta="Skrá met →"
         />
         <Card
-          title="Kcal Leaderboard"
-          description="Uppsafnaðar kaloríur á Assault Airbike og Concept2 — keppnin á þinni stöð."
+          title="Leaderboard"
+          description="Keppnin á þinni stöð — brennsla á tækjunum og öll prófin/metin (1RM, reps, tímar)."
           href="/app/leaderboard"
           cta="Sjá leaderboard →"
         />
