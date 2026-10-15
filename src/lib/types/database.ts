@@ -72,6 +72,7 @@ export type Database = {
           name: string
           position: number
           slug: string
+          station_id: string | null
           unit: string
         }
         Insert: {
@@ -82,6 +83,7 @@ export type Database = {
           name: string
           position?: number
           slug: string
+          station_id?: string | null
           unit: string
         }
         Update: {
@@ -92,6 +94,7 @@ export type Database = {
           name?: string
           position?: number
           slug?: string
+          station_id?: string | null
           unit?: string
         }
         Relationships: []

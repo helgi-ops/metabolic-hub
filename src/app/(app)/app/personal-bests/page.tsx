@@ -6,6 +6,7 @@ import { PbForm } from "./pb-form";
 import { ProgressChart } from "./progress-chart";
 import { SharePbToggle } from "./share-toggle";
 import { DeletePbButton } from "./delete-pb-button";
+import { BenchmarkManager } from "./benchmark-manager";
 
 export const metadata = {
   title: "Mín met · Metabolic",
@@ -17,6 +18,7 @@ type Benchmark = {
   category: string;
   unit: string;
   higher_is_better: boolean;
+  station_id: string | null;
 };
 
 type Pb = {
@@ -42,15 +44,28 @@ export default async function PersonalBestsPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, share_pbs, station_id, station:stations(name)")
+    .select(
+      "full_name, share_pbs, station_id, role, can_build_programs, station:stations(name)",
+    )
     .eq("id", user!.id)
     .single();
 
+  // Coaches with Program Builder access (and admins) can create station-scoped
+  // custom benchmarks — the same "trusted coach" gate used elsewhere.
+  const canManageBenchmarks =
+    profile?.role === "admin" ||
+    (profile?.role === "coach" && profile?.can_build_programs === true);
+
   const { data: benchmarks } = await supabase
     .from("benchmarks")
-    .select("id, name, category, unit, higher_is_better")
+    .select("id, name, category, unit, higher_is_better, station_id")
     .order("position", { ascending: true });
   const benchList = (benchmarks ?? []) as Benchmark[];
+  // Station-scoped custom benchmarks (RLS already limits reads to shared + own
+  // station), for the coach manager's delete list.
+  const customBenchmarks = benchList
+    .filter((b) => b.station_id)
+    .map((b) => ({ id: b.id, name: b.name, unit: b.unit }));
 
   // Station PB leaderboard (only members who opted in + always yourself).
   const selectedBenchmark =
@@ -221,6 +236,9 @@ export default async function PersonalBestsPage({
           </div>
         </div>
       )}
+
+      {/* Coach/admin: create station-scoped custom benchmarks */}
+      {canManageBenchmarks && <BenchmarkManager custom={customBenchmarks} />}
 
       {/* Station leaderboard */}
       {profile?.station_id && selectedBenchmark && (
