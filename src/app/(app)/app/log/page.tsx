@@ -294,6 +294,15 @@ export default async function LogPage() {
     ),
   ];
 
+  // Names of workouts already logged (they're revealed once logged) for the
+  // history cards.
+  const { data: loggedStructs } = loggedSourceIds.length
+    ? await supabase.from("structures").select("source_id, name").in("source_id", loggedSourceIds)
+    : { data: [] as { source_id: string; name: string }[] };
+  const loggedNames: Record<string, string> = Object.fromEntries(
+    (loggedStructs ?? []).map((s) => [s.source_id, s.name]),
+  );
+
   const rpeValues = list.map((l) => l.rpe).filter((r): r is number => r != null);
   const avgRpe = rpeValues.length
     ? (rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length).toFixed(1).replace(".", ",")
@@ -504,7 +513,7 @@ export default async function LogPage() {
             Engar færslur enn. Skráðu fyrstu æfinguna hér að ofan.
           </p>
         ) : (
-          <LogHistory logs={list} />
+          <LogHistory logs={list} names={loggedNames} today={today} />
         )}
       </div>
         </div>

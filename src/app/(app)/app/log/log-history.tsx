@@ -39,6 +39,8 @@ export type Log = {
   est_calories: number | null;
   notes: string | null;
   activity: string | null;
+  structure_source_id?: string | null;
+  scheduled_category?: string | null;
 };
 
 // Structured per-exercise sets (name → {sets:[{reps,kg}], volume}). Preferred for
@@ -47,26 +49,6 @@ type VolumeJson = Record<
   string,
   { sets: { reps: number; kg: number }[]; volume: number }
 >;
-
-// Compact one-liner from volume_json: "Bekkpressa ×30 (55–65kg) · Squat ×5 (80kg)".
-// A 30-set exercise becomes one short entry instead of 30 — keeps the row tidy.
-function summarizeVolume(vj: VolumeJson | null): string {
-  if (!vj) return "";
-  const parts: string[] = [];
-  for (const [name, info] of Object.entries(vj)) {
-    const sets = info?.sets ?? [];
-    if (!sets.length) continue;
-    const kgs = sets.map((s) => Number(s.kg)).filter((k) => k > 0);
-    let load = "";
-    if (kgs.length) {
-      const min = Math.min(...kgs);
-      const max = Math.max(...kgs);
-      load = min === max ? ` (${min}kg)` : ` (${min}–${max}kg)`;
-    }
-    parts.push(`${name} ×${sets.length}${load}`);
-  }
-  return parts.join(" · ");
-}
 
 // "Bekkpressa 60kg, Bekkpressa 65kg" → "Bekkpressa ×2 (60–65kg)".
 function summarizeWeights(weights: string | null): string {
@@ -128,141 +110,256 @@ function weightsToJson(text: string): Record<string, string> | null {
 
 const INITIAL_ROWS = 8;
 
-export function LogHistory({ logs }: { logs: Log[] }) {
+const CATEGORY_LABEL: Record<string, string> = {
+  strength: "Strength",
+  power_strength: "Power/Strength",
+  power: "Power",
+  endurance: "Endurance",
+  burn: "Burn",
+};
+const DAY_SHORT = ["Sun", "Mán", "Þri", "Mið", "Fim", "Fös", "Lau"];
+const MONTHS = ["jan", "feb", "mar", "apr", "maí", "jún", "júl", "ágú", "sep", "okt", "nóv", "des"];
+
+function iso(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function mondayOf(isoDate: string) {
+  const d = new Date(`${isoDate}T00:00:00`);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return iso(d);
+}
+function niceDate(isoDate: string) {
+  const d = new Date(`${isoDate}T00:00:00`);
+  return `${DAY_SHORT[d.getDay()]} ${d.getDate()}. ${MONTHS[d.getMonth()]}`;
+}
+function weekLabel(monday: string, thisMonday: string) {
+  const diff = Math.round((new Date(`${thisMonday}T00:00:00`).getTime() - new Date(`${monday}T00:00:00`).getTime()) / (7 * 86_400_000));
+  if (diff === 0) return "Þessi vika";
+  if (diff === 1) return "Síðasta vika";
+  const end = new Date(`${monday}T00:00:00`);
+  end.setDate(end.getDate() + 6);
+  const s = new Date(`${monday}T00:00:00`);
+  return `${s.getDate()}. ${MONTHS[s.getMonth()]} – ${end.getDate()}. ${MONTHS[end.getMonth()]}`;
+}
+function rpeColor(n: number) {
+  return n >= 9 ? "#fb7185" : n >= 7 ? "#fb923c" : n >= 5 ? "#fbbf24" : "#34d399";
+}
+
+// Burn shown on a card: the session estimate (incl. measured erg kcal), else
+// the measured kcal on legacy rows.
+function kcalText(l: Log): string {
+  const est = l.est_calories != null ? Math.round(Number(l.est_calories)) : null;
+  const meas = l.calories != null ? Math.round(Number(l.calories)) : null;
+  if (est != null) {
+    const containsEst = meas == null || est > meas;
+    return `${containsEst ? "~" : ""}${est.toLocaleString("is-IS")} kcal`;
+  }
+  if (meas != null) return `${meas} kcal`;
+  return "";
+}
+
+function distanceText(l: Log): string {
+  if (!l.machine_distance_json) return "";
+  const m = Object.values(l.machine_distance_json).reduce((a, v) => a + (Number(v) || 0), 0);
+  return m > 0 ? `${m.toLocaleString("is-IS")} m` : "";
+}
+
+function machinesList(l: Log): string {
+  if (l.machines_json && Object.keys(l.machines_json).length)
+    return Object.entries(l.machines_json)
+      .map(([k, v]) => `${MACHINE_LABEL[k] ?? k} ${Math.round(Number(v) || 0)} kcal`)
+      .join(" · ");
+  if (l.machine && l.calories != null) return `${MACHINE_LABEL[l.machine] ?? l.machine} ${l.calories} kcal`;
+  return "";
+}
+
+// One line per exercise: "Goblet hnébeygja · 3 sett · 22–24 kg".
+function exerciseRows(vj: VolumeJson | null): { name: string; detail: string }[] {
+  if (!vj) return [];
+  return Object.entries(vj)
+    .filter(([, info]) => (info?.sets ?? []).length)
+    .map(([name, info]) => {
+      const sets = info.sets;
+      const kgs = sets.map((x) => Number(x.kg)).filter((k) => k > 0);
+      const reps = sets.map((x) => Number(x.reps)).filter((r) => r > 0);
+      const kg = kgs.length
+        ? Math.min(...kgs) === Math.max(...kgs)
+          ? `${Math.max(...kgs)} kg`
+          : `${Math.min(...kgs)}–${Math.max(...kgs)} kg`
+        : "";
+      const repTxt = reps.length ? `${reps.join("-")} reps` : "";
+      return {
+        name,
+        detail: [`${sets.length} sett`, repTxt, kg].filter(Boolean).join(" · "),
+      };
+    });
+}
+
+export function LogHistory({
+  logs,
+  names = {},
+  today,
+}: {
+  logs: Log[];
+  names?: Record<string, string>;
+  today: string;
+}) {
   const [editing, setEditing] = useState<Log | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
 
   const visible = showAll ? logs : logs.slice(0, INITIAL_ROWS);
   const hidden = logs.length - visible.length;
+  const thisMonday = mondayOf(today);
+
+  // Previous log of the same workout (logs are newest-first) → "vs last time".
+  const prevOf = new Map<string, Log>();
+  for (let i = 0; i < logs.length; i++) {
+    const sid = logs[i].structure_source_id;
+    if (!sid) continue;
+    const prev = logs.slice(i + 1).find((x) => x.structure_source_id === sid);
+    if (prev) prevOf.set(logs[i].id, prev);
+  }
+
+  // Group the visible logs by training week.
+  const groups: { monday: string; items: Log[] }[] = [];
+  for (const l of visible) {
+    const m = mondayOf(l.logged_on);
+    const g = groups[groups.length - 1];
+    if (g && g.monday === m) g.items.push(l);
+    else groups.push({ monday: m, items: [l] });
+  }
 
   return (
     <>
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2 font-medium">Dags.</th>
-              <th className="px-4 py-2 font-medium">RPE</th>
-              <th className="px-4 py-2 font-medium">Þyngdir</th>
-              <th className="px-4 py-2 text-right font-medium">Volume</th>
-              <th className="px-4 py-2 font-medium">Kaloríur</th>
-              <th className="px-4 py-2 font-medium">Athugasemd</th>
-              <th className="px-4 py-2 text-right font-medium">Aðgerðir</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {visible.map((l) => (
-              <tr key={l.id}>
-                <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
-                  {l.logged_on}
-                </td>
-                <td className="px-4 py-2">
-                  {l.rpe != null ? (
-                    <span className="font-medium">{l.rpe}/10</span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </td>
-                <td className="px-4 py-2 text-muted-foreground">
-                  {l.activity ? (
-                    <span className="inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs text-accent">
-                      🚲 {l.activity}
-                    </span>
-                  ) : (
-                    summarizeVolume(l.volume_json) || summarizeWeights(l.weights)
-                  )}
-                </td>
-                <td className="whitespace-nowrap px-4 py-2 text-right text-muted-foreground">
-                  {l.total_volume
-                    ? `${Math.round(Number(l.total_volume)).toLocaleString("is-IS")} kg`
-                    : ""}
-                </td>
-                <td className="whitespace-nowrap px-4 py-2 text-muted-foreground">
-                  {(() => {
-                    const est =
-                      l.est_calories != null
-                        ? Math.round(Number(l.est_calories))
-                        : null;
-                    const meas =
-                      l.calories != null ? Math.round(Number(l.calories)) : null;
-                    if (est != null) {
-                      // Contains an estimate unless it exactly equals the measured
-                      // erg kcal (pure endurance / erg-only workout).
-                      const containsEst = meas == null || est > meas;
-                      return (
+      <div className="space-y-5">
+        {groups.map((g) => (
+          <section key={g.monday} className="space-y-2">
+            <h3 className="flex items-baseline justify-between text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              <span>{weekLabel(g.monday, thisMonday)}</span>
+              <span className="normal-case">
+                {g.items.length} {g.items.length === 1 ? "æfing" : "æfingar"}
+              </span>
+            </h3>
+            {g.items.map((l) => {
+              const title =
+                l.activity ??
+                (l.structure_source_id ? names[l.structure_source_id] : null) ??
+                (l.scheduled_category ? CATEGORY_LABEL[l.scheduled_category] ?? l.scheduled_category : null) ??
+                "Æfing";
+              const rows = exerciseRows(l.volume_json);
+              const legacyWeights = rows.length ? "" : summarizeWeights(l.weights);
+              const machines = machinesList(l);
+              const kcal = kcalText(l);
+              const dist = distanceText(l);
+              const vol = l.total_volume ? Math.round(Number(l.total_volume)) : 0;
+              const prev = prevOf.get(l.id);
+              const volDiff =
+                prev && vol && prev.total_volume ? vol - Math.round(Number(prev.total_volume)) : 0;
+              const isOpen = open[l.id] ?? false;
+              const facts = [
+                vol ? `${vol.toLocaleString("is-IS")} kg álag` : "",
+                rows.length ? `${rows.length} ${rows.length === 1 ? "æfing" : "æfingar"}` : "",
+                kcal,
+                dist,
+              ].filter(Boolean);
+              return (
+                <article key={l.id} className="rounded-xl border border-border bg-muted p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                        <span>{niceDate(l.logged_on)}</span>
+                        {l.level && <span className="font-mono">· {l.level}</span>}
+                        {l.activity && <span>· Önnur æfing</span>}
+                      </div>
+                      <h4 className="mt-0.5 font-semibold leading-snug">{title}</h4>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {l.rpe != null && (
                         <span
-                          title={
-                            containsEst
-                              ? "Áætluð heildarbrennsla"
-                              : "Mæld brennsla"
-                          }
+                          className="rounded-md px-2 py-0.5 text-xs font-bold"
+                          style={{ color: rpeColor(l.rpe), background: `${rpeColor(l.rpe)}1f` }}
+                          title="RPE — upplifað áreynslustig"
                         >
-                          🔥 {containsEst ? "~" : ""}
-                          {est.toLocaleString("is-IS")} kcal
-                          <span className="ml-1 text-xs">
-                            {containsEst ? "áætlað" : "mælt"}
-                          </span>
+                          RPE {l.rpe}
                         </span>
-                      );
-                    }
-                    // Legacy rows before est_calories: show measured erg kcal.
-                    if (meas != null) {
-                      return `${meas} kcal${
-                        l.machine
-                          ? ` · ${MACHINE_LABEL[l.machine] ?? l.machine}`
-                          : ""
-                      }`;
-                    }
-                    return "";
-                  })()}
-                  {l.machine_distance_json &&
-                    Object.values(l.machine_distance_json).some(
-                      (v) => Number(v) > 0,
-                    ) && (
-                      <span className="ml-2 whitespace-nowrap" title="Vegalengd">
-                        🏃{" "}
-                        {Object.values(l.machine_distance_json)
-                          .reduce((a, v) => a + (Number(v) || 0), 0)
-                          .toLocaleString("is-IS")}{" "}
-                        m
-                      </span>
-                    )}
-                </td>
-                <td className="px-4 py-2 text-muted-foreground">
-                  {l.notes ?? ""}
-                </td>
-                <td className="whitespace-nowrap px-4 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => setEditing(l)}
-                    className="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition hover:border-accent hover:text-foreground"
-                  >
-                    Leiðrétta
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setEditing(l)}
+                        aria-label="Leiðrétta færslu"
+                        title="Leiðrétta"
+                        className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
+                      >
+                        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {facts.length > 0 && (
+                    <div className="mt-2 text-sm text-muted-foreground">{facts.join(" · ")}</div>
+                  )}
+                  {machines && <div className="mt-1 text-xs text-muted-foreground">{machines}</div>}
+                  {legacyWeights && (
+                    <div className="mt-1 text-xs text-muted-foreground">{legacyWeights}</div>
+                  )}
+                  {volDiff !== 0 && (
+                    <div className={`mt-1 text-xs ${volDiff > 0 ? "text-emerald-400" : "text-muted-foreground"}`}>
+                      {volDiff > 0 ? "+" : "−"}
+                      {Math.abs(volDiff).toLocaleString("is-IS")} kg álag miðað við síðast
+                    </div>
+                  )}
+                  {l.notes && (
+                    <p className="mt-2 border-l-2 border-border pl-2.5 text-sm text-muted-foreground italic">
+                      {l.notes}
+                    </p>
+                  )}
+
+                  {rows.length > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setOpen((p) => ({ ...p, [l.id]: !isOpen }))}
+                        aria-expanded={isOpen}
+                        className="mt-2 text-xs text-orange-400 hover:text-orange-300"
+                      >
+                        {isOpen ? "Fela æfingar" : "Sýna æfingar"}
+                      </button>
+                      {isOpen && (
+                        <ul className="mt-2 divide-y divide-border/60 rounded-lg border border-border bg-background/60 px-3 text-sm">
+                          {rows.map((r) => (
+                            <li key={r.name} className="flex justify-between gap-3 py-2">
+                              <span>{r.name}</span>
+                              <span className="text-right text-xs text-muted-foreground">{r.detail}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                </article>
+              );
+            })}
+          </section>
+        ))}
       </div>
 
       {logs.length > INITIAL_ROWS && (
-        <div className="mt-3 text-center">
+        <div className="mt-4 text-center">
           <button
             type="button"
             onClick={() => setShowAll((v) => !v)}
-            className="rounded-md border border-border px-4 py-2 text-sm text-muted-foreground transition hover:border-accent hover:text-foreground"
+            className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground transition hover:border-accent hover:text-foreground"
           >
-            {showAll
-              ? "Sýna minna"
-              : `Sýna fleiri (${hidden} í viðbót)`}
+            {showAll ? "Sýna minna" : `Sýna fleiri (${hidden} í viðbót)`}
           </button>
         </div>
       )}
 
-      {editing && (
-        <EditModal log={editing} onClose={() => setEditing(null)} />
-      )}
+      {editing && <EditModal log={editing} onClose={() => setEditing(null)} />}
     </>
   );
 }
