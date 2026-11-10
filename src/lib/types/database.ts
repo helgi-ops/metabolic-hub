@@ -643,6 +643,33 @@ export type Database = {
           },
         ]
       }
+      membership_signups: {
+        Row: {
+          created_at: string
+          kennitala: string
+          plan_price: string | null
+          plan_title: string
+          station_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          kennitala: string
+          plan_price?: string | null
+          plan_title: string
+          station_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          kennitala?: string
+          plan_price?: string | null
+          plan_title?: string
+          station_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       modules: {
         Row: {
           course_id: string
@@ -1039,6 +1066,7 @@ export type Database = {
           intro: string | null
           maps_url: string | null
           name: string
+          online_signup: boolean
           pricing: Json | null
           slug: string
         }
@@ -1050,6 +1078,7 @@ export type Database = {
           intro?: string | null
           maps_url?: string | null
           name: string
+          online_signup?: boolean
           pricing?: Json | null
           slug: string
         }
@@ -1061,6 +1090,7 @@ export type Database = {
           intro?: string | null
           maps_url?: string | null
           name?: string
+          online_signup?: boolean
           pricing?: Json | null
           slug?: string
         }

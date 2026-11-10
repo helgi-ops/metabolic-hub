@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatMeasure } from "@/lib/format";
 import { daysSince } from "@/lib/streak";
+import { formatKennitala } from "@/lib/kennitala";
 import { MemberActions } from "./member-actions";
 import { MemberCard } from "./member-card";
 
@@ -143,6 +144,22 @@ export default async function StationPage({
   const pendingMembers = roster.filter(
     (m) => m.role === "student" && m.status === "pending",
   );
+  // Online membership details (kennitala + plan) — admin-only by RLS, so this
+  // stays empty for coaches. A fallback in case the notification email is lost.
+  const signupById = new Map<
+    string,
+    { kennitala: string; plan_title: string; plan_price: string | null }
+  >();
+  if (isAdmin && pendingMembers.length > 0) {
+    const { data: signups } = await supabase
+      .from("membership_signups")
+      .select("user_id, kennitala, plan_title, plan_price")
+      .in(
+        "user_id",
+        pendingMembers.map((m) => m.id),
+      );
+    for (const s of signups ?? []) signupById.set(s.user_id, s);
+  }
   const coaches = roster.filter((m) => m.role !== "student");
   const activeStudents = roster.filter(
     (m) => m.role === "student" && m.status === "active",
@@ -261,6 +278,18 @@ export default async function StationPage({
                 <div className="truncate font-medium">
                   {m.full_name ?? "—"}
                 </div>
+                {signupById.has(m.id) && (
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    <span className="font-mono">
+                      kt. {formatKennitala(signupById.get(m.id)!.kennitala)}
+                    </span>
+                    {" · "}
+                    {signupById.get(m.id)!.plan_title}
+                    {signupById.get(m.id)!.plan_price
+                      ? ` (${signupById.get(m.id)!.plan_price})`
+                      : ""}
+                  </div>
+                )}
                 <div className="mt-1.5 flex flex-wrap gap-2">
                   <MemberActions
                     memberId={m.id}

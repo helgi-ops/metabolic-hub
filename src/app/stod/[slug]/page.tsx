@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { parsePricing } from "@/lib/pricing";
 
 const WEEKDAYS = [
   "Mánudagur",
@@ -16,14 +17,6 @@ type StationClass = {
   weekday: number;
   start_time: string;
   note: string | null;
-};
-
-type PricePlan = {
-  title: string;
-  price: string;
-  per?: string | null;
-  note?: string | null;
-  features?: string[];
 };
 
 export async function generateMetadata({
@@ -57,15 +50,14 @@ export default async function StationPage({
 
   const { data: station } = await supabase
     .from("stations")
-    .select("id, name, city, intro, address, maps_url, pricing")
+    .select("id, name, city, intro, address, maps_url, pricing, online_signup")
     .eq("slug", slug)
     .single();
 
   if (!station) notFound();
 
-  const pricing = Array.isArray(station.pricing)
-    ? (station.pricing as PricePlan[])
-    : [];
+  const pricing = parsePricing(station.pricing);
+  const signupHref = `/signup?stod=${encodeURIComponent(slug)}`;
 
   const { data: classes } = await supabase
     .from("station_classes")
@@ -202,6 +194,14 @@ export default async function StationPage({
                   </div>
                 ))}
               </div>
+              {station.online_signup && (
+                <Link
+                  href={signupHref}
+                  className="mt-4 block rounded-md bg-accent px-5 py-2.5 text-center text-sm font-semibold text-accent-foreground hover:opacity-90 transition"
+                >
+                  Skrá mig í Metabolic →
+                </Link>
+              )}
             </div>
           )}
           <div className="rounded-lg border border-border bg-muted p-5">
@@ -226,6 +226,21 @@ export default async function StationPage({
               </a>
             )}
           </div>
+          {station.online_signup && (
+            <div className="rounded-lg border border-accent/40 bg-accent/10 p-5">
+              <h2 className="font-semibold">Viltu byrja að æfa?</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Skráðu þig á netinu — veldu áskrift og þú færð greiðsluseðil í
+                heimabankann.
+              </p>
+              <Link
+                href={signupHref}
+                className="mt-4 inline-block rounded-md bg-accent px-5 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition"
+              >
+                Skrá mig →
+              </Link>
+            </div>
+          )}
           <div className="rounded-lg border border-accent/40 bg-accent/10 p-5">
             <h2 className="font-semibold">Ert þú iðkandi?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
