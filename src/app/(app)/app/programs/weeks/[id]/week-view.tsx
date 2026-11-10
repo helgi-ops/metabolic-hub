@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { SlotEditor, type RawSlot } from "./slot-editor";
 import type { ParsedPreview } from "@/lib/programs/parse";
 import { CATEGORY_COLOR, CATEGORY_LABEL } from "@/lib/programs/ui";
 
@@ -14,20 +14,34 @@ export type DayView = {
   name: string;
   parsed: ParsedPreview;
   edited: boolean; // exercises changed for this week only
+  text: string; // the exercise text as shown (override or library)
+  libraryPreview: string; // the structure's own text, for "reset"
   compare: { level: string; name: string; parsed: ParsedPreview | null; current: boolean }[];
+};
+
+export type EditContext = {
+  planId: string;
+  level: string;
+  slots: RawSlot[];
+  lastUsed: Record<string, string>;
 };
 
 export function WeekView({
   days,
   initialDay,
-  editHref,
+  edit,
 }: {
   days: DayView[];
   initialDay: number;
-  editHref: string | null;
+  edit: EditContext | null;
 }) {
-  const [active, setActive] = useState(Math.min(initialDay, Math.max(0, days.length - 1)));
+  const [active, setActiveRaw] = useState(Math.min(initialDay, Math.max(0, days.length - 1)));
   const [compare, setCompare] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const setActive = (i: number) => {
+    setActiveRaw(i);
+    setEditing(false);
+  };
   const day = days[active];
   if (!day) return null;
 
@@ -78,9 +92,27 @@ export function WeekView({
         <h2 className="text-lg font-bold">
           {day.long} <span className="font-medium text-muted-foreground">· {day.date}</span>
         </h2>
+        <div className="flex flex-wrap gap-2">
+        {edit && !compare && (
+          <button
+            type="button"
+            onClick={() => setEditing((v) => !v)}
+            aria-pressed={editing}
+            className={`h-9 rounded-lg border px-3 text-sm transition ${
+              editing
+                ? "border-accent bg-accent/10 text-orange-400"
+                : "border-border bg-muted text-foreground hover:border-accent"
+            }`}
+          >
+            {editing ? "Loka breytingum" : "Breyta tíma"}
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => setCompare((v) => !v)}
+          onClick={() => {
+            setCompare((v) => !v);
+            setEditing(false);
+          }}
           aria-pressed={compare}
           className={`h-9 rounded-lg border px-3 text-sm transition ${
             compare
@@ -90,6 +122,7 @@ export function WeekView({
         >
           Bera saman MB1 · MB2 · MB3
         </button>
+        </div>
       </div>
 
       {compare ? (
@@ -125,17 +158,24 @@ export function WeekView({
               <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{day.parsed.intro}</p>
             )}
           </div>
-          <Exercises parsed={day.parsed} />
-          {(day.edited || editHref) && (
-            <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-border pt-4 text-sm text-muted-foreground">
-              {day.edited && (
-                <span className="text-amber-300">Æfingum breytt fyrir þessa viku</span>
-              )}
-              {editHref && (
-                <Link href={editHref} className="hover:text-foreground">
-                  Skipta út eða breyta tíma
-                </Link>
-              )}
+          {editing && edit ? (
+            <SlotEditor
+              key={active}
+              planId={edit.planId}
+              level={edit.level}
+              slots={edit.slots}
+              index={active}
+              currentText={day.text}
+              libraryPreview={day.libraryPreview}
+              lastUsed={edit.lastUsed}
+              onClose={() => setEditing(false)}
+            />
+          ) : (
+            <Exercises parsed={day.parsed} />
+          )}
+          {day.edited && !editing && (
+            <div className="border-t border-border pt-4 text-sm text-amber-300">
+              Æfingum breytt fyrir þessa viku
             </div>
           )}
         </article>

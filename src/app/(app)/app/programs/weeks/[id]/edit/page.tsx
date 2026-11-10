@@ -1,83 +1,12 @@
-import { notFound } from "next/navigation";
-import { requireProgramBuilder } from "@/lib/auth/require-staff";
-import { EditClient } from "./edit-client";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Breyta viku · Metabolic" };
-
-const LEVEL_MAP: Record<string, string> = {
-  "Level 1": "MB1",
-  "Level 2": "MB2",
-  "Level 3": "MB3",
-};
-
-type Slot = {
-  slot: number;
-  category: string;
-  structure_source_id: string;
-  name: string;
-  day?: string;
-  focus?: string;
-  preview?: string;
-};
-
+// Editing now happens in place on the week page ("Breyta tíma"). Keep this
+// route so old links and bookmarks still land somewhere sensible.
 export default async function EditWeekPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { supabase } = await requireProgramBuilder();
-
-  const { data: week } = await supabase
-    .from("weekly_plans")
-    .select("id, title, level, week_starting, cycle_week, programs_json")
-    .eq("id", id)
-    .single();
-  if (!week) notFound();
-
-  const slots = (Array.isArray(week.programs_json)
-    ? week.programs_json
-    : []) as Slot[];
-
-  // Supabase caps a single select at 1000 rows; page through the full library.
-  const structuresRaw: Array<{
-    source_id: string;
-    name: string;
-    category: string;
-    levels: unknown;
-    preview: string | null;
-  }> = [];
-  for (let from = 0; ; from += 1000) {
-    const { data } = await supabase
-      .from("structures")
-      .select("source_id, name, category, levels, preview")
-      .order("name", { ascending: true })
-      .range(from, from + 999);
-    if (!data?.length) break;
-    structuresRaw.push(...data);
-    if (data.length < 1000) break;
-  }
-
-  const structures = structuresRaw.map((s) => {
-    const l1 = (s.levels as { l1?: string } | null)?.l1 ?? "";
-    return {
-      source_id: s.source_id,
-      name: s.name,
-      category: s.category,
-      level: LEVEL_MAP[l1] ?? "ALL",
-      preview: s.preview ?? "",
-    };
-  });
-
-  return (
-    <EditClient
-      planId={week.id}
-      title={week.title ?? ""}
-      level={week.level}
-      weekStarting={week.week_starting}
-      cycleWeek={week.cycle_week ?? ""}
-      slots={slots}
-      structures={structures}
-    />
-  );
+  redirect(`/app/programs/weeks/${id}`);
 }

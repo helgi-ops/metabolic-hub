@@ -8,6 +8,7 @@ import {
   deleteWeek,
   generatePlanPdf,
   moveWeekStart,
+  setCycleWeek,
 } from "./actions";
 
 const OTHER_LEVELS: Record<string, string> = {
@@ -178,5 +179,42 @@ export function MoveStartButton({ planId, to, label }: { planId: string; to: str
       </button>
       {error && <span className="text-red-400">{error}</span>}
     </>
+  );
+}
+
+// The cycle tag ("Lota · vika 2 af 4") as an inline select for builders.
+export function CycleSelect({ planId, value }: { planId: string; value: string }) {
+  const [pending, startTransition] = useTransition();
+  const [v, setV] = useState(value);
+  return (
+    <label className="relative inline-flex items-center">
+      <span className="sr-only">Vika í lotu</span>
+      <select
+        value={v}
+        disabled={pending}
+        onChange={(e) => {
+          const next = e.target.value;
+          setV(next);
+          startTransition(async () => {
+            await setCycleWeek(planId, next || null);
+          });
+        }}
+        className={`h-7 cursor-pointer appearance-none rounded-full border px-3 pr-7 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-60 ${
+          v
+            ? "border-accent/40 bg-accent/10 text-orange-400"
+            : "border-border bg-muted text-muted-foreground"
+        }`}
+      >
+        <option value="">Ekki í lotu</option>
+        {[1, 2, 3, 4].map((n) => (
+          <option key={n} value={`Vika ${n}`}>
+            Lota · vika {n} af 4
+          </option>
+        ))}
+      </select>
+      <span aria-hidden="true" className="pointer-events-none absolute right-2.5 text-[10px] text-orange-400">
+        ▾
+      </span>
+    </label>
   );
 }

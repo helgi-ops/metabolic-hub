@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProgramBuilder } from "@/lib/auth/require-staff";
+import type { Database } from "@/lib/types/database";
 import {
   generateOptiSignsPdf,
   type SlideWorkout,
@@ -14,6 +15,8 @@ type Slot = {
   structure_source_id: string;
   name: string;
   day?: string;
+  focus?: string;
+  preview?: string;
 };
 
 // Swap the level token in a structure source_id (…-l3-var-d → …-l1-var-d) to
@@ -337,4 +340,52 @@ export async function copyWeekToNext(
   if (insErr || !inserted) return { ok: false, error: insErr?.message ?? "Tókst ekki að afrita." };
   revalidatePath("/app/programs");
   return { ok: true, id: inserted.id };
+}
+
+export type StructureOption = { source_id: string; name: string; preview: string };
+
+// Setups that can go into a slot: same category, this week's level (plus the
+// cross-level ones). Loaded on demand when a coach opens "Breyta tíma".
+export async function getStructureOptions(
+  level: string,
+  category: string,
+): Promise<StructureOption[]> {
+  const { supabase } = await requireProgramBuilder();
+  const want = `Level ${LEVEL_NUM[level] ?? 0}`;
+  const out: StructureOption[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase
+      .from("structures")
+      .select("source_id, name, levels, preview")
+      .eq("category", category as Database["public"]["Enums"]["program_category"])
+      .order("name", { ascending: true })
+      .range(from, from + 999);
+    if (!data?.length) break;
+    for (const s of data) {
+      const l1 = (s.levels as { l1?: string } | null)?.l1 ?? "";
+      const crossLevel = !/^Level [123]$/.test(l1);
+      if (l1 === want || crossLevel)
+        out.push({ source_id: s.source_id, name: s.name, preview: s.preview ?? "" });
+    }
+    if (data.length < 1000) break;
+  }
+  return out;
+}
+
+// Tag the week with its place in the 4-week cycle ("Vika 1".."Vika 4", or none).
+export async function setCycleWeek(
+  planId: string,
+  cycleWeek: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const { supabase } = await requireProgramBuilder();
+  if (cycleWeek && !/^Vika [1-4]$/.test(cycleWeek))
+    return { ok: false, error: "Ógilt gildi." };
+  const { error } = await supabase
+    .from("weekly_plans")
+    .update({ cycle_week: cycleWeek })
+    .eq("id", planId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/app/programs/weeks/${planId}`);
+  revalidatePath("/app/programs");
+  return { ok: true };
 }

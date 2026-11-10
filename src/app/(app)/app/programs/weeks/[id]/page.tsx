@@ -13,7 +13,7 @@ import {
   toISO,
 } from "@/lib/programs/ui";
 import { PrintButton } from "./print-button";
-import { MoveStartButton, PublishButton, WeekMenu } from "./week-menu";
+import { CycleSelect, MoveStartButton, PublishButton, WeekMenu } from "./week-menu";
 import { CategoryTag, Exercises, WeekView, type DayView } from "./week-view";
 
 export const metadata = {
@@ -165,6 +165,8 @@ export default async function WeekPage({
       name: st?.name ?? s.name,
       parsed: parsePreview(text),
       edited: !!s.preview && !!st && s.preview !== st.preview,
+      text,
+      libraryPreview: st?.preview ?? "",
       compare: LEVELS.map((lvl, li) => {
         const sib = siblingByLevel.get(lvl);
         const sibSlot = sib ? slotsOf(sib)[i] : null;
@@ -189,7 +191,28 @@ export default async function WeekPage({
   // A week should start on a Monday; offer to move it (Sat/Sun → next Monday).
   const suggestedMonday = startDow === 0 ? null : toISO(mondayMs);
 
-  const editHref = canBuild ? `/app/programs/weeks/${week.id}/edit` : null;
+  // For the in-place editor: when each setup was last used at this studio.
+  let lastUsed: Record<string, string> = {};
+  if (canBuild) {
+    const { data: usageWeeks } = await scope(
+      supabase.from("weekly_plans").select("week_starting, programs_json").neq("id", week.id),
+    );
+    const latest = new Map<string, string>();
+    for (const w of usageWeeks ?? [])
+      for (const s of slotsOf(w))
+        if (s.structure_source_id && (latest.get(s.structure_source_id) ?? "") < w.week_starting)
+          latest.set(s.structure_source_id, w.week_starting);
+    const now = requestTime();
+    lastUsed = Object.fromEntries(
+      [...latest].map(([sid, d]) => {
+        const days = Math.floor((now - parseISO(d)) / DAY_MS);
+        return [sid, days < 0 ? `Planað ${shortDate(d)}` : days <= 28 ? `Fyrir ${days} ${days === 1 ? "degi" : "dögum"}` : `Síðast ${shortDate(d)}`];
+      }),
+    );
+  }
+  const edit = canBuild
+    ? { planId: week.id, level: week.level, slots, lastUsed }
+    : null;
   const firstSlotDate = slots.length ? dateOf(slots[0], 0) : week.week_starting;
 
   return (
@@ -248,10 +271,14 @@ export default async function WeekPage({
             <span className="print-accent hidden font-mono text-xs tracking-widest uppercase print:inline">
               {week.level}
             </span>
-            {week.cycle_week && (
-              <span className="rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-orange-400">
-                Lota · {week.cycle_week.toLowerCase()} af 4
-              </span>
+            {canBuild ? (
+              <CycleSelect planId={week.id} value={week.cycle_week ?? ""} />
+            ) : (
+              week.cycle_week && (
+                <span className="rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-orange-400">
+                  Lota · {week.cycle_week.toLowerCase()} af 4
+                </span>
+              )
             )}
             {week.title && (
               <span className="text-sm text-muted-foreground">{week.title}</span>
@@ -262,12 +289,6 @@ export default async function WeekPage({
         {canBuild && (
           <div className="no-print flex flex-col items-end gap-2">
             <div className="flex flex-wrap justify-end gap-2">
-              <Link
-                href={`/app/programs/weeks/${week.id}/edit`}
-                className="flex h-10 items-center rounded-lg border border-border bg-muted px-3.5 text-sm hover:border-accent"
-              >
-                Breyta
-              </Link>
               <PrintButton />
               <PublishButton planId={week.id} published={!!week.optisigns_pushed_at} />
               <WeekMenu planId={week.id} level={week.level} pdfUrl={pdfUrl} />
@@ -309,7 +330,7 @@ export default async function WeekPage({
           Engir tímar í þessari viku.
         </p>
       ) : (
-        <WeekView days={days} initialDay={todayIdx === -1 ? 0 : todayIdx} editHref={editHref} />
+        <WeekView days={days} initialDay={todayIdx === -1 ? 0 : todayIdx} edit={edit} />
       )}
 
       {/* Print: every day, one card each */}
