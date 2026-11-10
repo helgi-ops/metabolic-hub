@@ -72,3 +72,31 @@ export function isoWeek(iso: string): number {
 export function cleanTitle(name: string): string {
   return name.replace(/\s*L[123]\b.*$/i, "").trim() || name;
 }
+
+/** Weekday index (Mán = 0) of a stored day name, or null. */
+export function dayIndex(day: string | undefined): number | null {
+  if (!day) return null;
+  const i = Object.keys(DAY_LONG_TO_SHORT).indexOf(day);
+  return i === -1 ? null : i;
+}
+
+// Short labels for the periodization focus texts stored on week slots.
+const FOCUS_SHORT: Record<string, string> = {
+  "Power (low force / high velocity) og Strength endurance (12-20 reps)":
+    "Low force · 12–20 reps",
+  "Power (moderate force / high velocity) og Hypertrophy zone (8-12 reps)":
+    "Moderate force · 8–12 reps",
+  "Power (high force / high velocity) og Strength zone (below 6 reps)":
+    "High force · undir 6 reps",
+  "Endurance – stuttur til miðlungs vinnutími með svipaðan work:rest ratio":
+    "Svipað work:rest",
+  "Endurance – stuttur til miðlungs vinnutími með svipaðan eða lengri hvíldartíma":
+    "Hvíld jöfn eða lengri en vinna",
+  "Endurance – hvíldartíminn styttri en vinnutími, eða langur vinnutími":
+    "Hvíld styttri en vinna / löng vinna",
+  "Burn tími – work capacity dagur": "Work capacity",
+};
+export function shortFocus(focus: string | undefined): string {
+  if (!focus) return "";
+  return FOCUS_SHORT[focus] ?? focus;
+}

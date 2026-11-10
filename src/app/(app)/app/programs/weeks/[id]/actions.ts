@@ -281,3 +281,60 @@ export async function generatePlanPdf(
   revalidatePath(`/app/programs/weeks/${planId}`);
   return { ok: true };
 }
+
+// Move a week's start date (e.g. a week saved on a Saturday → its Monday).
+export async function moveWeekStart(
+  planId: string,
+  weekStarting: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { supabase } = await requireProgramBuilder();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStarting))
+    return { ok: false, error: "Ógild dagsetning." };
+  const { error } = await supabase
+    .from("weekly_plans")
+    .update({ week_starting: weekStarting })
+    .eq("id", planId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/app/programs/weeks/${planId}`);
+  revalidatePath("/app/programs");
+  return { ok: true };
+}
+
+// Copy a week to the following week (same level and slots). The cycle tag moves
+// on one step (Vika 4 → Vika 1); the title's week number is bumped when it has one.
+export async function copyWeekToNext(
+  planId: string,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const { supabase, user } = await requireProgramBuilder();
+  const { data: week, error } = await supabase
+    .from("weekly_plans")
+    .select("title, level, week_starting, cycle_week, programs_json, station_id")
+    .eq("id", planId)
+    .single();
+  if (error || !week) return { ok: false, error: "Vika fannst ekki." };
+
+  const next = new Date(`${week.week_starting}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 7);
+  const nextISO = next.toISOString().slice(0, 10);
+  const n = Number(week.cycle_week?.match(/[1-4]/)?.[0] ?? 0);
+  const cycle_week = n ? `Vika ${(n % 4) + 1}` : week.cycle_week;
+  const title = (week.title ?? "").replace(/Vika (\d+)/, (_, w) => `Vika ${Number(w) + 1}`)
+    .replace(/Lota (\d)/, (m) => (n ? `Lota ${(n % 4) + 1}` : m));
+
+  const { data: inserted, error: insErr } = await supabase
+    .from("weekly_plans")
+    .insert({
+      owner_id: user.id,
+      station_id: week.station_id,
+      title: title || null,
+      level: week.level,
+      week_starting: nextISO,
+      cycle_week,
+      programs_json: week.programs_json,
+    })
+    .select("id")
+    .single();
+  if (insErr || !inserted) return { ok: false, error: insErr?.message ?? "Tókst ekki að afrita." };
+  revalidatePath("/app/programs");
+  return { ok: true, id: inserted.id };
+}
