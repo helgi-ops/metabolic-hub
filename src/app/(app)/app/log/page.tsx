@@ -337,33 +337,8 @@ export default async function LogPage() {
     }
   }
 
-  return (
-    <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
-      <div className="mb-5">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold sm:text-3xl">Æfingadagbók</h1>
-          {currentCycleWeek && (
-            <span className="rounded-full border border-accent/40 bg-accent/10 px-3 py-0.5 text-xs font-medium text-orange-400">
-              Lota · {currentCycleWeek.toLowerCase()}
-            </span>
-          )}
-        </div>
-        {/* Hidden until automatic watch sync (Garmin/Terra) works end-to-end.
-            The /app/tengingar page + API routes are kept — flip this to true to
-            bring the entry point back. */}
-        {WATCH_SYNC_ENABLED && (
-          <a
-            href="/app/tengingar"
-            className="mt-3 inline-flex items-center gap-1 text-sm text-accent hover:underline"
-          >
-            ⌚ Tengja úr (Garmin, Apple Watch, Polar…) — láttu æfingar skrást
-            sjálfkrafa →
-          </a>
-        )}
-      </div>
-
-      {/* This week */}
-      <div className="mb-4 grid grid-cols-7 gap-1.5" aria-label="Þessi vika">
+  const weekStrip = (
+    <div className="grid grid-cols-7 gap-1.5" aria-label="Þessi vika">
         {strip.map((d) => (
           <div
             key={d.iso}
@@ -387,43 +362,18 @@ export default async function LogPage() {
           </div>
         ))}
       </div>
-
-      <div className="mb-6">
-        <LogForm
-          userId={user!.id}
-          today={today}
-          todayDay={todayDay}
-          weekByLevel={weekByLevel}
-          loggedSourceIds={loggedSourceIds}
-          exerciseBests={exerciseBests}
-          exerciseCatalog={exerciseCatalog}
-          lastSets={lastSetsByExercise}
-          weightKg={weightKg}
-          isFirstLog={list.length === 0}
-          recent={list
-            .filter((l) => l.structure_source_id)
-            .map((l) => ({
-              structure_source_id: l.structure_source_id!,
-              level: l.level,
-              logged_on: l.logged_on,
-              rpe: l.rpe,
-              calories: l.calories,
-              weights: l.weights,
-              total_volume: l.total_volume,
-            }))}
-        />
-      </div>
-
-      {list.length > 0 && (
-        <div className="mb-8 grid grid-cols-3 gap-2">
-          <Stat label={sessionsThisWeek === 1 ? "tími þessa viku" : "tímar þessa viku"} value={sessionsThisWeek} />
-          <Stat label="meðal RPE" value={avgRpe} />
-          <Stat label={streak === 1 ? "vika í röð" : "vikur í röð"} value={streak} />
-        </div>
-      )}
-
+  );
+  const statsBlock = list.length > 0 && (
+    <div className="grid grid-cols-3 gap-2">
+      <Stat label={sessionsThisWeek === 1 ? "tími þessa viku" : "tímar þessa viku"} value={sessionsThisWeek} />
+      <Stat label="meðal RPE" value={avgRpe} />
+      <Stat label={streak === 1 ? "vika í röð" : "vikur í röð"} value={streak} />
+    </div>
+  );
+  const extras = (
+    <>
       {comparisons.length > 0 && (
-        <details className="mb-4 rounded-xl border border-border bg-muted">
+        <details className="rounded-xl border border-border bg-muted">
           <summary className="cursor-pointer px-4 py-3 font-semibold">
             Samanburður — sömu æfingar ({comparisons.length})
           </summary>
@@ -467,7 +417,7 @@ export default async function LogPage() {
       )}
 
       {volumePoints.length >= 2 && (
-        <details className="mb-8 rounded-xl border border-border bg-muted">
+        <details className="rounded-xl border border-border bg-muted">
           <summary className="cursor-pointer px-4 py-3 font-semibold">Álagsþróun (vikulegt)</summary>
           <div className="px-4 pb-4">
           <ProgressChart
@@ -485,7 +435,69 @@ export default async function LogPage() {
         </details>
       )}
 
-      <div>
+    </>
+  );
+
+  return (
+    <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-10 lg:max-w-6xl">
+      <div className="mb-5">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold sm:text-3xl">Æfingadagbók</h1>
+          {currentCycleWeek && (
+            <span className="rounded-full border border-accent/40 bg-accent/10 px-3 py-0.5 text-xs font-medium text-orange-400">
+              Lota · {currentCycleWeek.toLowerCase()}
+            </span>
+          )}
+        </div>
+        {/* Hidden until automatic watch sync (Garmin/Terra) works end-to-end.
+            The /app/tengingar page + API routes are kept — flip this to true to
+            bring the entry point back. */}
+        {WATCH_SYNC_ENABLED && (
+          <a
+            href="/app/tengingar"
+            className="mt-3 inline-flex items-center gap-1 text-sm text-accent hover:underline"
+          >
+            ⌚ Tengja úr (Garmin, Apple Watch, Polar…) — láttu æfingar skrást
+            sjálfkrafa →
+          </a>
+        )}
+      </div>
+
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-8">
+        <div className="min-w-0 space-y-5">
+          {/* Phone/tablet: week strip above the form, stats + extras below it. */}
+          <div className="lg:hidden">{weekStrip}</div>
+          <div>
+        <LogForm
+          userId={user!.id}
+          today={today}
+          todayDay={todayDay}
+          weekByLevel={weekByLevel}
+          loggedSourceIds={loggedSourceIds}
+          exerciseBests={exerciseBests}
+          exerciseCatalog={exerciseCatalog}
+          lastSets={lastSetsByExercise}
+          weightKg={weightKg}
+          isFirstLog={list.length === 0}
+          recent={list
+            .filter((l) => l.structure_source_id)
+            .map((l) => ({
+              structure_source_id: l.structure_source_id!,
+              level: l.level,
+              logged_on: l.logged_on,
+              rpe: l.rpe,
+              calories: l.calories,
+              weights: l.weights,
+              total_volume: l.total_volume,
+            }))}
+        />
+      </div>
+
+          <div className="space-y-3 lg:hidden">
+            {statsBlock}
+            {extras}
+          </div>
+          <div className="pt-3">
         <h2 className="mb-3 text-lg font-bold">Saga</h2>
         {list.length === 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -494,6 +506,15 @@ export default async function LogPage() {
         ) : (
           <LogHistory logs={list} />
         )}
+      </div>
+        </div>
+
+        {/* Desktop: the week, stats and extras sit beside the form. */}
+        <aside className="hidden space-y-3 lg:sticky lg:top-6 lg:block">
+          {weekStrip}
+          {statsBlock}
+          {extras}
+        </aside>
       </div>
     </main>
   );
