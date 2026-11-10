@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { CustomFood, RecentFood } from "./page";
 import { BarcodeScanner } from "./barcode-scanner";
+import { ADD_FOOD_EVENT, openAddFood, type AddFoodDetail } from "./add-food-events";
 
 const MEALS: { value: string; label: string }[] = [
   { value: "breakfast", label: "Morgunmatur" },
@@ -52,6 +53,30 @@ export function NaeringForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+  // The add-food sheet: closed until "+ Skrá mat" or a meal's "+ Bæta við".
+  const [open, setOpen] = useState(false);
+  // Short confirmation after each add ("Skyr bætt í hádegi").
+  const [flash, setFlash] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const d = (e as CustomEvent<AddFoodDetail>).detail ?? {};
+      if (d.meal) setMeal(d.meal);
+      if (d.mode) setMode(d.mode);
+      setError(null);
+      setFlash(null);
+      setOpen(true);
+    };
+    window.addEventListener(ADD_FOOD_EVENT, onOpen);
+    return () => window.removeEventListener(ADD_FOOD_EVENT, onOpen);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !scanning && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, scanning]);
 
   // Search state
   const [q, setQ] = useState("");
@@ -389,6 +414,8 @@ export function NaeringForm({
       return false;
     }
     setSaving(false);
+    const mealLabel = MEALS.find((m) => m.value === meal)?.label.toLowerCase() ?? "";
+    setFlash(`${row.name} bætt í ${mealLabel}`);
     return true;
   }
 
@@ -510,74 +537,123 @@ export function NaeringForm({
     "w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent";
   const preview = picked ? scale(picked.per100g, num(grams) || 0) : null;
 
+  const amountChips = picked
+    ? [...new Set([...(picked.serving_g ? [picked.serving_g] : []), 50, 100, 150, 200, 250])]
+    : [];
+  const TOOLS = [
+    ["search", "Leita"],
+    ["photo", "Mynd af máltíð"],
+    ["barcode", "Strikamerki"],
+    ["product", "Merkimiði"],
+    ["custom", "Mín matvæli"],
+    ["manual", "Handvirkt"],
+  ] as const;
+
+  if (!open) {
+    return (
+      <div className="pointer-events-none sticky bottom-4 z-20 mt-6 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => openAddFood()}
+          className="pointer-events-auto h-[54px] flex-1 rounded-2xl bg-accent text-base font-bold text-accent-foreground shadow-xl shadow-black/50 hover:opacity-95 sm:max-w-xs"
+        >
+          + Skrá mat
+        </button>
+        <button
+          type="button"
+          onClick={() => openAddFood(undefined, "photo")}
+          aria-label="Taka mynd af máltíð"
+          title="Taka mynd af máltíð"
+          className="pointer-events-auto grid h-[54px] w-[54px] place-items-center rounded-2xl border border-border bg-muted shadow-xl shadow-black/50 hover:border-accent"
+        >
+          <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 8h3l2-3h6l2 3h3v11H4z" />
+            <circle cx="12" cy="13" r="3.5" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-lg border border-border bg-muted p-5">
-      <h2 className="font-semibold">Bæta við mat</h2>
-
-      {/* Meal */}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {MEALS.map((m) => (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center sm:p-4"
+      onClick={() => !scanning && setOpen(false)}
+    >
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Skrá mat"
+      onClick={(e) => e.stopPropagation()}
+      className="flex max-h-[90vh] w-full flex-col rounded-t-2xl border border-border bg-muted sm:max-w-lg sm:rounded-2xl"
+    >
+      <div className="space-y-3 px-4 pt-3 pb-3 sm:px-5">
+        <div aria-hidden="true" className="mx-auto h-1 w-10 rounded-full bg-border sm:hidden" />
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold">Skrá mat</h2>
           <button
-            key={m.value}
             type="button"
-            onClick={() => setMeal(m.value)}
-            className={`rounded-full border px-3 py-1 text-xs transition ${
-              meal === m.value
-                ? "border-accent bg-accent text-accent-foreground"
-                : "border-border bg-background text-muted-foreground hover:text-foreground"
-            }`}
+            onClick={() => setOpen(false)}
+            className="h-9 rounded-lg px-3 text-sm text-muted-foreground hover:text-foreground"
           >
-            {m.label}
+            Loka
           </button>
-        ))}
-      </div>
-
-      {/* Recent foods — one-tap re-log into the selected meal */}
-      {recentFoods.length > 0 && (
-        <div className="mt-3">
-          <div className="mb-1 text-xs text-muted-foreground">Nýlegt</div>
-          <div className="flex flex-wrap gap-1.5">
-            {recentFoods.map((f, i) => (
-              <button
-                key={`${f.name}-${i}`}
-                type="button"
-                onClick={() => quickAdd(f)}
-                disabled={saving}
-                title={`${Math.round(Number(f.kcal) || 0)} kcal`}
-                className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground transition hover:border-accent hover:text-foreground disabled:opacity-50"
-              >
-                + {f.name}
-              </button>
-            ))}
-          </div>
         </div>
-      )}
 
-      {/* Mode */}
-      <div className="mt-4 flex gap-2 border-b border-border">
-        {([
-          ["search", "Leita"],
-          ["photo", "📷 Máltíð"],
-          ["product", "📷 Vara"],
-          ["custom", "Mín matvæli"],
-          ["manual", "Handvirkt"],
-        ] as const).map(([v, label]) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setMode(v)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm transition ${
-              mode === v
-                ? "border-accent font-medium text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+        {/* Meal */}
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1">
+          {MEALS.map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => setMeal(m.value)}
+              aria-pressed={meal === m.value}
+              className={`h-9 shrink-0 rounded-full border px-3.5 text-[13px] transition ${
+                meal === m.value
+                  ? "border-accent bg-accent/15 font-semibold text-orange-400"
+                  : "border-border bg-background text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        {/* How to add */}
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+          {TOOLS.map(([v, label]) => {
+            const active = v !== "barcode" && mode === v;
+            return (
+              <button
+                key={v}
+                type="button"
+                onClick={() => {
+                  if (v === "barcode") {
+                    setMode("search");
+                    setScanning(true);
+                  } else setMode(v);
+                }}
+                aria-pressed={active}
+                className={`h-9 shrink-0 rounded-lg border px-3 text-[13px] transition ${
+                  active
+                    ? "border-foreground/40 bg-background font-semibold text-foreground"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {flash && (
+          <div className="rounded-lg bg-emerald-400/10 px-3 py-2 text-sm text-emerald-400" role="status">
+            ✓ {flash}
+          </div>
+        )}
       </div>
 
-      <div className="mt-4">
+      <div className="min-h-0 flex-1 overflow-y-auto border-t border-border px-4 pt-4 pb-6 sm:px-5">
+      <div>
         {mode === "search" && (
           <div className="space-y-3">
             <div className="flex gap-2">
@@ -605,6 +681,34 @@ export function NaeringForm({
                 📷
               </button>
             </div>
+
+            {!picked && results.length === 0 && recentFoods.length > 0 && (
+              <div>
+                <div className="mb-1 text-xs font-medium text-muted-foreground">Oft notað</div>
+                <ul className="divide-y divide-border/70">
+                  {recentFoods.map((f, i) => (
+                    <li key={`${f.name}-${i}`} className="flex items-center gap-3 py-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm">{f.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {f.quantity_g != null ? `${Math.round(Number(f.quantity_g))} g · ` : ""}
+                          {Math.round(Number(f.kcal) || 0)} kcal · P {Math.round(Number(f.protein_g) || 0)}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => quickAdd(f)}
+                        disabled={saving}
+                        aria-label={`Bæta ${f.name} við`}
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border bg-background text-xl text-orange-400 hover:border-accent disabled:opacity-50"
+                      >
+                        +
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {!picked && results.length > 0 && (
               <ul className="max-h-64 space-y-1 overflow-y-auto">
@@ -649,6 +753,22 @@ export function NaeringForm({
                     className="w-24 rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                   <span className="text-sm text-muted-foreground">grömm</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {amountChips.map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      onClick={() => setGrams(String(g))}
+                      className={`h-8 rounded-full border px-3 text-xs ${
+                        num(grams) === g
+                          ? "border-accent bg-accent/15 text-orange-400"
+                          : "border-border text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {picked.serving_g === g ? `1 skammtur (${g} g)` : `${g} g`}
+                    </button>
+                  ))}
                 </div>
                 {preview && (
                   <div className="mt-2 text-xs text-muted-foreground">
@@ -948,6 +1068,7 @@ export function NaeringForm({
 
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
 
+      </div>
       {scanning && (
         <BarcodeScanner
           onClose={() => setScanning(false)}
@@ -960,6 +1081,7 @@ export function NaeringForm({
           }}
         />
       )}
+    </div>
     </div>
   );
 }

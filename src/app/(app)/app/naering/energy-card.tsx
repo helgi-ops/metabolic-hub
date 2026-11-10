@@ -90,9 +90,30 @@ export function EnergyCard({
     router.refresh();
   }
 
+  // Ring: eaten vs the member's kcal goal (markmið), else the estimated need.
+  const kcalTarget = dayMacros.find((m) => m.unit === "kcal")?.target ?? 0;
+  const goal = kcalTarget > 0 ? kcalTarget : (need?.total ?? 0);
+  const eaten = Math.round(intakeKcal);
+  const remaining = goal - eaten;
+  const over = goal > 0 && remaining < 0;
+  const R = 50;
+  const C = 2 * Math.PI * R;
+  const frac = goal > 0 ? Math.min(1, eaten / goal) : 0;
+  const macroTiles = dayMacros.filter((m) => m.macro);
+  const MACRO_COLOR: Record<string, string> = {
+    protein: "#60a5fa",
+    carbs: "#fbbf24",
+    fat: "#fb7185",
+  };
+  // The biggest relative gap among macros with a target → a one-line nudge.
+  const gap = macroTiles
+    .filter((m) => m.target > 0 && m.value < m.target)
+    .map((m) => ({ m, left: m.target - m.value, rel: (m.target - m.value) / m.target }))
+    .sort((x, y) => y.rel - x.rel)[0];
+
   return (
-    <div className="mb-8 rounded-lg border border-border bg-muted p-5">
-      <div className="mb-4 flex items-center justify-between gap-2">
+    <div className="mb-5 rounded-2xl border border-border bg-muted p-4 sm:p-5">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="font-semibold">Dagurinn</h2>
         <div className="flex items-center gap-2">
           {targetsForm}
@@ -106,143 +127,125 @@ export function EnergyCard({
         </div>
       </div>
 
-      {/* Energy need + intake balance */}
-      {profile && need
-        ? (() => {
-            // Balance against the member's goal (markmið) when set — that's what
-            // the kcal bar shows and what's actionable; else fall back to need.
-            const kcalTarget =
-              dayMacros.find((m) => m.unit === "kcal")?.target ?? 0;
-            const goal = kcalTarget > 0 ? kcalTarget : need.total;
-            const remaining = goal - Math.round(intakeKcal);
-            const over = remaining < 0;
-            const suffix = kcalTarget > 0 ? " að markmiði" : "";
-            return (
-              <div className="mb-4 rounded-lg border border-border bg-background p-4">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Orkuþörf */}
-                  <div>
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Orkuþörf í dag
-                    </div>
-                    <div className="mt-0.5 text-2xl font-bold tabular-nums">
-                      {need.total.toLocaleString("is-IS")}
-                      <span className="ml-1 text-sm font-normal text-muted-foreground">
-                        kcal
-                      </span>
-                    </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">
-                      grunnur {need.base.toLocaleString("is-IS")} + æfing{" "}
-                      {need.training.toLocaleString("is-IS")}
-                      {need.estimated && " (áætluð)"}
-                    </div>
-                  </div>
-                  {/* Inntaka */}
-                  <div>
-                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Inntaka í dag
-                    </div>
-                    <div className="mt-0.5 text-2xl font-bold tabular-nums">
-                      {Math.round(intakeKcal).toLocaleString("is-IS")}
-                      <span className="ml-1 text-sm font-normal text-muted-foreground">
-                        kcal
-                      </span>
-                    </div>
-                    <div
-                      className={`mt-0.5 text-xs ${over ? "text-amber-400" : "text-accent"}`}
-                    >
-                      {Math.abs(remaining).toLocaleString("is-IS")} kcal{" "}
-                      {over ? "yfir" : "eftir"}
-                      {suffix}
-                    </div>
-                  </div>
-                </div>
-                {need.training === 0 && (
-                  <div className="mt-3 border-t border-border pt-2 text-xs text-muted-foreground">
-                    Skráðu æfingu dagsins svo hún telji með í orkuþörfina.
-                  </div>
+      <div className="flex items-center gap-4 sm:gap-6">
+        <div className="relative h-[120px] w-[120px] shrink-0">
+          <svg
+            width="120"
+            height="120"
+            viewBox="0 0 120 120"
+            role="img"
+            aria-label={goal > 0 ? `${eaten} af ${goal} kcal` : `${eaten} kcal`}
+          >
+            <circle cx="60" cy="60" r={R} fill="none" stroke="var(--border)" strokeWidth="12" />
+            {goal > 0 && (
+              <circle
+                cx="60"
+                cy="60"
+                r={R}
+                fill="none"
+                stroke={over ? "#fbbf24" : "var(--accent)"}
+                strokeWidth="12"
+                strokeLinecap="round"
+                strokeDasharray={C}
+                strokeDashoffset={C * (1 - frac)}
+                transform="rotate(-90 60 60)"
+              />
+            )}
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+            <span className="text-[22px] font-bold tabular-nums">
+              {(goal > 0 ? Math.abs(remaining) : eaten).toLocaleString("is-IS")}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              {goal > 0 ? (over ? "kcal yfir" : "kcal eftir") : "kcal borðað"}
+            </span>
+          </div>
+        </div>
+
+        <dl className="min-w-0 flex-1 space-y-1.5 text-[13px]">
+          <Row label="Borðað" value={eaten} strong />
+          {kcalTarget > 0 && <Row label="Markmið" value={kcalTarget} />}
+          {need && (
+            <>
+              <Row
+                label={`Orkuþörf í dag${need.estimated ? " (áætl.)" : ""}`}
+                value={need.total}
+              />
+              <div className="text-[11px] text-muted-foreground">
+                grunnur {need.base.toLocaleString("is-IS")}
+                {need.training > 0 ? (
+                  <span className="text-emerald-400"> + æfing {need.training.toLocaleString("is-IS")}</span>
+                ) : (
+                  " · engin æfing skráð"
                 )}
               </div>
-            );
-          })()
-        : (
-            <p className="mb-4 text-sm text-muted-foreground">
-              Reiknaðu orkuþörf (kyn, aldur, hæð, þyngd) til að sjá stöðuna á
-              deginum miðað við hreyfingu.
+            </>
+          )}
+          {!need && !kcalTarget && (
+            <p className="text-xs text-muted-foreground">
+              Reiknaðu orkuþörf eða settu markmið til að sjá hvað er eftir af deginum.
             </p>
           )}
+        </dl>
+      </div>
 
-      {/* Macro totals vs targets — the macros (P/K/F) are tappable for food
-          ideas to close the day's gap. */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {dayMacros.map((m) => {
-          const pct = m.target
-            ? Math.min(100, Math.round((m.value / m.target) * 100))
-            : 0;
-          const inner = (
-            <>
-              <div className="flex items-center justify-between">
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {m.label}
-                </div>
-                {m.macro && (
-                  <span className="text-[11px] text-accent">Matvæli →</span>
-                )}
-              </div>
-              <div className="mt-1 flex items-baseline gap-1.5">
-                <span className="text-3xl font-bold tabular-nums">
-                  {m.value.toLocaleString("is-IS")}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  {m.target
-                    ? `/ ${m.target.toLocaleString("is-IS")} ${m.unit}`
-                    : m.unit}
-                </span>
-              </div>
-              {m.target > 0 && (
-                <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-accent"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              )}
-            </>
-          );
-          return m.macro ? (
+      {/* Macros — tap one for food ideas that close the gap. */}
+      <div className="mt-4 grid grid-cols-3 gap-3">
+        {macroTiles.map((m) => {
+          const pct = m.target ? Math.min(100, Math.round((m.value / m.target) * 100)) : 0;
+          return (
             <button
               key={m.label}
               type="button"
               onClick={() => setSuggest({ macro: m.macro!, label: m.label })}
-              className="rounded-lg border border-border bg-background p-4 text-left transition hover:border-accent"
+              className="rounded-lg p-1 text-left transition hover:bg-background"
+              title={`Hugmyndir að mat með ${m.label.toLowerCase()}`}
             >
-              {inner}
+              <div className="flex items-baseline justify-between gap-1 text-xs">
+                <span>{m.label}</span>
+                <span className="tabular-nums text-muted-foreground">
+                  {m.value}
+                  {m.target ? `/${m.target}` : ""} g
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-border">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${m.target ? pct : 0}%`, background: MACRO_COLOR[m.macro!] }}
+                />
+              </div>
             </button>
-          ) : (
-            <div
-              key={m.label}
-              className="rounded-lg border border-border bg-background p-4"
-            >
-              {inner}
-            </div>
           );
         })}
       </div>
 
+      {gap && (
+        <button
+          type="button"
+          onClick={() => setSuggest({ macro: gap.m.macro!, label: gap.m.label })}
+          className="mt-3 w-full border-t border-border pt-3 text-left text-xs text-muted-foreground hover:text-foreground"
+        >
+          Vantar{" "}
+          <span className="font-semibold text-foreground">
+            {Math.round(gap.left)} g {gap.m.label.toLowerCase()}
+          </span>{" "}
+          — <span className="text-orange-400">sjá hugmyndir</span>
+        </button>
+      )}
+
       {!hasTargets && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Settu þér markmið (eða notaðu tillöguna hér að neðan) til að sjá
-          framvindu.
+          Settu þér markmið (eða notaðu tillöguna hér að neðan) til að sjá framvindu.
         </p>
       )}
 
       {suggested && (
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-3">
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border pt-3">
           <div className="text-xs text-muted-foreground">
             Tillaga ({GOAL_LABEL[(profile?.goal as Goal) ?? "maintain"]}):{" "}
             <span className="text-foreground">
-              {suggested.kcal} kcal · P {suggested.protein_g} · K{" "}
-              {suggested.carbs_g} · F {suggested.fat_g}
+              {suggested.kcal} kcal · P {suggested.protein_g} · K {suggested.carbs_g} · F{" "}
+              {suggested.fat_g}
             </span>
           </div>
           <button
@@ -427,6 +430,15 @@ function ProfileModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Row({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={`tabular-nums ${strong ? "font-semibold" : ""}`}>{value.toLocaleString("is-IS")}</dd>
     </div>
   );
 }

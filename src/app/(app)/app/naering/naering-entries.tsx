@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Entry } from "./page";
+import { openAddFood } from "./add-food-events";
 
 const MEAL_LABEL: Record<string, string> = {
   breakfast: "Morgunmatur",
@@ -30,82 +31,81 @@ export function NaeringEntries({ entries }: { entries: Entry[] }) {
     if (!error) router.refresh();
   }
 
-  if (entries.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Ekkert skráð þennan dag enn.
-      </p>
-    );
-  }
-
   const groups = new Map<string, Entry[]>();
   for (const e of entries) {
     const key = e.meal ?? "__other__";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(e);
   }
+  // The four meals always show (so each has its own "+ Bæta við"); "Annað" only
+  // when something was logged without a meal.
+  const keys = MEAL_ORDER.filter((k) => k !== "__other__" || groups.has(k));
 
   return (
     <>
-      <div className="space-y-5">
-        {MEAL_ORDER.filter((k) => groups.has(k)).map((key) => {
-          const rows = groups.get(key)!;
-          const kcal = Math.round(
-            rows.reduce((a, r) => a + (Number(r.kcal) || 0), 0),
-          );
+      <div className="space-y-3">
+        {keys.map((key) => {
+          const rows = groups.get(key) ?? [];
+          const kcal = Math.round(rows.reduce((a, r) => a + (Number(r.kcal) || 0), 0));
+          const label = key === "__other__" ? "Annað" : (MEAL_LABEL[key] ?? key);
           return (
-            <section key={key}>
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                  {key === "__other__" ? "Annað" : (MEAL_LABEL[key] ?? key)}
-                </h3>
-                <span className="text-xs text-muted-foreground">{kcal} kcal</span>
-              </div>
-              <ul className="divide-y divide-border rounded-lg border border-border">
-                {rows.map((e) => (
-                  <li
-                    key={e.id}
-                    className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
+            <section key={key} className="overflow-hidden rounded-xl border border-border bg-muted">
+              <div className="flex items-center justify-between gap-2 py-2 pr-2 pl-4">
+                <div>
+                  <span className="font-semibold">{label}</span>
+                  {rows.length > 0 && (
+                    <span className="text-xs text-muted-foreground"> · {kcal} kcal</span>
+                  )}
+                </div>
+                {key !== "__other__" && (
+                  <button
+                    type="button"
+                    onClick={() => openAddFood(key)}
+                    aria-label={`Bæta við í ${label}`}
+                    className="h-9 rounded-lg border border-border bg-background px-3 text-[13px] font-semibold text-orange-400 hover:border-accent"
                   >
-                    <button
-                      type="button"
-                      onClick={() => setEditing(e)}
-                      className="min-w-0 flex-1 text-left transition hover:opacity-80"
-                    >
-                      <span className="block truncate font-medium">
-                        {e.name}
-                        {e.brand && (
-                          <span className="text-muted-foreground">
-                            {" "}
-                            · {e.brand}
-                          </span>
-                        )}
-                        {e.quantity_g != null && (
-                          <span className="text-muted-foreground">
-                            {" "}
-                            · {Math.round(e.quantity_g)}g
-                          </span>
-                        )}
+                    + Bæta við
+                  </button>
+                )}
+              </div>
+              {rows.length > 0 && (
+                <ul className="divide-y divide-border/70 border-t border-border/70">
+                  {rows.map((e) => (
+                    <li key={e.id} className="flex items-center justify-between gap-3 py-2.5 pr-2 pl-4 text-sm">
+                      <button
+                        type="button"
+                        onClick={() => setEditing(e)}
+                        className="min-w-0 flex-1 text-left transition hover:opacity-80"
+                      >
+                        <span className="block truncate">
+                          {e.name}
+                          {e.brand && <span className="text-muted-foreground"> · {e.brand}</span>}
+                          {e.quantity_g != null && (
+                            <span className="text-muted-foreground"> · {Math.round(e.quantity_g)} g</span>
+                          )}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          P {Number(e.protein_g) || 0} · K {Number(e.carbs_g) || 0} · F{" "}
+                          {Number(e.fat_g) || 0}
+                        </span>
+                      </button>
+                      <span className="shrink-0 text-[13px] tabular-nums">
+                        {Math.round(Number(e.kcal) || 0)}
                       </span>
-                      <span className="block text-xs text-muted-foreground">
-                        {Math.round(Number(e.kcal) || 0)} kcal · P{" "}
-                        {Number(e.protein_g) || 0} · K {Number(e.carbs_g) || 0} · F{" "}
-                        {Number(e.fat_g) || 0}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => remove(e.id, e.name)}
-                      disabled={busyId === e.id}
-                      aria-label={`Eyða ${e.name}`}
-                      title="Eyða færslu"
-                      className="shrink-0 rounded-md border border-transparent px-2 py-1 text-muted-foreground transition hover:border-red-400 hover:text-red-400 disabled:opacity-50"
-                    >
-                      {busyId === e.id ? "…" : "✕"}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                      <button
+                        type="button"
+                        onClick={() => remove(e.id, e.name)}
+                        disabled={busyId === e.id}
+                        aria-label={`Eyða ${e.name}`}
+                        title="Eyða færslu"
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted-foreground transition hover:text-red-400 disabled:opacity-50"
+                      >
+                        {busyId === e.id ? "…" : "✕"}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           );
         })}

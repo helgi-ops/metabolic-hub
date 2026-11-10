@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { NaeringForm } from "./naering-form";
 import { NaeringEntries } from "./naering-entries";
 import { TargetsForm } from "./targets-form";
-import { ProgressChart } from "../personal-bests/progress-chart";
 import { EnergyCard, type Need, type Suggested } from "./energy-card";
 import { QuickTips } from "./quick-tips";
 import {
@@ -225,10 +224,6 @@ export default async function NaeringPage({
   const avgKcal = daysWithData
     ? Math.round([...byDay.values()].reduce((a, b) => a + b, 0) / daysWithData)
     : 0;
-  const trendPoints = [...byDay.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([day, kcal]) => ({ achieved_on: day, value: Math.round(kcal) }));
-
   // Most-used recent foods for one-tap re-logging.
   const seen = new Set<string>();
   const recentFoods = ((recentRows ?? []) as RecentFood[])
@@ -239,6 +234,23 @@ export default async function NaeringPage({
       return true;
     })
     .slice(0, 8);
+
+  // Last 7 days (ending on the selected day) for the small bar chart.
+  const DAY_SHORT = ["Sun", "Mán", "Þri", "Mið", "Fim", "Fös", "Lau"];
+  const kcalTargetNum = targets ? Number(targets.kcal) || 0 : 0;
+  const last7 = Array.from({ length: 7 }, (_, i) => {
+    const day = shiftDate(selected, i - 6);
+    return {
+      day,
+      label: DAY_SHORT[new Date(`${day}T00:00:00`).getDay()],
+      kcal: Math.round(byDay.get(day) ?? 0),
+    };
+  });
+  const chartMax = Math.max(kcalTargetNum * 1.25, ...last7.map((x) => x.kcal), 1);
+  const weekDays = last7.filter((x) => x.kcal > 0);
+  const weekAvg = weekDays.length
+    ? Math.round(weekDays.reduce((a, x) => a + x.kcal, 0) / weekDays.length)
+    : 0;
 
   const prettyDate =
     selected === today
@@ -254,54 +266,57 @@ export default async function NaeringPage({
     { key: "fat", label: "Fita", unit: "g", tkey: "fat_g" },
   ];
 
-  return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <div className="mb-6">
-        <div className="font-mono text-xs tracking-widest text-accent uppercase">
-          Matardagbók
-        </div>
-        <h1 className="mt-2 text-3xl font-bold">Matardagbók</h1>
-        <p className="mt-2 text-muted-foreground">
-          Skráðu matinn þinn — leitaðu, veldu úr þínum matvælum eða sláðu inn
-          handvirkt. Dagurinn leggst saman á móti markmiðunum þínum.
-        </p>
-      </div>
+  const longDate = new Date(`${selected}T00:00:00`).toLocaleDateString("is-IS", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
 
-      {coachingOn && (
-        <div className="mb-6 rounded-md border border-accent/40 bg-accent/10 px-4 py-2 text-sm text-accent">
-          🥗 Þjálfarinn þinn fylgist með næringunni þinni.
+  return (
+    <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-10">
+      {/* Day nav */}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <Link
+          href={`/app/naering?d=${shiftDate(selected, -1)}`}
+          aria-label="Fyrri dagur"
+          className="grid h-10 w-10 place-items-center rounded-lg border border-border bg-muted hover:border-accent"
+        >
+          ←
+        </Link>
+        <div className="text-center">
+          <h1 className="text-lg font-bold">
+            {prettyDate === selected ? "Matardagbók" : prettyDate}
+          </h1>
+          <div className="text-xs text-muted-foreground first-letter:uppercase">{longDate}</div>
+        </div>
+        {selected !== today ? (
+          <Link
+            href={`/app/naering?d=${shiftDate(selected, 1)}`}
+            aria-label="Næsti dagur"
+            className="grid h-10 w-10 place-items-center rounded-lg border border-border bg-muted hover:border-accent"
+          >
+            →
+          </Link>
+        ) : (
+          <span aria-hidden="true" className="grid h-10 w-10 place-items-center rounded-lg border border-border text-muted-foreground/40">
+            →
+          </span>
+        )}
+      </div>
+      {selected !== today && (
+        <div className="-mt-2 mb-4 text-center">
+          <Link href="/app/naering" className="text-xs text-orange-400 hover:text-orange-300">
+            Fara á daginn í dag
+          </Link>
         </div>
       )}
 
-      {/* Day nav */}
-      <div className="mb-6 flex items-center gap-2 text-sm">
-        <Link
-          href={`/app/naering?d=${shiftDate(selected, -1)}`}
-          className="rounded-md border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground"
-        >
-          ← Fyrri
-        </Link>
-        <span className="font-medium">{prettyDate}</span>
-        {selected !== today && (
-          <Link
-            href="/app/naering"
-            className="rounded-md border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground"
-          >
-            Í dag
-          </Link>
-        )}
-        {selected !== today && (
-          <Link
-            href={`/app/naering?d=${shiftDate(selected, 1)}`}
-            className="rounded-md border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground"
-          >
-            Næsti →
-          </Link>
-        )}
-      </div>
+      {coachingOn && (
+        <div className="mb-4 rounded-lg border border-accent/40 bg-accent/10 px-4 py-2 text-sm text-orange-400">
+          Þjálfarinn þinn fylgist með næringunni þinni.
+        </div>
+      )}
 
-      {/* Dagurinn — combined day status: macro totals vs targets + estimated
-          energy need and intake balance, all in one card. */}
       <EnergyCard
         userId={user.id}
         profile={profileRowData}
@@ -319,49 +334,63 @@ export default async function NaeringPage({
         }))}
       />
 
-      {/* Add food — right under the day's card so it's reachable without
-          scrolling. */}
-      <div className="mb-8">
-        <NaeringForm
-          userId={user.id}
-          loggedOn={selected}
-          customFoods={customFoods}
-          recentFoods={recentFoods}
-        />
-      </div>
+      {/* Meals — each with its own "+ Bæta við". */}
+      <NaeringEntries entries={entries} />
 
-      {/* Entries by meal */}
-      <div className="mb-8">
-        <h2 className="mb-3 font-semibold">Skráð í dag</h2>
-        <NaeringEntries entries={entries} />
-      </div>
-
-      {/* Trend + average (last 14 days) */}
+      {/* Last 7 days */}
       {daysWithData > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-border bg-muted p-5">
-            <div className="text-xs uppercase tracking-widest text-muted-foreground">
-              Meðaltal ({daysWithData} {daysWithData === 1 ? "dagur" : "dagar"})
-            </div>
-            <div className="mt-1 text-2xl font-bold">
-              {avgKcal.toLocaleString("is-IS")} kcal/dag
-            </div>
+        <section className="mt-5 rounded-xl border border-border bg-muted p-4">
+          <div className="flex items-baseline justify-between gap-2 text-sm">
+            <span className="font-semibold">Síðustu 7 dagar</span>
+            <span className="text-xs text-muted-foreground">
+              {weekAvg ? `meðaltal ${weekAvg.toLocaleString("is-IS")} kcal` : ""}
+              {avgKcal && daysWithData > weekDays.length
+                ? ` · 14 dagar ${avgKcal.toLocaleString("is-IS")}`
+                : ""}
+            </span>
           </div>
-          {trendPoints.length >= 2 && (
-            <ProgressChart
-              name="Kaloríur/dag"
-              unit="kcal"
-              higherIsBetter
-              points={trendPoints}
-            />
-          )}
-        </div>
+          <div className="relative mt-3 flex h-24 items-end gap-1.5">
+            {kcalTargetNum > 0 && (
+              <div
+                aria-hidden="true"
+                className="absolute inset-x-0 border-t border-dashed border-muted-foreground/40"
+                style={{ bottom: `calc(18px + (100% - 18px) * ${kcalTargetNum / chartMax})` }}
+                title={`Markmið ${kcalTargetNum} kcal`}
+              />
+            )}
+            {last7.map((x) => (
+              <Link
+                key={x.day}
+                href={x.day === today ? "/app/naering" : `/app/naering?d=${x.day}`}
+                className="flex h-full flex-1 flex-col items-center justify-end gap-1"
+                title={`${x.kcal.toLocaleString("is-IS")} kcal`}
+              >
+                <div
+                  className={`w-full rounded ${x.day === selected ? "bg-accent" : "bg-border"}`}
+                  style={{ height: `calc((100% - 18px) * ${x.kcal / chartMax})`, minHeight: x.kcal ? 3 : 0 }}
+                />
+                <span className={`text-[10px] ${x.day === selected ? "text-foreground" : "text-muted-foreground"}`}>
+                  {x.label}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Flexible Diet quick references (full guide at /app/fraedsla) */}
-      <div className="mt-8">
+      <div className="mt-6">
         <QuickTips />
       </div>
+
+      {/* Add food: floating "+ Skrá mat" that opens the sheet. Last in the page
+          so it stays stuck to the bottom of the screen while scrolling. */}
+      <NaeringForm
+        userId={user.id}
+        loggedOn={selected}
+        customFoods={customFoods}
+        recentFoods={recentFoods}
+      />
     </main>
   );
 }
