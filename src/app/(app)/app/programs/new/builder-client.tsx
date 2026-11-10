@@ -199,12 +199,14 @@ export function BuilderClient({
   structures,
   usage,
   recentWeeks,
+  initialAddId,
 }: {
   userId: string;
   stationId: string | null;
   structures: Structure[];
   usage: Record<string, string[]>;
   recentWeeks: RecentWeek[];
+  initialAddId?: string | null;
 }) {
   const router = useRouter();
   const pickerRef = useRef<HTMLElement>(null);
@@ -218,7 +220,25 @@ export function BuilderClient({
   );
 
   const [title, setTitle] = useState("");
-  const [level, setLevel] = useState<(typeof LEVELS)[number]>("MB1");
+  // Arriving from "+ Setja í viku" in the library (?add=<id>): start on that
+  // structure's level with it placed in the first day of its category.
+  const [initial] = useState(() => {
+    const st = initialAddId ? structures.find((x) => x.id === initialAddId) : null;
+    const lvl = (LEVELS as readonly string[]).includes(st?.level ?? "")
+      ? (st!.level as (typeof LEVELS)[number])
+      : "MB1";
+    const cats = [...DEFAULT_SLOT_CATEGORIES];
+    let idx = -1;
+    if (st) {
+      idx = cats.indexOf(st.category);
+      if (idx === -1) {
+        idx = 0;
+        cats[0] = st.category;
+      }
+    }
+    return { st, lvl, cats, idx };
+  });
+  const [level, setLevel] = useState<(typeof LEVELS)[number]>(initial.lvl);
 
   // Only structures for the selected level (plus cross-level "ALL" ones), grouped
   // by category. Recomputes when the level changes so L1/L2/L3 never mix.
@@ -232,13 +252,18 @@ export function BuilderClient({
     return map;
   }, [structures, level]);
   const [weekStarting, setWeekStarting] = useState(nextMondayISO());
-  const [slots, setSlots] = useState<Slot[]>(
-    DEFAULT_SLOT_CATEGORIES.map((category) => ({ category, structureId: "" })),
+  const [slots, setSlots] = useState<Slot[]>(() =>
+    initial.cats.map((category, i) => ({
+      category,
+      structureId: i === initial.idx && initial.st ? initial.st.id : "",
+    })),
   );
   // Editable exercise text per slot (per-week override). Empty = use the
   // structure's library preview. Kept index-aligned with `slots`.
   const [previews, setPreviews] = useState<string[]>(() =>
-    DEFAULT_SLOT_CATEGORIES.map(() => ""),
+    initial.cats.map((_, i) =>
+      i === initial.idx && initial.st ? initial.st.preview : "",
+    ),
   );
   const [editing, setEditing] = useState<boolean[]>(() =>
     DEFAULT_SLOT_CATEGORIES.map(() => false),
@@ -251,7 +276,7 @@ export function BuilderClient({
   const cycleDays = cycleWeek ? PERIODIZATION[cycleWeek].days : null;
 
   // Picker state: which day is being filled, plus search/filters.
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(initial.idx === 0 ? 1 : 0);
   const [query, setQuery] = useState("");
   const [onlyFresh, setOnlyFresh] = useState(false);
   const [partnerOnly, setPartnerOnly] = useState(false);

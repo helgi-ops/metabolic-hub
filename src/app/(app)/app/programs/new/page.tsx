@@ -5,7 +5,12 @@ export const metadata = {
   title: "Smíða viku · Metabolic",
 };
 
-export default async function NewProgramPage() {
+export default async function NewProgramPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ add?: string }>;
+}) {
+  const { add } = await searchParams;
   const { supabase, user } = await requireProgramBuilder();
 
   const { data: profile } = await supabase
@@ -105,6 +110,7 @@ export default async function NewProgramPage() {
       structures={structures}
       usage={usage}
       recentWeeks={recentWeeks}
+      initialAddId={add ?? null}
     />
   );
 }
