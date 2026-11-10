@@ -273,7 +273,7 @@ export default async function NaeringPage({
   });
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-10">
+    <main className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-10 lg:max-w-6xl">
       {/* Day nav */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <Link
@@ -317,6 +317,8 @@ export default async function NaeringPage({
         </div>
       )}
 
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-8">
+      <div className="min-w-0">
       <EnergyCard
         userId={user.id}
         profile={profileRowData}
@@ -336,10 +338,14 @@ export default async function NaeringPage({
 
       {/* Meals — each with its own "+ Bæta við". */}
       <NaeringEntries entries={entries} />
+      </div>
+
+      {/* Desktop: trend + tips beside the day; phone: below it. */}
+      <aside className="min-w-0 lg:sticky lg:top-6">
 
       {/* Last 7 days */}
       {daysWithData > 0 && (
-        <section className="mt-5 rounded-xl border border-border bg-muted p-4">
+        <section className="mt-5 rounded-xl border border-border bg-muted p-4 lg:mt-0">
           <div className="flex items-baseline justify-between gap-2 text-sm">
             <span className="font-semibold">Síðustu 7 dagar</span>
             <span className="text-xs text-muted-foreground">
@@ -379,8 +385,10 @@ export default async function NaeringPage({
       )}
 
       {/* Flexible Diet quick references (full guide at /app/fraedsla) */}
-      <div className="mt-6">
+      <div className="mt-6 lg:mt-5">
         <QuickTips />
+      </div>
+      </aside>
       </div>
 
       {/* Add food: floating "+ Skrá mat" that opens the sheet. Last in the page
