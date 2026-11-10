@@ -296,16 +296,8 @@ export default async function LogPage() {
 
   const rpeValues = list.map((l) => l.rpe).filter((r): r is number => r != null);
   const avgRpe = rpeValues.length
-    ? (rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length).toFixed(1)
+    ? (rpeValues.reduce((a, b) => a + b, 0) / rpeValues.length).toFixed(1).replace(".", ",")
     : "—";
-  // Total burn for the stat: the estimated session burn (est_calories already
-  // includes any measured erg kcal) so cardio "önnur æfing" like a run or bike
-  // counts even without logged erg kcal. Fall back to measured calories for
-  // legacy rows that predate est_calories.
-  const totalCalories = list.reduce(
-    (sum, l) => sum + (Number(l.est_calories ?? l.calories) || 0),
-    0,
-  );
 
   // Volume trend: total training load (sett × reps × kg) summed per week. Every
   // strength workout in a week adds up, so the trend tracks weekly load over time.
@@ -320,24 +312,42 @@ export default async function LogPage() {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([week, v]) => ({ achieved_on: week, value: Math.round(v) }));
 
+  // This week at a glance: which days have a log, sessions this week, and how
+  // many weeks in a row the member has logged at least once.
+  const thisWeek = weekStartISO(today);
+  const loggedDates = new Set(list.map((l) => l.logged_on));
+  const STRIP_DAYS = ["Mán", "Þri", "Mið", "Fim", "Fös", "Lau", "Sun"];
+  const strip = STRIP_DAYS.map((label, i) => {
+    const d = new Date(`${thisWeek}T00:00:00`);
+    d.setDate(d.getDate() + i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return { label, iso, done: loggedDates.has(iso), isToday: iso === today, future: iso > today };
+  });
+  const sessionsThisWeek = list.filter((l) => weekStartISO(l.logged_on) === thisWeek).length;
+  const loggedWeeks = new Set(list.map((l) => weekStartISO(l.logged_on)));
+  let streak = 0;
+  {
+    const cursor = new Date(`${thisWeek}T00:00:00`);
+    if (!loggedWeeks.has(thisWeek)) cursor.setDate(cursor.getDate() - 7);
+    for (;;) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+      if (!loggedWeeks.has(key)) break;
+      streak++;
+      cursor.setDate(cursor.getDate() - 7);
+    }
+  }
+
   return (
-    <main className="mx-auto max-w-4xl px-6 py-12">
-      <div className="mb-8">
-        <div className="font-mono text-xs tracking-widest text-accent uppercase">
-          Æfingadagbók
-        </div>
-        <h1 className="mt-2 flex flex-wrap items-center gap-3 text-3xl font-bold">
-          Æfingadagbók
+    <main className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-12">
+      <div className="mb-5">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold sm:text-3xl">Æfingadagbók</h1>
           {currentCycleWeek && (
-            <span className="rounded-full border border-accent/40 bg-accent/10 px-3 py-0.5 text-sm font-medium text-accent">
-              {currentCycleWeek}
+            <span className="rounded-full border border-accent/40 bg-accent/10 px-3 py-0.5 text-xs font-medium text-orange-400">
+              Lota · {currentCycleWeek.toLowerCase()}
             </span>
           )}
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          Skráðu hvernig æfingin var — álag, þyngdir og kaloríur á tækjunum.
-          {currentCycleWeek ? ` Þessa viku er ${currentCycleWeek} í gangi á þinni stöð.` : ""}
-        </p>
+        </div>
         {/* Hidden until automatic watch sync (Garmin/Terra) works end-to-end.
             The /app/tengingar page + API routes are kept — flip this to true to
             bring the entry point back. */}
@@ -352,18 +362,33 @@ export default async function LogPage() {
         )}
       </div>
 
-      {list.length > 0 && (
-        <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-lg border border-border bg-muted px-4 py-2.5">
-          <Stat label="æfingar" value={list.length} />
-          <Stat label="meðal RPE" value={avgRpe} />
-          <Stat
-            label="kcal samtals"
-            value={Math.round(totalCalories).toLocaleString("is-IS")}
-          />
-        </div>
-      )}
+      {/* This week */}
+      <div className="mb-4 grid grid-cols-7 gap-1.5" aria-label="Þessi vika">
+        {strip.map((d) => (
+          <div
+            key={d.iso}
+            className={`flex flex-col items-center gap-1.5 rounded-lg border py-2 ${
+              d.isToday ? "border-accent bg-accent/5" : "border-border bg-muted"
+            }`}
+          >
+            <span className="text-[11px] text-muted-foreground">{d.label}</span>
+            <span
+              className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${
+                d.done
+                  ? "bg-emerald-400 text-background"
+                  : d.isToday
+                    ? "text-orange-400"
+                    : "text-muted-foreground/40"
+              }`}
+            >
+              {d.done ? "✓" : d.isToday ? "•" : d.future ? "" : "–"}
+            </span>
+            <span className="sr-only">{d.done ? "skráð" : "ekki skráð"}</span>
+          </div>
+        ))}
+      </div>
 
-      <div className="mb-8">
+      <div className="mb-6">
         <LogForm
           userId={user!.id}
           today={today}
@@ -384,13 +409,25 @@ export default async function LogPage() {
               rpe: l.rpe,
               calories: l.calories,
               weights: l.weights,
+              total_volume: l.total_volume,
             }))}
         />
       </div>
 
+      {list.length > 0 && (
+        <div className="mb-8 grid grid-cols-3 gap-2">
+          <Stat label={sessionsThisWeek === 1 ? "tími þessa viku" : "tímar þessa viku"} value={sessionsThisWeek} />
+          <Stat label="meðal RPE" value={avgRpe} />
+          <Stat label={streak === 1 ? "vika í röð" : "vikur í röð"} value={streak} />
+        </div>
+      )}
+
       {comparisons.length > 0 && (
-        <div className="mb-8">
-          <h2 className="mb-3 font-semibold">Samanburður — sömu æfingar</h2>
+        <details className="mb-4 rounded-xl border border-border bg-muted">
+          <summary className="cursor-pointer px-4 py-3 font-semibold">
+            Samanburður — sömu æfingar ({comparisons.length})
+          </summary>
+          <div className="px-4 pb-4">
           <div className="space-y-4">
             {comparisons.map((g, i) => (
               <div
@@ -425,12 +462,14 @@ export default async function LogPage() {
               </div>
             ))}
           </div>
-        </div>
+          </div>
+        </details>
       )}
 
       {volumePoints.length >= 2 && (
-        <div className="mb-8">
-          <h2 className="mb-3 font-semibold">Álagsþróun (vikulegt)</h2>
+        <details className="mb-8 rounded-xl border border-border bg-muted">
+          <summary className="cursor-pointer px-4 py-3 font-semibold">Álagsþróun (vikulegt)</summary>
+          <div className="px-4 pb-4">
           <ProgressChart
             name="Heildar-álag á viku (sett × reps × kg)"
             unit="kg"
@@ -442,11 +481,12 @@ export default async function LogPage() {
             Vaxandi lína = þú ert að lyfta meira yfir tíma. Dagsetning = upphaf
             vikunnar.
           </p>
-        </div>
+          </div>
+        </details>
       )}
 
       <div>
-        <h2 className="mb-3 font-semibold">Saga</h2>
+        <h2 className="mb-3 text-lg font-bold">Saga</h2>
         {list.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Engar færslur enn. Skráðu fyrstu æfinguna hér að ofan.
@@ -461,9 +501,9 @@ export default async function LogPage() {
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <span className="flex items-baseline gap-1.5">
-      <span className="text-lg font-bold">{value}</span>
-      <span className="text-xs text-muted-foreground">{label}</span>
-    </span>
+    <div className="rounded-xl border border-border bg-muted p-3">
+      <div className="text-xl font-bold">{value}</div>
+      <div className="mt-0.5 text-[11px] text-muted-foreground">{label}</div>
+    </div>
   );
 }

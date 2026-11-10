@@ -84,6 +84,7 @@ type RecentLog = {
   rpe: number | null;
   calories: number | null;
   weights: string | null;
+  total_volume?: number | null;
 };
 
 // Pull the individual movements out of a structure's prescription text so the
@@ -558,9 +559,18 @@ export function LogForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Post-save celebration: new exercise PRs and/or the member's first-ever log.
+  // Which screen of the flow is showing: today's card → exercises → RPE → done.
+  const [step, setStep] = useState<"start" | "exercises" | "rpe" | "done">("start");
+  // Post-save summary: the workout's (now revealed) name, new PRs, first-ever
+  // log, and a comparison with the last time this workout was logged.
   const [celebration, setCelebration] = useState<{
     first: boolean;
     prs: { name: string; kg: number }[];
+    name: string | null;
+    rpe: number | null;
+    volume: number | null;
+    kcal: number | null;
+    prev: RecentLog | null;
   } | null>(null);
 
   const isOther = workoutId === OTHER;
@@ -678,6 +688,9 @@ export function LogForm({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Enter in a field mid-flow moves on instead of saving early.
+    if (step === "exercises") return setStep("rpe");
+    if (step !== "rpe") return;
     await submitLog();
   }
 
@@ -887,6 +900,8 @@ export function LogForm({
         .from("nutrition_profile")
         .upsert({ user_id: userId, weight_kg: typedWeight }, { onConflict: "user_id" });
     }
+    const savedRpe = rpe;
+    const savedPrev = last;
     setRpe(null);
     setActivity("");
     setExSets({});
@@ -914,50 +929,83 @@ export function LogForm({
       }
     }
     const prs = [...prMap.entries()].map(([name, kg]) => ({ name, kg }));
-    if (prs.length || isFirstLog) {
-      setCelebration({ first: isFirstLog, prs });
-    } else {
-      router.refresh();
-    }
+    setCelebration({
+      first: isFirstLog,
+      prs,
+      name: picked?.name ?? (activityName || null),
+      rpe: savedRpe,
+      volume: totalVol,
+      kcal: estCalories ?? totalCalories,
+      prev: savedPrev ?? null,
+    });
+    setStep("done");
+    // Refresh the server data (history, stats) underneath the done screen.
+    router.refresh();
   }
 
   function closeCelebration() {
     setCelebration(null);
-    router.refresh();
+    setStep("start");
+    setWorkoutId(todays?.structure_source_id ?? "");
   }
+
+  // Start logging: today's planned workout, or "something else".
+  function startLog(other = false) {
+    if (other) {
+      setWorkoutId(OTHER);
+      setExSets({});
+      setSwaps({});
+      setMachineKcal({});
+      setMachineDist({});
+      setManualExercises([]);
+    }
+    setError(null);
+    setStep("exercises");
+  }
+
+
+  const shownRpe = hoverRpe ?? rpe;
+  const rpeColor = (n: number) =>
+    n >= 9 ? "#fb7185" : n >= 7 ? "#fb923c" : n >= 5 ? "#fbbf24" : "#34d399";
+  const pickedWorkout = isOther
+    ? null
+    : workouts.find((w) => w.structure_source_id === workoutId) ?? null;
+  // The workout shown on the start card: what's picked, else the day's plan.
+  const cardW = pickedWorkout ?? todays;
+  const pickedRevealed = pickedWorkout ? loggedSet.has(pickedWorkout.structure_source_id) : false;
+  const dateLabel =
+    loggedOn === today
+      ? "Í dag"
+      : loggedOn === addDaysISO(today, -1)
+        ? "Í gær"
+        : new Date(`${loggedOn}T00:00:00`).toLocaleDateString("is-IS", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          });
+  const pill = (on: boolean) =>
+    `rounded-full border px-3.5 py-2 text-sm transition ${
+      on
+        ? "border-accent bg-accent/15 font-semibold text-orange-400"
+        : "border-border bg-background text-muted-foreground hover:text-foreground"
+    }`;
 
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-lg border border-border bg-muted p-5"
+      className="overflow-hidden rounded-2xl border border-border bg-muted"
     >
-      <h2 className="font-semibold">Skrá æfingu</h2>
-
-      <div className="mt-4 space-y-4">
-        <div className="block">
-          <span className="mb-1 block text-sm text-muted-foreground">
-            Hvaða dag var æfingin?
-          </span>
+      {/* ---------- 1. Today's workout ---------- */}
+      {step === "start" && (
+        <div className="space-y-4 p-5">
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setLoggedOn(today)}
-              className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                loggedOn === today
-                  ? "border-accent bg-accent text-accent-foreground"
-                  : "border-border bg-background text-muted-foreground hover:text-foreground"
-              }`}
-            >
+            <button type="button" onClick={() => setLoggedOn(today)} className={pill(loggedOn === today)}>
               Í dag
             </button>
             <button
               type="button"
               onClick={() => setLoggedOn(addDaysISO(today, -1))}
-              className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                loggedOn === addDaysISO(today, -1)
-                  ? "border-accent bg-accent text-accent-foreground"
-                  : "border-border bg-background text-muted-foreground hover:text-foreground"
-              }`}
+              className={pill(loggedOn === addDaysISO(today, -1))}
             >
               Í gær
             </button>
@@ -965,334 +1013,449 @@ export function LogForm({
               type="date"
               value={loggedOn}
               max={today}
-              onChange={(e) => setLoggedOn(e.target.value)}
-              aria-label="Veldu dagsetningu"
-              className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              onChange={(e) => e.target.value && setLoggedOn(e.target.value)}
+              aria-label="Skrá eldri dag"
+              className="h-10 rounded-full border border-border bg-background px-3 text-sm [color-scheme:dark] focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
-          <span className="mt-1 block text-xs text-muted-foreground">
-            Gleymdirðu að skrá? Veldu „Í gær" eða eldri dag — þú getur alltaf
-            skráð aftur í tímann.
-            {!inCurrentWeek &&
-              (loadingWeek
-                ? " Sæki plan þeirrar viku…"
-                : " Sýni plan vikunnar sem dagsetningin tilheyrir.")}
-          </span>
-        </div>
 
-        <div>
-          <span className="mb-1 block text-sm text-muted-foreground">
-            Hvaða stig tókstu?
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {LEVELS.map((l) => {
-              const has = (effectiveWeekByLevel[l]?.length ?? 0) > 0;
-              return (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => changeLevel(l)}
-                  className={`rounded-full border px-4 py-1.5 text-sm transition ${
-                    level === l
-                      ? "border-accent bg-accent text-accent-foreground"
-                      : "border-border bg-background text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {l}
-                  {!has && (
-                    <span className="ml-1 text-[10px] opacity-60">(ekkert plan)</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          {todays && !isOther && (
-            <div className="mt-2 rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs">
-              <span className="font-medium">
-                {inCurrentWeek ? "Æfing dagsins" : "Æfing valins dags"} ({level}):
-              </span>{" "}
-              {selectedDayName} ·{" "}
-              {CATEGORY_LABEL[todays.category] ?? todays.category}
-              {!loggedSet.has(todays.structure_source_id) &&
-                " · 🔒 nafn birtist eftir skráningu"}
-            </div>
-          )}
-        </div>
-
-        <label className="block">
-          <span className="mb-1 block text-sm text-muted-foreground">
-            Hvaða æfingu varstu að gera?
-          </span>
-          <select
-            value={workoutId}
-            onChange={(e) => {
-              setWorkoutId(e.target.value);
-              setExSets({});
-              setSwaps({});
-              setSwapOpen(null);
-              setMachineKcal({});
-              setMachineDist({});
-              setManualExercises([]);
-            }}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            <option value="">— ekki tengt æfingu —</option>
-            {workouts.map((w) => {
-              const revealed = loggedSet.has(w.structure_source_id);
-              const prefix = `${w.day ? `${w.day} · ` : ""}${
-                CATEGORY_LABEL[w.category] ?? w.category
-              }`;
-              return (
-                <option key={w.slot} value={w.structure_source_id}>
-                  {revealed
-                    ? `${prefix} – ${w.name}`
-                    : `${prefix} · 🔒 (nafn birtist eftir skráningu)`}
-                </option>
-              );
-            })}
-            <option value={OTHER}>
-              🚲 Önnur æfing / hreyfing (t.d. hjól, hlaup, sund)
-            </option>
-          </select>
-          {workouts.length > 0 && !isOther && (
-            <span className="mt-1 block text-xs text-muted-foreground">
-              Þú sérð ekki æfinguna fyrirfram — nafnið birtist fyrst eftir að þú
-              hefur skráð hana og gefið RPE. Tengir líka skráninguna við æfinguna
-              svo þú getir borið þig saman næst.
-            </span>
-          )}
-        </label>
-
-        {last && (
-          <div className="rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">Síðast</span> (
-            {last.logged_on}
-            {last.level ? ` · ${last.level}` : ""}):{" "}
-            {last.rpe != null ? `RPE ${last.rpe}/10` : "ekkert RPE"}
-            {last.calories != null ? ` · ${last.calories} kcal` : ""}
-            {last.weights ? ` · ${last.weights}` : ""}
-          </div>
-        )}
-
-        {selected && !isEndurance && exercises.length > 0 && (
-          <div className="space-y-3">
-            {strengthExercises.length > 0 && (
-              <div>
-                <span className="mb-1 block text-sm text-muted-foreground">
-                  Sett, reps og þyngd{" "}
-                  <span className="text-foreground/60">(valfrjálst)</span> — ýttu á
-                  æfingu til að opna hana. Þyngdir frá síðustu skráningu fyllast
-                  sjálfkrafa. Slepptu þessu ef þú trackar annars staðar; RPE eitt
-                  dugar.
+          <div className="rounded-xl border border-accent bg-background/60 p-4">
+            <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+              <span>
+                {selectedDayName} · {dateLabel}
+              </span>
+              {cardW && (
+                <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] tracking-widest text-foreground uppercase">
+                  {CATEGORY_LABEL[cardW.category] ?? cardW.category}
                 </span>
-                {fillableExercises().length > 0 && (
+              )}
+            </div>
+            <div className="mt-2 text-xl font-bold">
+              {cardW
+                ? loggedSet.has(cardW.structure_source_id)
+                  ? cardW.name
+                  : "Tími dagsins"
+                : "Enginn tími á plani"}
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {loadingWeek
+                ? "Sæki plan þeirrar viku…"
+                : cardW
+                  ? loggedSet.has(cardW.structure_source_id)
+                    ? "Þú hefur skráð þennan tíma áður."
+                    : "Nafn tímans birtist eftir að þú skráir hann."
+                  : "Veldu annan tíma úr vikunni eða skráðu aðra æfingu."}
+            </p>
+            <div className="mt-3 flex gap-2" role="group" aria-label="Stig">
+              {LEVELS.map((l) => {
+                const has = (effectiveWeekByLevel[l]?.length ?? 0) > 0;
+                return (
                   <button
+                    key={l}
                     type="button"
-                    onClick={() => fillableExercises().forEach(fillFromLast)}
-                    className="mb-2 rounded-md border border-accent px-3 py-1 text-xs font-medium text-accent transition hover:bg-accent/10"
+                    onClick={() => changeLevel(l)}
+                    aria-pressed={level === l}
+                    title={has ? undefined : "Ekkert plan á þessu stigi"}
+                    className={`h-11 flex-1 rounded-lg border text-sm font-semibold transition ${
+                      level === l
+                        ? "border-accent bg-accent/15 text-orange-400"
+                        : `border-border bg-background ${has ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/40"}`
+                    }`}
                   >
-                    ↺ Sama og síðast (öll æfingin)
+                    {l}
                   </button>
-                )}
-                <div className="space-y-2">
-                  {strengthExercises.map((ex) => {
-                    const eff = swaps[ex] ?? ex;
-                    const swapped = eff !== ex;
-                    const open = swapOpen === ex;
-                    const best = exerciseBests[eff];
-                    const sets = setsForEx(eff);
-                    const maxKg = sets.reduce(
-                      (a, s) => Math.max(a, parseFloat((s.kg || "").replace(",", ".")) || 0),
-                      0,
-                    );
-                    const isPr = maxKg > 0 && (best == null || maxKg > best);
-                    const hasHistory = (lastSets[eff]?.length ?? 0) > 0;
-                    // Collapsed by default always, so a long plan stays short;
-                    // tap a row to open it and enter/confirm sets.
-                    const expandedNow = expOverride[ex] ?? false;
-                    const filledCount = sets.filter(
-                      (s) =>
-                        (parseFloat((s.reps || "").replace(",", ".")) || 0) > 0 ||
-                        (parseFloat((s.kg || "").replace(",", ".")) || 0) > 0,
-                    ).length;
-                    const summary = filledCount
-                      ? `${filledCount} sett${maxKg > 0 ? ` · ${maxKg} kg` : ""}`
-                      : "+ skrá sett";
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => startLog(false)}
+              disabled={!workoutId}
+              className="mt-3 h-[52px] w-full rounded-xl bg-accent text-base font-bold text-accent-foreground transition hover:opacity-90 disabled:opacity-40"
+            >
+              Skrá tímann
+            </button>
+            {workoutId && workoutId !== OTHER && (
+              <button
+                type="button"
+                onClick={() => submitLog({ attendance: true })}
+                disabled={saving}
+                className="mt-2 w-full py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                {saving ? "Vista…" : "Bara merkja mætingu"}
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm">
+            <button type="button" onClick={() => startLog(true)} className="text-muted-foreground hover:text-foreground">
+              Ég gerði annað (hjól, hlaup, sund…)
+            </button>
+          </div>
+
+          {workouts.length > 1 && (
+            <details className="rounded-lg border border-border bg-background/40 px-3 py-2 text-sm">
+              <summary className="cursor-pointer text-muted-foreground">Annar tími úr vikunni</summary>
+              <div className="mt-3">
+              <label className="block">
+                <span className="mb-1 block text-sm text-muted-foreground">
+                  Hvaða æfingu varstu að gera?
+                </span>
+                <select
+                  value={workoutId}
+                  onChange={(e) => {
+                    setWorkoutId(e.target.value);
+                    setExSets({});
+                    setSwaps({});
+                    setSwapOpen(null);
+                    setMachineKcal({});
+                    setMachineDist({});
+                    setManualExercises([]);
+                  }}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="">— ekki tengt æfingu —</option>
+                  {workouts.map((w) => {
+                    const revealed = loggedSet.has(w.structure_source_id);
+                    const prefix = `${w.day ? `${w.day} · ` : ""}${
+                      CATEGORY_LABEL[w.category] ?? w.category
+                    }`;
                     return (
-                      <div key={ex} className="rounded-md border border-border bg-background">
-                        {/* Collapsed by default when sets were auto-filled from
-                            last time — tap to open and tweak. */}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExpOverride((p) => ({
-                              ...p,
-                              [ex]: !(p[ex] ?? false),
-                            }))
-                          }
-                          className="flex w-full items-center gap-2 p-2 text-left text-sm"
-                        >
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {expandedNow ? "▾" : "▸"}
-                          </span>
-                          <span className="min-w-0 truncate">
-                            {eff}
-                            {swapped && (
-                              <span className="ml-1 text-xs text-muted-foreground">
-                                (í stað {ex})
-                              </span>
-                            )}
-                          </span>
-                          {best != null && (
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              met: {best} kg
-                            </span>
-                          )}
-                          {isPr && (
-                            <span className="shrink-0 text-xs font-medium text-accent">
-                              🎉
-                            </span>
-                          )}
-                          {!expandedNow && (
-                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                              {summary}
-                            </span>
-                          )}
-                        </button>
-                        {expandedNow && (
-                          <div className="px-2 pb-2">
-                            <div className="mb-1.5 flex flex-wrap gap-2">
-                              {hasHistory && (
-                                <button
-                                  type="button"
-                                  onClick={() => fillFromLast(eff)}
-                                  title="Fylla reps + kg frá síðustu æfingu"
-                                  className="rounded border border-border px-1.5 py-0.5 text-xs text-muted-foreground transition hover:text-foreground"
-                                >
-                                  ↺ Síðast
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (open) setSwapOpen(null);
-                                  else {
-                                    setSwapOpen(ex);
-                                    setSwapCat("");
-                                    setSwapEx("");
-                                  }
-                                }}
-                                title="Skipta út fyrir aðra æfingu úr sama flokki"
-                                className={`rounded border px-1.5 py-0.5 text-xs transition ${
-                                  open || swapped
-                                    ? "border-accent text-accent"
-                                    : "border-border text-muted-foreground hover:text-foreground"
-                                }`}
-                              >
-                                ⇄ Skipta
-                              </button>
-                            </div>
-                            <SetsEditor
-                              sets={sets}
-                              best={best}
-                              onChange={(si, f, v) => setPlannedSet(eff, si, f, v)}
-                              onAdd={() => addPlannedSet(eff)}
-                              onRemove={(si) => removePlannedSet(eff, si)}
-                            />
-                            {open && (
-                              <div className="mt-2 space-y-2 rounded-md border border-border bg-muted p-2">
-                            <span className="block text-xs text-muted-foreground">
-                              Getur ekki gert {ex}? Veldu aðra æfingu úr sama
-                              flokki.
-                            </span>
-                            <div className="flex flex-wrap gap-2">
-                              <select
-                                value={swapCat}
-                                onChange={(e) => {
-                                  setSwapCat(e.target.value);
-                                  setSwapEx("");
-                                }}
-                                className="rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                              >
-                                <option value="">Flokkur</option>
-                                {Object.keys(exerciseCatalog).map((c) => (
-                                  <option key={c} value={c}>
-                                    {c}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                value={swapEx}
-                                onChange={(e) => setSwapEx(e.target.value)}
-                                disabled={!swapCat}
-                                className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
-                              >
-                                <option value="">Æfing</option>
-                                {(exerciseCatalog[swapCat] ?? []).map((n) => (
-                                  <option key={n} value={n}>
-                                    {n}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                type="button"
-                                onClick={() => applySwap(ex)}
-                                disabled={!swapEx}
-                                className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground transition hover:opacity-90 disabled:opacity-50"
-                              >
-                                Velja
-                              </button>
-                            </div>
-                            {swapped && (
-                              <button
-                                type="button"
-                                onClick={() => revertSwap(ex)}
-                                className="text-xs text-muted-foreground hover:text-foreground"
-                              >
-                                ↩ Til baka í {ex}
-                              </button>
-                            )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <option key={w.slot} value={w.structure_source_id}>
+                        {revealed
+                          ? `${prefix} – ${w.name}`
+                          : `${prefix} · 🔒 (nafn birtist eftir skráningu)`}
+                      </option>
                     );
                   })}
-                </div>
-                {(() => {
-                  const total = strengthExercises.reduce((a, ex) => {
-                    const eff = swaps[ex] ?? ex;
-                    return (
-                      a +
-                      setsForEx(eff).reduce((b, s) => {
-                        const r = parseFloat((s.reps || "").replace(",", ".")) || 0;
-                        const k = parseFloat((s.kg || "").replace(",", ".")) || 0;
-                        return b + (r > 0 && k > 0 ? r * k : 0);
-                      }, 0)
-                    );
-                  }, 0);
-                  return total > 0 ? (
-                    <div className="mt-2 flex items-center justify-between rounded-md bg-accent/10 px-3 py-2 text-sm">
-                      <span className="font-medium">Heildar-álag æfingar</span>
-                      <span className="font-semibold text-accent">
-                        {Math.round(total).toLocaleString("is-IS")} kg
-                      </span>
-                    </div>
-                  ) : null;
-                })()}
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  Eitt sett í hverri línu — reps × þyngd. Ólíkar þyngdir/reps eru
-                  í lagi (t.d. wave 2-4-6). „+ Bæta við setti" fyrir fleiri sett;
-                  volume = samtala (reps × þyngd) allra settanna.
-                </span>
+                  <option value={OTHER}>
+                    🚲 Önnur æfing / hreyfing (t.d. hjól, hlaup, sund)
+                  </option>
+                </select>
+                {workouts.length > 0 && !isOther && (
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    Þú sérð ekki æfinguna fyrirfram — nafnið birtist fyrst eftir að þú
+                    hefur skráð hana og gefið RPE. Tengir líka skráninguna við æfinguna
+                    svo þú getir borið þig saman næst.
+                  </span>
+                )}
+              </label>
+              </div>
+            </details>
+          )}
+          {error && <div className="text-sm text-red-400">{error}</div>}
+        </div>
+      )}
+
+      {/* Step header (exercises + RPE) */}
+      {(step === "exercises" || step === "rpe") && (
+        <div className="border-b border-border px-4 pt-4 pb-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setStep(step === "rpe" ? "exercises" : "start")}
+              aria-label="Til baka"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border bg-background hover:border-accent"
+            >
+              ←
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs text-muted-foreground">
+                {dateLabel} · {isOther ? "Önnur æfing" : `${level}${pickedWorkout ? ` · ${CATEGORY_LABEL[pickedWorkout.category] ?? pickedWorkout.category}` : ""}`}
+                {pickedRevealed && pickedWorkout ? ` · ${pickedWorkout.name}` : ""}
+              </div>
+              <div className="font-bold">
+                {step === "exercises" ? (isOther ? "Hvað gerðir þú?" : "Hvað tókstu?") : "Hversu erfitt var það?"}
+              </div>
+            </div>
+            <span className="font-mono text-xs text-muted-foreground">
+              {step === "exercises" ? 1 : 2}/2
+            </span>
+          </div>
+          <div aria-hidden="true" className="mt-3 flex gap-1">
+            <span className="h-1 flex-1 rounded-full bg-accent" />
+            <span className={`h-1 flex-1 rounded-full ${step === "rpe" ? "bg-accent" : "bg-border"}`} />
+          </div>
+        </div>
+      )}
+
+      {/* ---------- 2. Exercises ---------- */}
+      {step === "exercises" && (
+        <>
+          <div className="space-y-4 p-4 sm:p-5">
+            {last && (
+              <div className="rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Síðast</span> (
+                {last.logged_on}
+                {last.level ? ` · ${last.level}` : ""}):{" "}
+                {last.rpe != null ? `RPE ${last.rpe}/10` : "ekkert RPE"}
+                {last.calories != null ? ` · ${last.calories} kcal` : ""}
+                {last.weights ? ` · ${last.weights}` : ""}
               </div>
             )}
 
-            {cardioExercises.length > 0 && (
+            {selected && !isEndurance && exercises.length > 0 && (
+              <div className="space-y-3">
+                {strengthExercises.length > 0 && (
+                  <div>
+                    <span className="mb-1 block text-sm text-muted-foreground">
+                      Sett, reps og þyngd{" "}
+                      <span className="text-foreground/60">(valfrjálst)</span> — ýttu á
+                      æfingu til að opna hana. Þyngdir frá síðustu skráningu fyllast
+                      sjálfkrafa. Slepptu þessu ef þú trackar annars staðar; RPE eitt
+                      dugar.
+                    </span>
+                    {fillableExercises().length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => fillableExercises().forEach(fillFromLast)}
+                        className="mb-2 rounded-md border border-accent px-3 py-1 text-xs font-medium text-accent transition hover:bg-accent/10"
+                      >
+                        ↺ Sama og síðast (öll æfingin)
+                      </button>
+                    )}
+                    <div className="space-y-2">
+                      {strengthExercises.map((ex) => {
+                        const eff = swaps[ex] ?? ex;
+                        const swapped = eff !== ex;
+                        const open = swapOpen === ex;
+                        const best = exerciseBests[eff];
+                        const sets = setsForEx(eff);
+                        const maxKg = sets.reduce(
+                          (a, s) => Math.max(a, parseFloat((s.kg || "").replace(",", ".")) || 0),
+                          0,
+                        );
+                        const isPr = maxKg > 0 && (best == null || maxKg > best);
+                        const hasHistory = (lastSets[eff]?.length ?? 0) > 0;
+                        // Collapsed by default always, so a long plan stays short;
+                        // tap a row to open it and enter/confirm sets.
+                        const expandedNow = expOverride[ex] ?? false;
+                        const filledCount = sets.filter(
+                          (s) =>
+                            (parseFloat((s.reps || "").replace(",", ".")) || 0) > 0 ||
+                            (parseFloat((s.kg || "").replace(",", ".")) || 0) > 0,
+                        ).length;
+                        const summary = filledCount
+                          ? `${filledCount} sett${maxKg > 0 ? ` · ${maxKg} kg` : ""}`
+                          : "+ skrá sett";
+                        return (
+                          <div key={ex} className="rounded-md border border-border bg-background">
+                            {/* Collapsed by default when sets were auto-filled from
+                                last time — tap to open and tweak. */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpOverride((p) => ({
+                                  ...p,
+                                  [ex]: !(p[ex] ?? false),
+                                }))
+                              }
+                              className="flex w-full items-center gap-2 p-2 text-left text-sm"
+                            >
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {expandedNow ? "▾" : "▸"}
+                              </span>
+                              <span className="min-w-0 truncate">
+                                {eff}
+                                {swapped && (
+                                  <span className="ml-1 text-xs text-muted-foreground">
+                                    (í stað {ex})
+                                  </span>
+                                )}
+                              </span>
+                              {best != null && (
+                                <span className="shrink-0 text-xs text-muted-foreground">
+                                  met: {best} kg
+                                </span>
+                              )}
+                              {isPr && (
+                                <span className="shrink-0 text-xs font-medium text-accent">
+                                  🎉
+                                </span>
+                              )}
+                              {!expandedNow && (
+                                <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                                  {summary}
+                                </span>
+                              )}
+                            </button>
+                            {expandedNow && (
+                              <div className="px-2 pb-2">
+                                <div className="mb-1.5 flex flex-wrap gap-2">
+                                  {hasHistory && (
+                                    <button
+                                      type="button"
+                                      onClick={() => fillFromLast(eff)}
+                                      title="Fylla reps + kg frá síðustu æfingu"
+                                      className="rounded border border-border px-1.5 py-0.5 text-xs text-muted-foreground transition hover:text-foreground"
+                                    >
+                                      ↺ Síðast
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (open) setSwapOpen(null);
+                                      else {
+                                        setSwapOpen(ex);
+                                        setSwapCat("");
+                                        setSwapEx("");
+                                      }
+                                    }}
+                                    title="Skipta út fyrir aðra æfingu úr sama flokki"
+                                    className={`rounded border px-1.5 py-0.5 text-xs transition ${
+                                      open || swapped
+                                        ? "border-accent text-accent"
+                                        : "border-border text-muted-foreground hover:text-foreground"
+                                    }`}
+                                  >
+                                    ⇄ Skipta
+                                  </button>
+                                </div>
+                                <SetsEditor
+                                  sets={sets}
+                                  best={best}
+                                  onChange={(si, f, v) => setPlannedSet(eff, si, f, v)}
+                                  onAdd={() => addPlannedSet(eff)}
+                                  onRemove={(si) => removePlannedSet(eff, si)}
+                                />
+                                {open && (
+                                  <div className="mt-2 space-y-2 rounded-md border border-border bg-muted p-2">
+                                <span className="block text-xs text-muted-foreground">
+                                  Getur ekki gert {ex}? Veldu aðra æfingu úr sama
+                                  flokki.
+                                </span>
+                                <div className="flex flex-wrap gap-2">
+                                  <select
+                                    value={swapCat}
+                                    onChange={(e) => {
+                                      setSwapCat(e.target.value);
+                                      setSwapEx("");
+                                    }}
+                                    className="rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                                  >
+                                    <option value="">Flokkur</option>
+                                    {Object.keys(exerciseCatalog).map((c) => (
+                                      <option key={c} value={c}>
+                                        {c}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <select
+                                    value={swapEx}
+                                    onChange={(e) => setSwapEx(e.target.value)}
+                                    disabled={!swapCat}
+                                    className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+                                  >
+                                    <option value="">Æfing</option>
+                                    {(exerciseCatalog[swapCat] ?? []).map((n) => (
+                                      <option key={n} value={n}>
+                                        {n}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={() => applySwap(ex)}
+                                    disabled={!swapEx}
+                                    className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground transition hover:opacity-90 disabled:opacity-50"
+                                  >
+                                    Velja
+                                  </button>
+                                </div>
+                                {swapped && (
+                                  <button
+                                    type="button"
+                                    onClick={() => revertSwap(ex)}
+                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                  >
+                                    ↩ Til baka í {ex}
+                                  </button>
+                                )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {(() => {
+                      const total = strengthExercises.reduce((a, ex) => {
+                        const eff = swaps[ex] ?? ex;
+                        return (
+                          a +
+                          setsForEx(eff).reduce((b, s) => {
+                            const r = parseFloat((s.reps || "").replace(",", ".")) || 0;
+                            const k = parseFloat((s.kg || "").replace(",", ".")) || 0;
+                            return b + (r > 0 && k > 0 ? r * k : 0);
+                          }, 0)
+                        );
+                      }, 0);
+                      return total > 0 ? (
+                        <div className="mt-2 flex items-center justify-between rounded-md bg-accent/10 px-3 py-2 text-sm">
+                          <span className="font-medium">Heildar-álag æfingar</span>
+                          <span className="font-semibold text-accent">
+                            {Math.round(total).toLocaleString("is-IS")} kg
+                          </span>
+                        </div>
+                      ) : null;
+                    })()}
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      Eitt sett í hverri línu — reps × þyngd. Ólíkar þyngdir/reps eru
+                      í lagi (t.d. wave 2-4-6). „+ Bæta við setti" fyrir fleiri sett;
+                      volume = samtala (reps × þyngd) allra settanna.
+                    </span>
+                  </div>
+                )}
+
+                {cardioExercises.length > 0 && (
+                  <div>
+                    <span className="mb-1 block text-sm text-muted-foreground">
+                      Þolæfing / tæki — skráð í kcal (taktu það sem þú notaðir)
+                    </span>
+                    <div className="space-y-1.5">
+                      {CARDIO_MACHINES.map((m) => (
+                        <div key={m.value} className="flex items-center gap-2">
+                          <span className="flex-1 text-sm">{m.label}</span>
+                          {DISTANCE_MACHINES.has(m.value) && (
+                            <input
+                              inputMode="numeric"
+                              value={machineDist[m.value] ?? ""}
+                              onChange={(e) =>
+                                setMachineDist((p) => ({ ...p, [m.value]: e.target.value }))
+                              }
+                              placeholder="metrar"
+                              aria-label={`${m.label} — vegalengd í metrum`}
+                              className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                            />
+                          )}
+                          <input
+                            inputMode="decimal"
+                            value={machineKcal[m.value] ?? ""}
+                            onChange={(e) =>
+                              setMachineKcal((p) => ({ ...p, [m.value]: e.target.value }))
+                            }
+                            placeholder="kcal"
+                            className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      Sumir taka Concept2 í stað Assault Airbike — skráðu bara tækið
+                      sem þú notaðir. Þessi tæki eru alltaf í kcal (ekki
+                      sett/reps/þyngd) og hvert telur á Brennslu-leaderboardinu.
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {((selected && isEndurance) || isOther) && (
               <div>
                 <span className="mb-1 block text-sm text-muted-foreground">
-                  Þolæfing / tæki — skráð í kcal (taktu það sem þú notaðir)
+                  Kaloríur á hverju tæki — fylltu inn það sem þú tókst
                 </span>
                 <div className="space-y-1.5">
                   {CARDIO_MACHINES.map((m) => (
@@ -1323,472 +1486,480 @@ export function LogForm({
                   ))}
                 </div>
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  Sumir taka Concept2 í stað Assault Airbike — skráðu bara tækið
-                  sem þú notaðir. Þessi tæki eru alltaf í kcal (ekki
-                  sett/reps/þyngd) og hvert telur á Brennslu-leaderboardinu.
+                  Skildu eftir autt tæki sem þú notaðir ekki. Hvert tæki telur sér á
+                  Brennslu-leaderboardinu.
                 </span>
               </div>
             )}
-          </div>
-        )}
 
-        {((selected && isEndurance) || isOther) && (
-          <div>
-            <span className="mb-1 block text-sm text-muted-foreground">
-              Kaloríur á hverju tæki — fylltu inn það sem þú tókst
-            </span>
-            <div className="space-y-1.5">
-              {CARDIO_MACHINES.map((m) => (
-                <div key={m.value} className="flex items-center gap-2">
-                  <span className="flex-1 text-sm">{m.label}</span>
-                  {DISTANCE_MACHINES.has(m.value) && (
-                    <input
-                      inputMode="numeric"
-                      value={machineDist[m.value] ?? ""}
-                      onChange={(e) =>
-                        setMachineDist((p) => ({ ...p, [m.value]: e.target.value }))
-                      }
-                      placeholder="metrar"
-                      aria-label={`${m.label} — vegalengd í metrum`}
-                      className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  )}
-                  <input
-                    inputMode="decimal"
-                    value={machineKcal[m.value] ?? ""}
-                    onChange={(e) =>
-                      setMachineKcal((p) => ({ ...p, [m.value]: e.target.value }))
-                    }
-                    placeholder="kcal"
-                    className="w-24 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
+            {isOther && (
+              <label className="block">
+                <span className="mb-1 block text-sm text-muted-foreground">
+                  Hvað gerðir þú?
+                </span>
+                <input
+                  value={activity}
+                  onChange={(e) => setActivity(e.target.value)}
+                  placeholder="t.d. Hjól, Hlaup, Sund, Ganga, Heimaæfing"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Skráð sem aukaæfing í stað æfingar dagsins. Þú getur líka skráð RPE
+                  hér að neðan.
+                </span>
+              </label>
+            )}
+
+            {isOther && (
+              <div>
+                <span className="mb-1 block text-sm text-muted-foreground">
+                  Æfingar — veldu hreyfiflokk og æfingu
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    value={patternSel}
+                    onChange={(e) => {
+                      setPatternSel(e.target.value);
+                      setExerciseSel("");
+                    }}
+                    className="rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    <option value="">Hreyfiflokkur</option>
+                    {Object.keys(exerciseCatalog).map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={exerciseSel}
+                    onChange={(e) => setExerciseSel(e.target.value)}
+                    disabled={!patternSel}
+                    className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+                  >
+                    <option value="">Æfing</option>
+                    {(exerciseCatalog[patternSel] ?? []).map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={addManualExercise}
+                    disabled={!exerciseSel}
+                    className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
+                  >
+                    Bæta við
+                  </button>
                 </div>
-              ))}
-            </div>
-            <span className="mt-1 block text-xs text-muted-foreground">
-              Skildu eftir autt tæki sem þú notaðir ekki. Hvert tæki telur sér á
-              Brennslu-leaderboardinu.
-            </span>
-          </div>
-        )}
-
-        {isOther && (
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted-foreground">
-              Hvað gerðir þú?
-            </span>
-            <input
-              value={activity}
-              onChange={(e) => setActivity(e.target.value)}
-              placeholder="t.d. Hjól, Hlaup, Sund, Ganga, Heimaæfing"
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-            />
-            <span className="mt-1 block text-xs text-muted-foreground">
-              Skráð sem aukaæfing í stað æfingar dagsins. Þú getur líka skráð RPE
-              hér að neðan.
-            </span>
-          </label>
-        )}
-
-        {isOther && (
-          <div>
-            <span className="mb-1 block text-sm text-muted-foreground">
-              Æfingar — veldu hreyfiflokk og æfingu
-            </span>
-            <div className="flex flex-wrap gap-2">
-              <select
-                value={patternSel}
-                onChange={(e) => {
-                  setPatternSel(e.target.value);
-                  setExerciseSel("");
-                }}
-                className="rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                <option value="">Hreyfiflokkur</option>
-                {Object.keys(exerciseCatalog).map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={exerciseSel}
-                onChange={(e) => setExerciseSel(e.target.value)}
-                disabled={!patternSel}
-                className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
-              >
-                <option value="">Æfing</option>
-                {(exerciseCatalog[patternSel] ?? []).map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={addManualExercise}
-                disabled={!exerciseSel}
-                className="shrink-0 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
-              >
-                Bæta við
-              </button>
-            </div>
-            {manualExercises.length > 0 && (
-              <div className="mt-2 space-y-2">
-                {manualExercises.map((ex, i) => {
-                  const mv = machineForExercise(ex.name);
-                  const best = exerciseBests[ex.name];
-                  const vol = ex.sets.reduce((a, s) => {
-                    const r = parseFloat((s.reps || "").replace(",", ".")) || 0;
-                    const k = parseFloat((s.kg || "").replace(",", ".")) || 0;
-                    return a + (r > 0 && k > 0 ? r * k : 0);
-                  }, 0);
-                  const maxKg = ex.sets.reduce(
-                    (a, s) => Math.max(a, parseFloat((s.kg || "").replace(",", ".")) || 0),
-                    0,
-                  );
-                  const isPr = !mv && maxKg > 0 && (best == null || maxKg > best);
-                  return (
-                    <div key={i} className="rounded-md border border-border bg-background p-2">
-                      <div className="flex items-center justify-between gap-2 text-sm">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => removeManualExercise(i)}
-                            aria-label="Fjarlægja æfingu"
-                            className="text-muted-foreground hover:text-foreground"
-                          >
-                            ✕
-                          </button>
-                          <span className="truncate">
-                            {ex.name}
-                            {!mv && best != null && (
-                              <span className="ml-2 text-xs text-muted-foreground">met: {best} kg</span>
+                {manualExercises.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {manualExercises.map((ex, i) => {
+                      const mv = machineForExercise(ex.name);
+                      const best = exerciseBests[ex.name];
+                      const vol = ex.sets.reduce((a, s) => {
+                        const r = parseFloat((s.reps || "").replace(",", ".")) || 0;
+                        const k = parseFloat((s.kg || "").replace(",", ".")) || 0;
+                        return a + (r > 0 && k > 0 ? r * k : 0);
+                      }, 0);
+                      const maxKg = ex.sets.reduce(
+                        (a, s) => Math.max(a, parseFloat((s.kg || "").replace(",", ".")) || 0),
+                        0,
+                      );
+                      const isPr = !mv && maxKg > 0 && (best == null || maxKg > best);
+                      return (
+                        <div key={i} className="rounded-md border border-border bg-background p-2">
+                          <div className="flex items-center justify-between gap-2 text-sm">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => removeManualExercise(i)}
+                                aria-label="Fjarlægja æfingu"
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                ✕
+                              </button>
+                              <span className="truncate">
+                                {ex.name}
+                                {!mv && best != null && (
+                                  <span className="ml-2 text-xs text-muted-foreground">met: {best} kg</span>
+                                )}
+                                {isPr && (
+                                  <span className="ml-2 text-xs font-medium text-accent">🎉 Nýtt met!</span>
+                                )}
+                              </span>
+                            </span>
+                            {!mv && vol > 0 && (
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {Math.round(vol).toLocaleString("is-IS")} kg
+                              </span>
                             )}
-                            {isPr && (
-                              <span className="ml-2 text-xs font-medium text-accent">🎉 Nýtt met!</span>
-                            )}
-                          </span>
-                        </span>
-                        {!mv && vol > 0 && (
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {Math.round(vol).toLocaleString("is-IS")} kg
-                          </span>
-                        )}
-                      </div>
-                      {mv ? (
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <span className="flex-1 text-xs text-muted-foreground">
-                            Tæki — skráð í kcal
-                          </span>
-                          <input
-                            inputMode="decimal"
-                            value={ex.kcal}
-                            onChange={(e) => setManualKcal(i, e.target.value)}
-                            placeholder="kcal"
-                            className="w-24 rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                          />
+                          </div>
+                          {mv ? (
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <span className="flex-1 text-xs text-muted-foreground">
+                                Tæki — skráð í kcal
+                              </span>
+                              <input
+                                inputMode="decimal"
+                                value={ex.kcal}
+                                onChange={(e) => setManualKcal(i, e.target.value)}
+                                placeholder="kcal"
+                                className="w-24 rounded-md border border-border bg-muted px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                              />
+                            </div>
+                          ) : (
+                            <SetsEditor
+                              sets={ex.sets}
+                              best={best}
+                              onChange={(si, f, v) => setManualSet(i, si, f, v)}
+                              onAdd={() => addManualSet(i)}
+                              onRemove={(si) => removeManualSet(i, si)}
+                            />
+                          )}
                         </div>
-                      ) : (
-                        <SetsEditor
-                          sets={ex.sets}
-                          best={best}
-                          onChange={(si, f, v) => setManualSet(i, si, f, v)}
-                          onAdd={() => addManualSet(i)}
-                          onRemove={(si) => removeManualSet(i, si)}
-                        />
-                      )}
+                      );
+                    })}
+                  </div>
+                )}
+                {(() => {
+                  const total = manualExercises.reduce((a, ex) => {
+                    if (machineForExercise(ex.name)) return a;
+                    return (
+                      a +
+                      ex.sets.reduce((b, s) => {
+                        const r = parseFloat((s.reps || "").replace(",", ".")) || 0;
+                        const k = parseFloat((s.kg || "").replace(",", ".")) || 0;
+                        return b + (r > 0 && k > 0 ? r * k : 0);
+                      }, 0)
+                    );
+                  }, 0);
+                  return total > 0 ? (
+                    <div className="mt-2 flex items-center justify-between rounded-md bg-accent/10 px-3 py-2 text-sm">
+                      <span className="font-medium">Heildar-álag</span>
+                      <span className="font-semibold text-accent">
+                        {Math.round(total).toLocaleString("is-IS")} kg
+                      </span>
                     </div>
-                  );
-                })}
+                  ) : null;
+                })()}
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Veldu hreyfiflokk, svo æfingu, og „Bæta við". Hvert sett í sinni
+                  línu (reps × þyngd) — ólíkar þyngdir/reps eru í lagi. Volume og met
+                  reiknast sjálfkrafa.
+                </span>
               </div>
             )}
-            {(() => {
-              const total = manualExercises.reduce((a, ex) => {
-                if (machineForExercise(ex.name)) return a;
-                return (
-                  a +
-                  ex.sets.reduce((b, s) => {
-                    const r = parseFloat((s.reps || "").replace(",", ".")) || 0;
-                    const k = parseFloat((s.kg || "").replace(",", ".")) || 0;
-                    return b + (r > 0 && k > 0 ? r * k : 0);
-                  }, 0)
-                );
-              }, 0);
-              return total > 0 ? (
-                <div className="mt-2 flex items-center justify-between rounded-md bg-accent/10 px-3 py-2 text-sm">
-                  <span className="font-medium">Heildar-álag</span>
-                  <span className="font-semibold text-accent">
-                    {Math.round(total).toLocaleString("is-IS")} kg
-                  </span>
-                </div>
-              ) : null;
-            })()}
-            <span className="mt-1 block text-xs text-muted-foreground">
-              Veldu hreyfiflokk, svo æfingu, og „Bæta við". Hvert sett í sinni
-              línu (reps × þyngd) — ólíkar þyngdir/reps eru í lagi. Volume og met
-              reiknast sjálfkrafa.
-            </span>
-          </div>
-        )}
-
-        <div>
-          <span className="mb-1 block text-sm text-muted-foreground">
-            Hversu erfið var æfingin? (RPE — upplifað áreynslustig)
-          </span>
-          <div className="flex flex-wrap gap-1.5">
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setRpe(rpe === n ? null : n)}
-                onMouseEnter={() => setHoverRpe(n)}
-                onMouseLeave={() => setHoverRpe(null)}
-                title={`${n} — ${RPE_LABELS[n]}`}
-                className={`h-9 w-9 rounded-md border text-sm transition ${
-                  rpe === n
-                    ? "border-accent bg-accent text-accent-foreground"
-                    : "border-border bg-background text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-          {/* Live description of the hovered/selected value */}
-          <div className="mt-2 min-h-[1.25rem] text-xs">
-            {hoverRpe ?? rpe ? (
-              <span>
-                <span className="font-semibold text-foreground">
-                  {hoverRpe ?? rpe}
-                </span>{" "}
-                <span className="text-muted-foreground">
-                  · {RPE_LABELS[(hoverRpe ?? rpe) as number]}
-                </span>
-              </span>
-            ) : (
-              <span className="text-muted-foreground">
-                Veldu tölu — eða sjáðu skalann hér fyrir neðan.
-              </span>
-            )}
-          </div>
-          {/* Quick zone reference */}
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-            <span>
-              <b className="text-foreground">1–3</b> Létt
-            </span>
-            <span>
-              <b className="text-foreground">4–6</b> Miðlungs
-            </span>
-            <span>
-              <b className="text-foreground">7–8</b> Erfitt
-            </span>
-            <span>
-              <b className="text-foreground">9–10</b> Hámark
-            </span>
-          </div>
-        </div>
-
-        <label className="block">
-          <span className="mb-1 block text-sm text-muted-foreground">
-            {exercises.length > 0
-              ? "Aðrar þyngdir (valfrjálst)"
-              : "Þyngdir sem þú notaðir"}
-          </span>
-          <input
-            value={weights}
-            onChange={(e) => setWeights(e.target.value)}
-            placeholder="Aðeins þyngdir — t.d. Goblet 24kg, Deadlift 80kg"
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-        </label>
-
-        {/* Endurance, "önnur æfing", and any workout that already shows the
-            per-machine kcal inputs above log kcal there — hide this single
-            field then to avoid a redundant/duplicate entry. */}
-        {!isEndurance && !isOther && cardioExercises.length === 0 && (
-          <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-sm text-muted-foreground">
-                Kaloríur
+                {exercises.length > 0
+                  ? "Aðrar þyngdir (valfrjálst)"
+                  : "Þyngdir sem þú notaðir"}
               </span>
               <input
-                inputMode="decimal"
-                value={calories}
-                onChange={(e) => setCalories(e.target.value)}
-                placeholder="t.d. 85"
+                value={weights}
+                onChange={(e) => setWeights(e.target.value)}
+                placeholder="Aðeins þyngdir — t.d. Goblet 24kg, Deadlift 80kg"
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </label>
-            <label className="block">
-              <span className="mb-1 block text-sm text-muted-foreground">
-                Tæki
-              </span>
-              <select
-                value={machine}
-                onChange={(e) => setMachine(e.target.value)}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                <option value="">Veldu tæki</option>
-                {MACHINES.map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        )}
 
-        <label className="block">
-          <span className="mb-1 block text-sm text-muted-foreground">
-            Athugasemd / aukaæfing (valfrjálst)
-          </span>
-          <input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="t.d. góð orka í dag · tók líka 3×10 upphífingar"
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-        </label>
-
-        {/* Bodyweight fallback — only when we can't estimate yet and the member
-            has started logging something burn-relevant. */}
-        {effWeight == null && (rpe != null || hasErgKcal) && (
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted-foreground">
-              Líkamsþyngd (kg) — til að áætla brennslu
-            </span>
-            <input
-              inputMode="decimal"
-              value={weightInput}
-              onChange={(e) => setWeightInput(e.target.value)}
-              placeholder="t.d. 80"
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent sm:w-40"
-            />
-            <span className="mt-1 block text-xs text-muted-foreground">
-              Geymist í prófílnum þínum svo þú þarft ekki að slá hana inn aftur.
-            </span>
-          </label>
-        )}
-
-        {/* Optional session length — sharpens the MET estimate vs the assumed
-            ~45 min class length. */}
-        {(rpe != null || hasErgKcal) && (
-          <label className="block">
-            <span className="mb-1 block text-sm text-muted-foreground">
-              Tímalengd (mín) — valfrjálst, skerpir áætlunina
-            </span>
-            <input
-              inputMode="numeric"
-              value={durationMin}
-              onChange={(e) => setDurationMin(e.target.value)}
-              placeholder="t.d. 45"
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent sm:w-40"
-            />
-          </label>
-        )}
-
-        {/* Live estimated calorie burn for the session (while wearables aren't
-            connected). Same model as the nutrition energy need. */}
-        {showEstimate && estimate && (
-          <div>
-            <div className="flex items-center justify-between rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-sm">
-              <span className="font-medium">🔥 Brennsla á æfingunni</span>
-              <span className="font-semibold text-accent">
-                {estimate.estimated ? "~" : ""}
-                {estimate.kcal.toLocaleString("is-IS")} kcal
-                <span className="ml-1 text-xs font-normal text-muted-foreground">
-                  {estLabel}
-                </span>
-              </span>
-            </div>
-            {estimate.estimated && (
-              <span className="mt-1 block text-xs text-muted-foreground">
-                {estimate.measured > 0
-                  ? "Mæld þoltækja-kcal + áætlaður styrktarhluti (flokkur, RPE, þyngd, tímalengd). "
-                  : "Áætlun m.v. flokk, RPE, þyngd og tímalengd (annars ~45 mín). "}
-                Verður nákvæmara þegar úr tengist.
-              </span>
+            {/* Endurance, "önnur æfing", and any workout that already shows the
+                per-machine kcal inputs above log kcal there — hide this single
+                field then to avoid a redundant/duplicate entry. */}
+            {!isEndurance && !isOther && cardioExercises.length === 0 && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-sm text-muted-foreground">
+                    Kaloríur
+                  </span>
+                  <input
+                    inputMode="decimal"
+                    value={calories}
+                    onChange={(e) => setCalories(e.target.value)}
+                    placeholder="t.d. 85"
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm text-muted-foreground">
+                    Tæki
+                  </span>
+                  <select
+                    value={machine}
+                    onChange={(e) => setMachine(e.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    <option value="">Veldu tæki</option>
+                    {MACHINES.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+            {!isOther && exercises.length === 0 && !isEndurance && (
+              <p className="text-sm text-muted-foreground">
+                Engar æfingar til að skrá fyrir þennan tíma — farðu bara áfram og gefðu RPE.
+              </p>
             )}
           </div>
-        )}
-      </div>
-
-      {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-md bg-accent px-5 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
-        >
-          {saving ? "Vista…" : "✓ Skrá æfingu"}
-        </button>
-        {!isOther && workoutId !== "" && (
-          <button
-            type="button"
-            onClick={() => submitLog({ attendance: true })}
-            disabled={saving}
-            title="Skrá bara að þú mættir og tókst æfingu dagsins — engar þyngdir"
-            className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent transition hover:bg-accent/10 disabled:opacity-50"
-          >
-            ✓ Merkja mætingu
-          </button>
-        )}
-        <span className="text-xs text-muted-foreground">
-          Nóg að velja stig/æfingu og RPE — þyngdir eru valfrjálsar.
-        </span>
-      </div>
-
-      {celebration && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={closeCelebration}
-        >
-          <div
-            className="w-full max-w-sm rounded-xl border border-accent/50 bg-background p-6 text-center shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-5xl">🎉</div>
-            {celebration.first && (
-              <>
-                <p className="mt-3 text-lg font-semibold">
-                  Fyrsta æfingin skráð!
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Vel gert — þú ert komin/n af stað. 💪
-                </p>
-              </>
-            )}
-            {celebration.prs.length > 0 && (
-              <>
-                <p
-                  className={`text-lg font-semibold text-accent ${celebration.first ? "mt-4" : "mt-3"}`}
-                >
-                  🏆 Nýtt met!
-                </p>
-                <ul className="mt-2 space-y-1 text-sm">
-                  {celebration.prs.map((p) => (
-                    <li key={p.name}>
-                      <span className="font-medium">{p.name}</span> — {p.kg} kg
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Þyngsta sem þú hefur lyft í þessari æfingu. Frábært! 🔥
-                </p>
-              </>
-            )}
+          <div className="sticky bottom-0 border-t border-border bg-muted/95 p-4 backdrop-blur">
             <button
               type="button"
-              onClick={closeCelebration}
-              className="mt-5 w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition hover:opacity-90"
+              onClick={() => setStep("rpe")}
+              className="h-[52px] w-full rounded-xl bg-accent text-base font-bold text-accent-foreground hover:opacity-90"
             >
-              Flott!
+              Áfram – hversu erfitt?
+            </button>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Þyngdir eru valfrjálsar — RPE eitt dugar.
+            </p>
+          </div>
+        </>
+      )}
+
+      {/* ---------- 3. RPE + save ---------- */}
+      {step === "rpe" && (
+        <>
+          <div className="space-y-5 p-4 sm:p-5">
+            <div className="pt-2 text-center">
+              <div
+                className="text-6xl leading-none font-bold"
+                style={{ color: shownRpe ? rpeColor(shownRpe) : "var(--muted-foreground)" }}
+              >
+                {shownRpe ?? "–"}
+              </div>
+              <div className="mt-2 min-h-[1.25rem] text-sm text-muted-foreground">
+                {shownRpe ? RPE_LABELS[shownRpe] : "Veldu tölu frá 1 (mjög létt) upp í 10 (hámark)"}
+              </div>
+            </div>
+            <div className="grid grid-cols-5 gap-2" role="group" aria-label="RPE">
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setRpe(rpe === n ? null : n)}
+                  onMouseEnter={() => setHoverRpe(n)}
+                  onMouseLeave={() => setHoverRpe(null)}
+                  aria-pressed={rpe === n}
+                  title={`${n} — ${RPE_LABELS[n]}`}
+                  className="h-[52px] rounded-xl border text-lg font-bold transition"
+                  style={
+                    rpe === n
+                      ? { borderColor: rpeColor(n), background: `${rpeColor(n)}22`, color: rpeColor(n), borderWidth: 2 }
+                      : undefined
+                  }
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Létt</span>
+              <span>Miðlungs</span>
+              <span>Erfitt</span>
+              <span>Hámark</span>
+            </div>
+            <label className="block">
+              <span className="mb-1 block text-sm text-muted-foreground">
+                Athugasemd / aukaæfing (valfrjálst)
+              </span>
+              <input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="t.d. góð orka í dag · tók líka 3×10 upphífingar"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </label>
+
+            {/* Bodyweight fallback — only when we can't estimate yet and the member
+                has started logging something burn-relevant. */}
+            {effWeight == null && (rpe != null || hasErgKcal) && (
+              <label className="block">
+                <span className="mb-1 block text-sm text-muted-foreground">
+                  Líkamsþyngd (kg) — til að áætla brennslu
+                </span>
+                <input
+                  inputMode="decimal"
+                  value={weightInput}
+                  onChange={(e) => setWeightInput(e.target.value)}
+                  placeholder="t.d. 80"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent sm:w-40"
+                />
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Geymist í prófílnum þínum svo þú þarft ekki að slá hana inn aftur.
+                </span>
+              </label>
+            )}
+
+            {/* Optional session length — sharpens the MET estimate vs the assumed
+                ~45 min class length. */}
+            {(rpe != null || hasErgKcal) && (
+              <label className="block">
+                <span className="mb-1 block text-sm text-muted-foreground">
+                  Tímalengd (mín) — valfrjálst, skerpir áætlunina
+                </span>
+                <input
+                  inputMode="numeric"
+                  value={durationMin}
+                  onChange={(e) => setDurationMin(e.target.value)}
+                  placeholder="t.d. 45"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent sm:w-40"
+                />
+              </label>
+            )}
+
+            {/* Live estimated calorie burn for the session (while wearables aren't
+                connected). Same model as the nutrition energy need. */}
+            {showEstimate && estimate && (
+              <div>
+                <div className="flex items-center justify-between rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-sm">
+                  <span className="font-medium">🔥 Brennsla á æfingunni</span>
+                  <span className="font-semibold text-accent">
+                    {estimate.estimated ? "~" : ""}
+                    {estimate.kcal.toLocaleString("is-IS")} kcal
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      {estLabel}
+                    </span>
+                  </span>
+                </div>
+                {estimate.estimated && (
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    {estimate.measured > 0
+                      ? "Mæld þoltækja-kcal + áætlaður styrktarhluti (flokkur, RPE, þyngd, tímalengd). "
+                      : "Áætlun m.v. flokk, RPE, þyngd og tímalengd (annars ~45 mín). "}
+                    Verður nákvæmara þegar úr tengist.
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="sticky bottom-0 border-t border-border bg-muted/95 p-4 backdrop-blur">
+            {error && <div className="mb-2 text-sm text-red-400">{error}</div>}
+            <button
+              type="submit"
+              disabled={saving}
+              className="h-[52px] w-full rounded-xl bg-accent text-base font-bold text-accent-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? "Vista…" : "Skrá æfingu"}
             </button>
           </div>
+        </>
+      )}
+
+      {/* ---------- 4. Done ---------- */}
+      {step === "done" && celebration && (
+        <div className="space-y-4 p-5">
+          <div className="flex flex-col items-center gap-1.5 pt-2 text-center">
+            <div
+              aria-hidden="true"
+              className="grid h-16 w-16 place-items-center rounded-full bg-emerald-400/15 text-3xl text-emerald-400"
+            >
+              ✓
+            </div>
+            <div className="text-2xl font-bold">
+              {celebration.first ? "Fyrsta æfingin skráð!" : "Vel gert!"}
+            </div>
+            {celebration.name && (
+              <div className="text-sm text-muted-foreground">
+                Þú tókst <span className="font-semibold text-foreground">{celebration.name}</span>
+              </div>
+            )}
+          </div>
+
+          {celebration.prs.length > 0 && (
+            <section className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4">
+              <div className="font-bold text-amber-300">
+                {celebration.prs.length === 1 ? "Nýtt met" : `${celebration.prs.length} ný met`}
+              </div>
+              <ul className="mt-2 space-y-1 text-sm">
+                {celebration.prs.map((p) => (
+                  <li key={p.name} className="flex justify-between gap-3">
+                    <span>{p.name}</span>
+                    <span className="font-mono">
+                      {p.kg} kg
+                      {exerciseBests[p.name] != null && (
+                        <span className="text-muted-foreground"> (var {exerciseBests[p.name]})</span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {celebration.prev && (
+            <section className="space-y-2 rounded-xl border border-border bg-background/60 p-4 text-sm">
+              <div className="font-semibold">
+                Miðað við síðast ({new Date(`${celebration.prev.logged_on}T00:00:00`).toLocaleDateString("is-IS", { day: "numeric", month: "short" })})
+              </div>
+              {celebration.volume != null && celebration.prev.total_volume != null && (
+                <CompareRow
+                  label="Heildarálag"
+                  now={`${celebration.volume.toLocaleString("is-IS")} kg`}
+                  diff={celebration.volume - celebration.prev.total_volume}
+                  unit=" kg"
+                />
+              )}
+              <CompareRow
+                label="RPE"
+                now={celebration.rpe != null ? String(celebration.rpe) : "—"}
+                note={celebration.prev.rpe != null ? `var ${celebration.prev.rpe}` : undefined}
+              />
+              {celebration.kcal != null && celebration.prev.calories != null && (
+                <CompareRow
+                  label="kcal"
+                  now={String(Math.round(celebration.kcal))}
+                  note={`var ${celebration.prev.calories}`}
+                />
+              )}
+            </section>
+          )}
+
+          <button
+            type="button"
+            onClick={closeCelebration}
+            className="h-[52px] w-full rounded-xl bg-accent text-base font-bold text-accent-foreground hover:opacity-90"
+          >
+            Loka
+          </button>
         </div>
       )}
     </form>
+  );
+}
+
+function CompareRow({
+  label,
+  now,
+  diff,
+  unit = "",
+  note,
+}: {
+  label: string;
+  now: string;
+  diff?: number;
+  unit?: string;
+  note?: string;
+}) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span>
+        {now}{" "}
+        {diff != null && diff !== 0 && (
+          <span className={diff > 0 ? "text-emerald-400" : "text-muted-foreground"}>
+            {diff > 0 ? "+" : ""}
+            {Math.round(diff).toLocaleString("is-IS")}
+            {unit}
+          </span>
+        )}
+        {note && <span className="text-muted-foreground">{note}</span>}
+      </span>
+    </div>
   );
 }
