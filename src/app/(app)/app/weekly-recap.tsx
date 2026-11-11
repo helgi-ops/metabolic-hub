@@ -15,6 +15,7 @@ export function WeeklyRecap({
   const [content, setContent] = useState<string | null>(initialContent);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   async function onGenerate() {
     setLoading(true);
@@ -32,26 +33,29 @@ export function WeeklyRecap({
   }
 
   return (
-    <div className="mb-8 rounded-lg border border-border bg-muted p-5">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="font-mono text-xs tracking-widest text-accent uppercase">
-            Vika í baksýn
-          </div>
-          <h2 className="mt-1 font-semibold">Hvernig gekk vikan? ✨</h2>
-          <p className="text-xs text-muted-foreground">{weekLabel}</p>
-        </div>
-        {content && (
-          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
-            AI-yfirlit
-          </span>
-        )}
+    <div className="rounded-2xl border border-border bg-muted p-4 sm:p-5">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="font-bold">Síðasta vika í stuttu máli</h2>
+        <span className="shrink-0 text-xs text-muted-foreground">{weekLabel}</span>
       </div>
 
       {content ? (
-        <p className="mt-3 whitespace-pre-line text-sm leading-relaxed">
-          {content}
-        </p>
+        <>
+          <p
+            className={`mt-2 whitespace-pre-line text-sm leading-relaxed text-foreground/85 ${
+              expanded ? "" : "line-clamp-3"
+            }`}
+          >
+            {content}
+          </p>
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="mt-2 text-sm text-orange-400 hover:text-orange-300"
+          >
+            {expanded ? "Sýna minna" : "Lesa allt →"}
+          </button>
+        </>
       ) : (
         <div className="mt-3">
           {hasLogs ? (
