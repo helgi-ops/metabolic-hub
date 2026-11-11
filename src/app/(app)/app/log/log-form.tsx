@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trainingKcalForLog, type WorkoutLog } from "@/lib/nutrition/energy";
+import { WorkoutText } from "./workout-text";
 
 export const MACHINES: { value: string; label: string }[] = [
   { value: "assault_airbike", label: "Assault Airbike" },
@@ -571,6 +572,7 @@ export function LogForm({
     volume: number | null;
     kcal: number | null;
     prev: RecentLog | null;
+    text: string | null;
   } | null>(null);
 
   const isOther = workoutId === OTHER;
@@ -937,6 +939,7 @@ export function LogForm({
       volume: totalVol,
       kcal: estCalories ?? totalCalories,
       prev: savedPrev ?? null,
+      text: picked?.preview?.trim() || null,
     });
     setStep("done");
     // Refresh the server data (history, stats) underneath the done screen.
@@ -1870,6 +1873,13 @@ export function LogForm({
               </div>
             )}
           </div>
+
+          {celebration.text && (
+            <section className="rounded-xl border border-border bg-background/60 p-4">
+              <div className="mb-2 font-semibold">Æfingin í dag</div>
+              <WorkoutText text={celebration.text} />
+            </section>
+          )}
 
           {celebration.prs.length > 0 && (
             <section className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4">

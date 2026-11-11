@@ -1325,6 +1325,8 @@ export type Database = {
           volume_json: Json | null
           weights: string | null
           weights_json: Json | null
+          workout_name: string | null
+          workout_text: string | null
         }
         Insert: {
           activity?: string | null
@@ -1351,6 +1353,8 @@ export type Database = {
           volume_json?: Json | null
           weights?: string | null
           weights_json?: Json | null
+          workout_name?: string | null
+          workout_text?: string | null
         }
         Update: {
           activity?: string | null
@@ -1377,6 +1381,8 @@ export type Database = {
           volume_json?: Json | null
           weights?: string | null
           weights_json?: Json | null
+          workout_name?: string | null
+          workout_text?: string | null
         }
         Relationships: []
       }

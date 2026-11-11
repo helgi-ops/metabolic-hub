@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { WorkoutText } from "./workout-text";
 
 const MACHINE_LABEL: Record<string, string> = {
   assault_airbike: "Assault Airbike",
@@ -41,6 +42,8 @@ export type Log = {
   activity: string | null;
   structure_source_id?: string | null;
   scheduled_category?: string | null;
+  workout_name?: string | null;
+  workout_text?: string | null;
 };
 
 // Structured per-exercise sets (name → {sets:[{reps,kg}], volume}). Preferred for
@@ -207,6 +210,8 @@ export function LogHistory({
   const [editing, setEditing] = useState<Log | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  // Which logs have their workout description (uppsetning) expanded.
+  const [openText, setOpenText] = useState<Record<string, boolean>>({});
 
   const visible = showAll ? logs : logs.slice(0, INITIAL_ROWS);
   const hidden = logs.length - visible.length;
@@ -244,6 +249,7 @@ export function LogHistory({
             {g.items.map((l) => {
               const title =
                 l.activity ??
+                l.workout_name ??
                 (l.structure_source_id ? names[l.structure_source_id] : null) ??
                 (l.scheduled_category ? CATEGORY_LABEL[l.scheduled_category] ?? l.scheduled_category : null) ??
                 "Æfing";
@@ -316,6 +322,24 @@ export function LogHistory({
                     <p className="mt-2 border-l-2 border-border pl-2.5 text-sm text-muted-foreground italic">
                       {l.notes}
                     </p>
+                  )}
+
+                  {l.workout_text && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setOpenText((p) => ({ ...p, [l.id]: !p[l.id] }))}
+                        aria-expanded={!!openText[l.id]}
+                        className="mt-2 mr-4 text-xs text-orange-400 hover:text-orange-300"
+                      >
+                        {openText[l.id] ? "Fela uppsetningu" : "Sýna uppsetningu"}
+                      </button>
+                      {openText[l.id] && (
+                        <div className="mt-2 rounded-lg border border-border bg-background/60 p-3">
+                          <WorkoutText text={l.workout_text} />
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {rows.length > 0 && (
