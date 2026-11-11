@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { isTimeUnit, parseTimeToSeconds } from "@/lib/format";
+import { formatMeasure, isTimeUnit, parseTimeToSeconds } from "@/lib/format";
 
 type Benchmark = {
   id: string;
@@ -22,12 +22,18 @@ function todayISO() {
 export function PbForm({
   userId,
   benchmarks,
+  initialBenchmarkId,
+  bests = {},
+  onSaved,
 }: {
   userId: string;
   benchmarks: Benchmark[];
+  initialBenchmarkId?: string;
+  bests?: Record<string, number>; // current best per benchmark, for context
+  onSaved?: () => void;
 }) {
   const router = useRouter();
-  const [benchmarkId, setBenchmarkId] = useState(benchmarks[0]?.id ?? "");
+  const [benchmarkId, setBenchmarkId] = useState(initialBenchmarkId ?? benchmarks[0]?.id ?? "");
   const [value, setValue] = useState("");
   const [achievedOn, setAchievedOn] = useState(todayISO());
   const [notes, setNotes] = useState("");
@@ -70,21 +76,18 @@ export function PbForm({
     setNotes("");
     setSaving(false);
     router.refresh();
+    onSaved?.();
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="rounded-lg border border-border bg-muted p-5"
-    >
-      <h2 className="font-semibold">Skrá nýtt met</h2>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+    <form onSubmit={onSubmit}>
+      <div className="grid gap-3 sm:grid-cols-2">
         <label className="block sm:col-span-2">
           <span className="mb-1 block text-sm text-muted-foreground">Æfing</span>
           <select
             value={benchmarkId}
             onChange={(e) => setBenchmarkId(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className="h-11 w-full rounded-lg border border-border bg-background px-3 text-base [color-scheme:dark] focus:outline-none focus:ring-2 focus:ring-accent"
           >
             {benchmarks.map((b) => (
               <option key={b.id} value={b.id}>
@@ -102,7 +105,7 @@ export function PbForm({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={isTime ? "t.d. 14:30" : "t.d. 120"}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className="h-11 w-full rounded-lg border border-border bg-background px-3 text-base [color-scheme:dark] focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
         <label className="block">
@@ -113,7 +116,7 @@ export function PbForm({
             type="date"
             value={achievedOn}
             onChange={(e) => setAchievedOn(e.target.value)}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className="h-11 w-full rounded-lg border border-border bg-background px-3 text-base [color-scheme:dark] focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
         <label className="block sm:col-span-2">
@@ -124,15 +127,21 @@ export function PbForm({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="t.d. nýtt PB eftir 6 vikna prógramm"
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className="h-11 w-full rounded-lg border border-border bg-background px-3 text-base [color-scheme:dark] focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </label>
       </div>
+      {selected && bests[selected.id] != null && (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Núverandi met:{" "}
+          <span className="text-foreground">{formatMeasure(bests[selected.id], selected.unit)}</span>
+        </p>
+      )}
       {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
       <button
         type="submit"
         disabled={saving}
-        className="mt-4 rounded-md bg-accent px-5 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
+        className="mt-4 h-12 w-full rounded-xl bg-accent text-base font-bold text-accent-foreground transition hover:opacity-90 disabled:opacity-50"
       >
         {saving ? "Vista…" : "Skrá met"}
       </button>

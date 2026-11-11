@@ -32,7 +32,7 @@ export function SharePbToggle({
   }
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted p-4">
+    <div className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-muted p-4">
       <div>
         <div className="text-sm font-medium">
           Deila metunum mínum{stationName ? ` á ${stationName}` : ""}
