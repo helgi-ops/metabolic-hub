@@ -2,10 +2,32 @@
 
 import { useRouter, usePathname } from "next/navigation";
 
-// Back affordance for the app header. Hidden on the /app overview (nothing to go
-// back to inside the app); on every sub-page it steps back in history, falling
-// back to the overview when there is no in-app history (e.g. opened via a direct
-// link). Mobile especially had no nav at all once inside a sub-page.
+// Pages that exist, so the fallback never lands on a route without a page
+// (e.g. /app/station/member/[id] has none).
+const KNOWN_PAGES = [
+  /^\/app$/,
+  /^\/app\/[^/]+$/,
+  /^\/app\/akademia\/[^/]+$/,
+  /^\/app\/akademia\/[^/]+\/[^/]+$/,
+  /^\/app\/programs\/weeks\/[^/]+$/,
+  /^\/app\/station\/timetable$/,
+];
+
+// Nearest existing ancestor page: /app/station/timetable → /app/station,
+// /app/akademia/x/y → /app/akademia/x, /app/log → /app.
+function parentOf(pathname: string): string {
+  const parts = pathname.split("/").filter(Boolean);
+  for (let n = parts.length - 1; n >= 1; n--) {
+    const p = "/" + parts.slice(0, n).join("/");
+    if (KNOWN_PAGES.some((re) => re.test(p))) return p;
+  }
+  return "/app";
+}
+
+// Back affordance for the mobile app bar (no browser back button in the
+// installed PWA). Hidden on the /app overview — nothing to go back to. Steps
+// back in history; with no in-app history (opened from a link or the home
+// screen) it goes to the parent page instead.
 export function BackButton() {
   const router = useRouter();
   const pathname = usePathname();
@@ -16,7 +38,7 @@ export function BackButton() {
     if (window.history.length > 1) {
       router.back();
     } else {
-      router.push("/app");
+      router.push(parentOf(pathname));
     }
   }
 
@@ -25,10 +47,10 @@ export function BackButton() {
       type="button"
       onClick={goBack}
       aria-label="Til baka"
-      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition"
+      className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-muted-foreground transition hover:border-accent hover:text-foreground"
     >
       <span aria-hidden>←</span>
-      <span>Til baka</span>
+      <span className="hidden text-sm min-[380px]:inline">Til baka</span>
     </button>
   );
 }

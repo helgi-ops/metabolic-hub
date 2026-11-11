@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { BackButton } from "./back-button";
 
 type NavItem = { href: string; label: string };
 
@@ -103,6 +104,7 @@ export function AppShell({
           >
             ☰
           </button>
+          <BackButton />
           <Link href="/app" className="font-mono text-sm tracking-widest uppercase">
             Metabolic
           </Link>
