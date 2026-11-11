@@ -32,15 +32,12 @@ export function OptOutToggle({
   }
 
   return (
-    <div className="mt-6 flex items-center justify-between gap-4 rounded-lg border border-border bg-muted p-4">
-      <div>
-        <div className="text-sm font-medium">Sýna mig á leaderboard</div>
-        <p className="text-xs text-muted-foreground">
-          {optOut
-            ? "Kaloríurnar þínar eru faldar — aðeins þú sérð þær í Dagbók."
-            : "Kaloríurnar þínar birtast öðrum á stöðinni."}
-        </p>
-      </div>
+    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      <span>
+        {optOut
+          ? "Þú ert falin/n á leaderboard — aðeins þú sérð kaloríurnar þínar."
+          : "Kaloríurnar þínar birtast öðrum á stöðinni."}
+      </span>
       <button
         type="button"
         onClick={toggle}
