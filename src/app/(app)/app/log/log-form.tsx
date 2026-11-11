@@ -562,6 +562,8 @@ export function LogForm({
   // Post-save celebration: new exercise PRs and/or the member's first-ever log.
   // Which screen of the flow is showing: today's card → exercises → RPE → done.
   const [step, setStep] = useState<"start" | "exercises" | "rpe" | "done">("start");
+  // Workout description (uppsetning) on the exercises step — open by default.
+  const [showSetup, setShowSetup] = useState(true);
   // Post-save summary: the workout's (now revealed) name, new PRs, first-ever
   // log, and a comparison with the last time this workout was logged.
   const [celebration, setCelebration] = useState<{
@@ -572,7 +574,6 @@ export function LogForm({
     volume: number | null;
     kcal: number | null;
     prev: RecentLog | null;
-    text: string | null;
   } | null>(null);
 
   const isOther = workoutId === OTHER;
@@ -939,7 +940,6 @@ export function LogForm({
       volume: totalVol,
       kcal: estCalories ?? totalCalories,
       prev: savedPrev ?? null,
-      text: picked?.preview?.trim() || null,
     });
     setStep("done");
     // Refresh the server data (history, stats) underneath the done screen.
@@ -963,6 +963,7 @@ export function LogForm({
       setManualExercises([]);
     }
     setError(null);
+    setShowSetup(true);
     setStep("exercises");
   }
 
@@ -1046,7 +1047,7 @@ export function LogForm({
                 : cardW
                   ? loggedSet.has(cardW.structure_source_id)
                     ? "Þú hefur skráð þennan tíma áður."
-                    : "Nafn tímans birtist eftir að þú skráir hann."
+                    : "Æfingin birtist þegar þú ýtir á „Skrá æfingu“."
                   : "Veldu annan tíma úr vikunni eða skráðu aðra æfingu."}
             </p>
             <div className="mt-3 flex gap-2" role="group" aria-label="Stig">
@@ -1137,8 +1138,8 @@ export function LogForm({
                 </select>
                 {workouts.length > 0 && !isOther && (
                   <span className="mt-1 block text-xs text-muted-foreground">
-                    Þú sérð ekki æfinguna fyrirfram — nafnið birtist fyrst eftir að þú
-                    hefur skráð hana og gefið RPE. Tengir líka skráninguna við æfinguna
+                    Þú sérð ekki æfinguna fyrirfram — hún birtist þegar þú ýtir á
+                    „Skrá æfingu“. Tengir líka skráninguna við æfinguna
                     svo þú getir borið þig saman næst.
                   </span>
                 )}
@@ -1186,6 +1187,31 @@ export function LogForm({
       {step === "exercises" && (
         <>
           <div className="space-y-4 p-4 sm:p-5">
+            {selected && selected.preview.trim() && (
+              <section className="rounded-xl border border-accent/30 bg-background/60 p-4">
+                <button
+                  type="button"
+                  onClick={() => setShowSetup((v) => !v)}
+                  aria-expanded={showSetup}
+                  className="flex w-full items-center justify-between gap-3 text-left"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-[11px] font-medium tracking-wide text-orange-400 uppercase">
+                      Æfingin í dag
+                    </span>
+                    <span className="block truncate font-semibold">{selected.name}</span>
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {showSetup ? "Fela ▾" : "Sýna ▸"}
+                  </span>
+                </button>
+                {showSetup && (
+                  <div className="mt-3">
+                    <WorkoutText text={selected.preview} />
+                  </div>
+                )}
+              </section>
+            )}
             {last && (
               <div className="rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">Síðast</span> (
@@ -1873,13 +1899,6 @@ export function LogForm({
               </div>
             )}
           </div>
-
-          {celebration.text && (
-            <section className="rounded-xl border border-border bg-background/60 p-4">
-              <div className="mb-2 font-semibold">Æfingin í dag</div>
-              <WorkoutText text={celebration.text} />
-            </section>
-          )}
 
           {celebration.prs.length > 0 && (
             <section className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4">
