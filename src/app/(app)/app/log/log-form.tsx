@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { trainingKcalForLog, type WorkoutLog } from "@/lib/nutrition/energy";
 import { WorkoutText } from "./workout-text";
+import { categoryLabel, sortCategories } from "@/lib/exercise-categories";
 
 export const MACHINES: { value: string; label: string }[] = [
   { value: "assault_airbike", label: "Assault Airbike" },
@@ -1364,9 +1365,9 @@ export function LogForm({
                                     className="rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                                   >
                                     <option value="">Flokkur</option>
-                                    {Object.keys(exerciseCatalog).map((c) => (
+                                    {sortCategories(Object.keys(exerciseCatalog)).map((c) => (
                                       <option key={c} value={c}>
-                                        {c}
+                                        {categoryLabel(c)}
                                       </option>
                                     ))}
                                   </select>
@@ -1554,9 +1555,9 @@ export function LogForm({
                     className="rounded-md border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   >
                     <option value="">Hreyfiflokkur</option>
-                    {Object.keys(exerciseCatalog).map((p) => (
+                    {sortCategories(Object.keys(exerciseCatalog)).map((p) => (
                       <option key={p} value={p}>
-                        {p}
+                        {categoryLabel(p)}
                       </option>
                     ))}
                   </select>

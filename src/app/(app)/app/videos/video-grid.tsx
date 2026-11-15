@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { syncVimeoLibrary } from "./actions";
+import { categoryLabel, sortCategories } from "@/lib/exercise-categories";
 
 type Video = {
   id: string;
@@ -37,7 +38,7 @@ export function VideoGrid({
 
   const categories = useMemo(
     () =>
-      [...new Set(videos.map((v) => v.category).filter(Boolean))].sort() as string[],
+      sortCategories(videos.map((v) => v.category).filter((c): c is string => !!c)),
     [videos],
   );
 
@@ -108,7 +109,7 @@ export function VideoGrid({
                   : "border-border bg-muted text-muted-foreground hover:text-foreground"
               }`}
             >
-              {c}
+              {categoryLabel(c)}
             </button>
           ))}
         </div>
