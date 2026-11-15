@@ -144,21 +144,41 @@ export default async function StationPage({
   const pendingMembers = roster.filter(
     (m) => m.role === "student" && m.status === "pending",
   );
-  // Online membership details (kennitala + plan) — admin-only by RLS, so this
-  // stays empty for coaches. A fallback in case the notification email is lost.
-  const signupById = new Map<
-    string,
-    { kennitala: string; plan_title: string; plan_price: string | null }
-  >();
-  if (isAdmin && pendingMembers.length > 0) {
+  // Online membership signups (kennitala + plan) for this station — admin-only
+  // by RLS, so coaches never see them. Shown on pending cards and kept in the
+  // "Netskráningar" list after approval, so the greiðsluseðill can still be
+  // issued once someone has approved the member.
+  type Signup = {
+    user_id: string;
+    kennitala: string;
+    plan_title: string;
+    plan_price: string | null;
+    created_at: string;
+  };
+  let onlineSignups: Signup[] = [];
+  if (isAdmin && targetStationId) {
     const { data: signups } = await supabase
       .from("membership_signups")
-      .select("user_id, kennitala, plan_title, plan_price")
-      .in(
-        "user_id",
-        pendingMembers.map((m) => m.id),
-      );
-    for (const s of signups ?? []) signupById.set(s.user_id, s);
+      .select("user_id, kennitala, plan_title, plan_price, created_at")
+      .eq("station_id", targetStationId)
+      .order("created_at", { ascending: false });
+    onlineSignups = signups ?? [];
+  }
+  const signupById = new Map(onlineSignups.map((s) => [s.user_id, s]));
+  const statusById = new Map(roster.map((m) => [m.id, m.status]));
+  // Members who have since moved station aren't in the roster — look them up.
+  const missingNameIds = onlineSignups
+    .map((s) => s.user_id)
+    .filter((id) => !nameById.has(id));
+  if (missingNameIds.length > 0) {
+    const { data: others } = await supabase
+      .from("profiles")
+      .select("id, full_name, status")
+      .in("id", missingNameIds);
+    for (const o of others ?? []) {
+      nameById.set(o.id, o.full_name ?? "—");
+      statusById.set(o.id, o.status);
+    }
   }
   const coaches = roster.filter((m) => m.role !== "student");
   const activeStudents = roster.filter(
@@ -302,6 +322,59 @@ export default async function StationPage({
             ))}
           </ul>
         </div>
+      )}
+
+      {/* Online membership signups — admin only; stays after approval so the
+          greiðsluseðill details are never lost */}
+      {isAdmin && onlineSignups.length > 0 && (
+        <details className="mb-8 rounded-lg border border-border bg-muted p-4">
+          <summary className="flex cursor-pointer list-none items-center gap-2">
+            <h2 className="font-semibold">Netskráningar</h2>
+            <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">
+              {onlineSignups.length}
+            </span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              Aðeins admin · smelltu til að opna
+            </span>
+          </summary>
+          <p className="mt-2 mb-3 text-xs text-muted-foreground">
+            Skráningar af vefnum með kennitölu og áskrift, fyrir greiðsluseðla.
+          </p>
+          <ul className="divide-y divide-border">
+            {onlineSignups.map((s) => {
+              const st = statusById.get(s.user_id);
+              return (
+                <li
+                  key={s.user_id}
+                  className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2 text-sm"
+                >
+                  <span className="font-medium">
+                    {nameById.get(s.user_id) ?? "—"}
+                  </span>
+                  <span className="font-mono text-xs">
+                    kt. {formatKennitala(s.kennitala)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {s.plan_title}
+                    {s.plan_price ? ` (${s.plan_price})` : ""}
+                  </span>
+                  <span className="ml-auto flex items-baseline gap-2 text-xs text-muted-foreground">
+                    {st === "pending" && (
+                      <span className="text-amber-400">Í bið</span>
+                    )}
+                    {st === "suspended" && <span>Óvirkur</span>}
+                    {new Date(s.created_at).toLocaleDateString("is-IS", {
+                      timeZone: "Atlantic/Reykjavik",
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
       )}
 
       {/* Leaderboards */}
