@@ -691,6 +691,45 @@ export type Database = {
         }
         Relationships: []
       }
+      course_registrations: {
+        Row: {
+          id: string
+          course_id: string
+          full_name: string
+          email: string
+          phone: string | null
+          kennitala: string
+          status: string
+          user_id: string | null
+          enrolled_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          course_id: string
+          full_name: string
+          email: string
+          phone?: string | null
+          kennitala: string
+          status?: string
+          user_id?: string | null
+          enrolled_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          course_id?: string
+          full_name?: string
+          email?: string
+          phone?: string | null
+          kennitala?: string
+          status?: string
+          user_id?: string | null
+          enrolled_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       modules: {
         Row: {
           title_is: string | null

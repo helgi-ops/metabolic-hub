@@ -134,6 +134,14 @@ export default async function CoursePage({
           {bilingual && <CourseLangToggle lang={view} />}
           {isAdmin && (
             <Link
+              href={`/app/akademia/${course.slug}/skraningar`}
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition"
+            >
+              Skráningar →
+            </Link>
+          )}
+          {isAdmin && (
+            <Link
               href={`/app/akademia/${course.slug}/framvinda`}
               className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition"
             >
