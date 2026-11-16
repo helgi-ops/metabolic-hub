@@ -31,6 +31,7 @@ export default async function AcademyHome() {
     .select(
       "id, slug, title, subtitle, title_is, subtitle_is, track, price_cents, currency, is_published, estimated_hours",
     )
+    .eq("is_archived", false)
     .order("price_cents", { ascending: false });
 
   const lang = await getCourseLang();

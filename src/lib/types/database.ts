@@ -195,6 +195,7 @@ export type Database = {
       }
       courses: {
         Row: {
+          is_archived: boolean
           title_is: string | null
           subtitle_is: string | null
           description_is: string | null
@@ -214,6 +215,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          is_archived?: boolean
           title_is?: string | null
           subtitle_is?: string | null
           description_is?: string | null
@@ -233,6 +235,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          is_archived?: boolean
           title_is?: string | null
           subtitle_is?: string | null
           description_is?: string | null
