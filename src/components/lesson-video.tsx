@@ -10,9 +10,13 @@ function youtubeId(url: string): string | null {
   return m ? m[1] : null;
 }
 
-function vimeoId(url: string): string | null {
-  const m = /vimeo\.com\/(?:video\/)?(\d+)/.exec(url);
-  return m ? m[1] : null;
+// Vimeo id plus the privacy hash unlisted videos need in the embed
+// (vimeo.com/123/abcdef, or player.vimeo.com/video/123?h=abcdef).
+function vimeoEmbed(url: string): string | null {
+  const m = /vimeo\.com\/(?:video\/)?(\d+)(?:\/([0-9a-f]+))?/i.exec(url);
+  if (!m) return null;
+  const hash = m[2] ?? /[?&]h=([0-9a-f]+)/i.exec(url)?.[1];
+  return `https://player.vimeo.com/video/${m[1]}${hash ? `?h=${hash}` : ""}`;
 }
 
 export function LessonVideo({
@@ -38,19 +42,17 @@ export function LessonVideo({
   }
 
   const yt = youtubeId(url);
-  const vm = vimeoId(url);
+  const vm = vimeoEmbed(url);
 
   if (yt || vm) {
-    const src = yt
-      ? `https://www.youtube-nocookie.com/embed/${yt}`
-      : `https://player.vimeo.com/video/${vm}`;
+    const src = yt ? `https://www.youtube-nocookie.com/embed/${yt}` : vm!;
     return (
       <div className="aspect-video w-full overflow-hidden rounded-lg border border-border bg-black">
         <iframe
           src={src}
           title={title}
           className="h-full w-full"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
           allowFullScreen
         />
       </div>
