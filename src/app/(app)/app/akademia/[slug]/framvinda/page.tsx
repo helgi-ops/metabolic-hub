@@ -75,6 +75,35 @@ export default async function CourseProgressPage({
     if (!prev || p.last_watched_at > prev) lastByUser.set(p.user_id, p.last_watched_at);
   }
 
+  // Assignment hand-ins per learner.
+  const { data: assignments } = lessonIds.size
+    ? await supabase
+        .from("assignments")
+        .select("id, requires_approval")
+        .in("lesson_id", [...lessonIds])
+    : { data: [] as { id: string; requires_approval: boolean }[] };
+  const finalId = (assignments ?? []).find((a) => a.requires_approval)?.id;
+  const { data: subs } =
+    userIds.length && assignments && assignments.length
+      ? await supabase
+          .from("submissions")
+          .select("user_id, assignment_id, status")
+          .in("assignment_id", assignments.map((a) => a.id))
+          .in("user_id", userIds)
+      : { data: [] as { user_id: string; assignment_id: string; status: string }[] };
+  const subsByUser = new Map<string, number>();
+  const finalByUser = new Map<string, string>();
+  for (const s of subs ?? []) {
+    subsByUser.set(s.user_id, (subsByUser.get(s.user_id) ?? 0) + 1);
+    if (s.assignment_id === finalId) finalByUser.set(s.user_id, s.status);
+  }
+  const totalAssignments = assignments?.length ?? 0;
+  const FINAL_LABEL: Record<string, string> = {
+    submitted: "lokav. bíður",
+    approved: "lokav. samþ.",
+    needs_revision: "lokav. í lagf.",
+  };
+
   const rows = (enrollments ?? []).map((e) => {
     const done = doneByUser.get(e.user_id) ?? 0;
     return {
@@ -84,6 +113,8 @@ export default async function CourseProgressPage({
       pct: totalLessons ? Math.round((done / totalLessons) * 100) : 0,
       finished: !!e.completed_at,
       last: lastByUser.get(e.user_id) ?? null,
+      subs: subsByUser.get(e.user_id) ?? 0,
+      final: finalByUser.get(e.user_id) ?? null,
     };
   });
 
@@ -118,6 +149,7 @@ export default async function CourseProgressPage({
                 <th className="px-4 py-3">Iðkandi</th>
                 <th className="px-4 py-3">Skráð/ur</th>
                 <th className="px-4 py-3">Síðast virk/ur</th>
+                {totalAssignments > 0 && <th className="px-4 py-3">Verkefni</th>}
                 <th className="px-4 py-3 w-48">Framvinda</th>
               </tr>
             </thead>
@@ -134,6 +166,14 @@ export default async function CourseProgressPage({
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{fmt(r.enrolled)}</td>
                   <td className="px-4 py-3 text-muted-foreground">{fmt(r.last)}</td>
+                  {totalAssignments > 0 && (
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {r.subs}/{totalAssignments}
+                      {r.final && (
+                        <span className="ml-1 text-xs">· {FINAL_LABEL[r.final] ?? r.final}</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">

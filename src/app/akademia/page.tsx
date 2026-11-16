@@ -17,9 +17,10 @@ const COURSE_SLUG = "metabolic-coach";
 
 type Curriculum = {
   price: string;
-  modules: { position: number; title: string; lessons: number }[];
+  modules: { position: number; title: string; lessons: number; assignments: number; final: boolean }[];
   lessonCount: number;
   videoCount: number;
+  assignmentCount: number;
 };
 
 async function loadCurriculum(): Promise<Curriculum | null> {
@@ -37,20 +38,40 @@ async function loadCurriculum(): Promise<Curriculum | null> {
       .eq("course_id", course.id)
       .order("position");
     const modIds = (mods ?? []).map((m) => m.id);
-    const { data: lessons } = modIds.length
-      ? await admin.from("lessons").select("module_id, video_url").in("module_id", modIds)
-      : { data: [] as { module_id: string; video_url: string | null }[] };
+    const { data: allLessons } = modIds.length
+      ? await admin.from("lessons").select("id, module_id, video_url").in("module_id", modIds)
+      : { data: [] as { id: string; module_id: string; video_url: string | null }[] };
+    const { data: assignments } = allLessons?.length
+      ? await admin
+          .from("assignments")
+          .select("lesson_id, requires_approval")
+          .in("lesson_id", allLessons.map((l) => l.id))
+      : { data: [] as { lesson_id: string; requires_approval: boolean }[] };
+    const assignmentLesson = new Map((assignments ?? []).map((a) => [a.lesson_id, a]));
+    // Assignment lessons are counted as assignments, not as reading lessons.
+    const lessons = (allLessons ?? []).filter((l) => !assignmentLesson.has(l.id));
     const perModule = new Map<string, number>();
-    for (const l of lessons ?? []) perModule.set(l.module_id, (perModule.get(l.module_id) ?? 0) + 1);
+    for (const l of lessons) perModule.set(l.module_id, (perModule.get(l.module_id) ?? 0) + 1);
+    const assignPerModule = new Map<string, number>();
+    const finalModule = new Set<string>();
+    for (const l of allLessons ?? []) {
+      const a = assignmentLesson.get(l.id);
+      if (!a) continue;
+      if (a.requires_approval) finalModule.add(l.module_id);
+      else assignPerModule.set(l.module_id, (assignPerModule.get(l.module_id) ?? 0) + 1);
+    }
     return {
       price: formatPrice(course.price_cents, course.currency),
       modules: (mods ?? []).map((m) => ({
         position: m.position,
         title: m.title_is || m.title,
         lessons: perModule.get(m.id) ?? 0,
+        assignments: assignPerModule.get(m.id) ?? 0,
+        final: finalModule.has(m.id),
       })),
-      lessonCount: lessons?.length ?? 0,
-      videoCount: (lessons ?? []).filter((l) => !!l.video_url).length,
+      lessonCount: lessons.length,
+      videoCount: lessons.filter((l) => !!l.video_url).length,
+      assignmentCount: assignments?.length ?? 0,
     };
   } catch (e) {
     console.error("akademia: could not load curriculum", e);
@@ -77,12 +98,12 @@ const BENEFITS = [
   {
     icon: "🛠️",
     title: "Verklegt, ekki bara fræði",
-    text: "Verkefni þar sem þú setur saman æfingar og vikur eftir sömu aðferðafræði og Metabolic stöðvarnar nota.",
+    text: "Hverjum kafla lýkur á verklegu verkefni: raunhæfar aðstæður úr hóptíma sem þú leysir og skilar í kerfinu. Þjálfari getur gefið þér endurgjöf.",
   },
   {
     icon: "🎓",
     title: "Lokaverkefni og skírteini",
-    text: "Þegar þú hefur lokið öllum lexíum sækirðu skírteini sem staðfestir að þú hafir lokið námskeiðinu.",
+    text: "Í lokin setur þú saman heila æfingaviku fyrir eitt MB-stig og rökstyður hana. Yfirþjálfari fer yfir verkefnið og þegar það er samþykkt sækirðu skírteinið.",
   },
   {
     icon: "📈",
@@ -119,7 +140,7 @@ const FAQ = [
   },
   {
     q: "Fæ ég skírteini?",
-    a: "Já. Þegar þú hefur lokið öllum lexíum geturðu sótt skírteini (PDF) beint úr kerfinu.",
+    a: "Já. Þegar þú hefur lokið öllum lexíum og verkefnum og yfirþjálfari hefur samþykkt lokaverkefnið þitt sækirðu skírteini (PDF) beint úr kerfinu.",
   },
   {
     q: "Ég er nú þegar með aðgang að Metabolic appinu — þarf ég nýjan?",
@@ -134,7 +155,9 @@ export default async function AcademyPage() {
     { value: String(cur?.modules.length || 14), label: "kaflar" },
     { value: String(cur?.lessonCount || 101), label: "lexíur" },
     { value: cur?.videoCount ? `${cur.videoCount}` : "50+", label: "myndbönd" },
-    { value: "~12", label: "vikur á eigin hraða" },
+    cur?.assignmentCount
+      ? { value: String(cur.assignmentCount), label: "verkleg verkefni" }
+      : { value: "~12", label: "vikur á eigin hraða" },
   ];
 
   return (
@@ -273,6 +296,8 @@ export default async function AcademyPage() {
                     <div className="font-medium leading-snug">{m.title}</div>
                     <div className="mt-1 text-xs text-muted-foreground">
                       {m.lessons} {m.lessons === 1 ? "lexía" : "lexíur"}
+                      {m.assignments > 0 && " + verkefni"}
+                      {m.final && " + lokaverkefni"}
                     </div>
                   </div>
                 </li>

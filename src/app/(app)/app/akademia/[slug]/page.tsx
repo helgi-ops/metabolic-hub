@@ -118,6 +118,36 @@ export default async function CoursePage({
     !!course.title_is || allLessons.some((l) => !!l.title_is);
   const view = bilingual ? lang : "en";
 
+  // Practical assignments (RLS: enrolled learners + admins see them).
+  const lessonIdList = allLessons.map((l) => l.id);
+  const { data: assignmentRows } = lessonIdList.length
+    ? await supabase
+        .from("assignments")
+        .select("id, lesson_id, requires_approval")
+        .in("lesson_id", lessonIdList)
+    : { data: [] as { id: string; lesson_id: string; requires_approval: boolean }[] };
+  const assignmentByLesson = new Map((assignmentRows ?? []).map((a) => [a.lesson_id, a]));
+  const finalAssignment = (assignmentRows ?? []).find((a) => a.requires_approval);
+  const { data: finalSub } =
+    finalAssignment && enrolled
+      ? await supabase
+          .from("submissions")
+          .select("status")
+          .eq("assignment_id", finalAssignment.id)
+          .eq("user_id", user.id)
+          .maybeSingle()
+      : { data: null };
+  // Admin: how many submissions are waiting for a look.
+  let waitingReview = 0;
+  if (isAdmin && assignmentRows && assignmentRows.length) {
+    const { count } = await supabase
+      .from("submissions")
+      .select("id", { count: "exact", head: true })
+      .in("assignment_id", assignmentRows.map((a) => a.id))
+      .eq("status", "submitted");
+    waitingReview = count ?? 0;
+  }
+
   const continueLesson =
     allLessons.find((l) => !completed.has(l.id)) ?? allLessons[0];
 
@@ -132,6 +162,14 @@ export default async function CoursePage({
         </Link>
         <div className="flex items-center gap-2">
           {bilingual && <CourseLangToggle lang={view} />}
+          {isAdmin && assignmentByLesson.size > 0 && (
+            <Link
+              href={`/app/akademia/${course.slug}/verkefni`}
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition"
+            >
+              Verkefnaskil{waitingReview ? ` (${waitingReview})` : ""} →
+            </Link>
+          )}
           {isAdmin && (
             <Link
               href={`/app/akademia/${course.slug}/skraningar`}
@@ -196,6 +234,17 @@ export default async function CoursePage({
               >
                 {doneLessons === 0 ? "Byrja námskeið →" : "Halda áfram →"}
               </Link>
+            )}
+            {finalSub?.status === "submitted" && (
+              <p className="mt-4 text-sm text-sky-400">
+                Lokaverkefnið þitt bíður yfirferðar. Þú færð tölvupóst þegar það hefur verið
+                samþykkt — þá opnast skírteinið.
+              </p>
+            )}
+            {finalSub?.status === "needs_revision" && (
+              <p className="mt-4 text-sm text-amber-400">
+                Þjálfari bað um lagfæringu á lokaverkefninu — opnaðu það til að sjá endurgjöfina.
+              </p>
             )}
             {totalLessons > 0 && doneLessons === totalLessons && (
               <div className="mt-5">
@@ -284,6 +333,13 @@ export default async function CoursePage({
                             <span className={canOpen ? "" : "text-muted-foreground"}>
                               {pick(view, l.title, l.title_is)}
                             </span>
+                            {assignmentByLesson.has(l.id) && (
+                              <span className="rounded-full border border-accent/50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-accent">
+                                {assignmentByLesson.get(l.id)!.requires_approval
+                                  ? "Lokaverkefni"
+                                  : "Verkefni"}
+                              </span>
+                            )}
                             {l.is_free_preview && !enrolled && (
                               <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                                 Forskoðun

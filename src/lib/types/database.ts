@@ -25,6 +25,7 @@ export type Database = {
           description: string | null
           id: string
           is_required: boolean
+          requires_approval: boolean
           lesson_id: string
           rubric_json: Json | null
           title: string
@@ -36,6 +37,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_required?: boolean
+          requires_approval?: boolean
           lesson_id: string
           rubric_json?: Json | null
           title: string
@@ -47,6 +49,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_required?: boolean
+          requires_approval?: boolean
           lesson_id?: string
           rubric_json?: Json | null
           title?: string

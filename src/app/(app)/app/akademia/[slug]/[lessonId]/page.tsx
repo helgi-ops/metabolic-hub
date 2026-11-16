@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Markdown } from "@/components/markdown";
 import { LessonVideo } from "@/components/lesson-video";
 import { CompleteButton } from "./complete-button";
+import { AssignmentPanel, type AssignmentView } from "./assignment-panel";
 import { getCourseLang, pick } from "@/lib/course-lang";
 import { CourseLangToggle } from "@/components/course-lang-toggle";
 
@@ -116,6 +117,41 @@ export default async function LessonPage({
   const showIs = lang === "is" && !!lesson.body_markdown_is?.trim();
   const body = showIs ? lesson.body_markdown_is : lesson.body_markdown;
 
+  // Practical assignment on this lesson (RLS: enrolled learners + admins).
+  const { data: assignmentRow } = await supabase
+    .from("assignments")
+    .select("id, requires_approval, rubric_json")
+    .eq("lesson_id", lesson.id)
+    .maybeSingle();
+  let assignment: AssignmentView | null = null;
+  if (assignmentRow) {
+    const { data: sub } = await supabase
+      .from("submissions")
+      .select("text_response, status, feedback, submitted_at, reviewed_at")
+      .eq("assignment_id", assignmentRow.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    const rubric = (assignmentRow.rubric_json ?? {}) as {
+      template_is?: string;
+      template_en?: string;
+    };
+    assignment = {
+      id: assignmentRow.id,
+      requiresApproval: assignmentRow.requires_approval,
+      template: (lang === "is" ? rubric.template_is : rubric.template_en) || rubric.template_is || "",
+      submission: sub
+        ? {
+            text: sub.text_response ?? "",
+            status: sub.status,
+            feedback: sub.feedback,
+            submittedAt: sub.submitted_at,
+            reviewedAt: sub.reviewed_at,
+          }
+        : null,
+    };
+  }
+  const nextHref = next ? `/app/akademia/${course.slug}/${next.id}` : undefined;
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
       <div className="flex items-center justify-between">
@@ -175,14 +211,12 @@ export default async function LessonPage({
             </div>
           )}
 
+          {assignment && <AssignmentPanel assignment={assignment} nextHref={nextHref} />}
+
           <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-border pt-6">
-            <CompleteButton
-              lessonId={lesson.id}
-              done={isDone}
-              nextHref={
-                next ? `/app/akademia/${course.slug}/${next.id}` : undefined
-              }
-            />
+            {!assignment && (
+              <CompleteButton lessonId={lesson.id} done={isDone} nextHref={nextHref} />
+            )}
             <div className="ml-auto flex gap-2">
               {prev && (
                 <Link
