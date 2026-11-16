@@ -29,12 +29,20 @@ export function LessonEditor({
     video_url: string | null;
     image_urls: string[];
     body_markdown: string | null;
+    title_is: string | null;
+    body_markdown_is: string | null;
+    body_is_machine: boolean;
   };
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [videoUrl, setVideoUrl] = useState(initial.video_url ?? "");
   const [body, setBody] = useState(initial.body_markdown ?? "");
+  const [titleIs, setTitleIs] = useState(initial.title_is ?? "");
+  const [bodyIs, setBodyIs] = useState(initial.body_markdown_is ?? "");
+  // Editing the Icelandic text by hand means it's no longer a raw machine
+  // translation; saving clears that label.
+  const [machine, setMachine] = useState(initial.body_is_machine);
   const [images, setImages] = useState<string[]>(initial.image_urls ?? []);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +99,9 @@ export function LessonEditor({
           video_url: videoUrl.trim() || null,
           body_markdown: body.trim() || null,
           image_urls: images,
+          title_is: titleIs.trim() || null,
+          body_markdown_is: bodyIs.trim() || null,
+          body_is_machine: machine && bodyIs.trim() === (initial.body_markdown_is ?? "").trim(),
           updated_at: new Date().toISOString(),
         })
         .eq("id", lessonId);
@@ -184,13 +195,43 @@ export function LessonEditor({
 
       {/* Body */}
       <section>
-        <h2 className="text-lg font-semibold">Texti (Markdown)</h2>
+        <h2 className="text-lg font-semibold">Texti — enska (Markdown)</h2>
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={16}
           className={`${input} mt-3 font-mono text-xs leading-relaxed`}
         />
+      </section>
+
+      {/* Icelandic */}
+      <section>
+        <h2 className="text-lg font-semibold">Íslenska</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Birtist þegar IS er valið. Autt = enski textinn birtist.
+          {machine && " Þessi texti er vélþýddur — vistaðu breytingar til að fjarlægja merkinguna."}
+        </p>
+        <div className="mt-3">
+          <label className={label}>Titill</label>
+          <input
+            value={titleIs}
+            onChange={(e) => setTitleIs(e.target.value)}
+            placeholder={initial.title}
+            className={input}
+          />
+        </div>
+        <div className="mt-3">
+          <label className={label}>Texti (Markdown)</label>
+          <textarea
+            value={bodyIs}
+            onChange={(e) => {
+              setBodyIs(e.target.value);
+              setMachine(false);
+            }}
+            rows={16}
+            className={`${input} font-mono text-xs leading-relaxed`}
+          />
+        </div>
       </section>
 
       {error && <p className="text-sm text-red-400">{error}</p>}

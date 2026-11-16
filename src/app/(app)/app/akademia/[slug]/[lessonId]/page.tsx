@@ -4,12 +4,15 @@ import { createClient } from "@/lib/supabase/server";
 import { Markdown } from "@/components/markdown";
 import { LessonVideo } from "@/components/lesson-video";
 import { CompleteButton } from "./complete-button";
+import { getCourseLang, pick } from "@/lib/course-lang";
+import { CourseLangToggle } from "@/components/course-lang-toggle";
 
 type LessonNav = {
   id: string;
   module_id: string;
   position: number;
   title: string;
+  title_is: string | null;
 };
 
 export default async function LessonPage({
@@ -33,14 +36,14 @@ export default async function LessonPage({
 
   const { data: course } = await supabase
     .from("courses")
-    .select("id, slug, title")
+    .select("id, slug, title, title_is")
     .eq("slug", slug)
     .single();
   if (!course) notFound();
 
   const { data: modules } = await supabase
     .from("modules")
-    .select("id, position, title")
+    .select("id, position, title, title_is")
     .eq("course_id", course.id)
     .order("position", { ascending: true });
   const moduleIds = (modules ?? []).map((m) => m.id);
@@ -49,7 +52,7 @@ export default async function LessonPage({
   const { data: lesson } = await supabase
     .from("lessons")
     .select(
-      "id, module_id, title, body_markdown, video_url, video_duration_seconds, is_free_preview, image_urls",
+      "id, module_id, title, body_markdown, title_is, body_markdown_is, body_is_machine, video_url, video_duration_seconds, is_free_preview, image_urls",
     )
     .eq("id", lessonId)
     .maybeSingle();
@@ -78,7 +81,7 @@ export default async function LessonPage({
   const { data: lessons } = moduleIds.length
     ? await supabase
         .from("lessons")
-        .select("id, module_id, position, title")
+        .select("id, module_id, position, title, title_is")
         .in("module_id", moduleIds)
         .order("position", { ascending: true })
     : { data: [] as LessonNav[] };
@@ -106,6 +109,13 @@ export default async function LessonPage({
   const next = idx >= 0 && idx < flat.length - 1 ? flat[idx + 1] : null;
   const isDone = completed.has(lesson.id);
 
+  // EN/IS: the switch shows only on courses with Icelandic content.
+  const bilingual = !!course.title_is || flat.some((l) => !!l.title_is);
+  const lang = bilingual ? await getCourseLang() : "en";
+  const title = pick(lang, lesson.title, lesson.title_is);
+  const showIs = lang === "is" && !!lesson.body_markdown_is?.trim();
+  const body = showIs ? lesson.body_markdown_is : lesson.body_markdown;
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
       <div className="flex items-center justify-between">
@@ -113,27 +123,38 @@ export default async function LessonPage({
           href={`/app/akademia/${course.slug}`}
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← {course.title}
+          ← {pick(lang, course.title, course.title_is)}
         </Link>
-        {isAdmin && (
-          <Link
-            href={`/app/akademia/${course.slug}/${lesson.id}/edit`}
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition"
-          >
-            ✎ Breyta lexíu
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {bilingual && <CourseLangToggle lang={lang} />}
+          {isAdmin && (
+            <Link
+              href={`/app/akademia/${course.slug}/${lesson.id}/edit`}
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition"
+            >
+              ✎ Breyta lexíu
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 grid gap-10 lg:grid-cols-[1fr_300px]">
         {/* Player */}
         <div>
-          <LessonVideo url={lesson.video_url} title={lesson.title} />
-          <h1 className="mt-6 text-2xl font-bold">{lesson.title}</h1>
+          <LessonVideo url={lesson.video_url} title={title} />
+          {lang === "is" && lesson.video_url && (
+            <p className="mt-2 text-xs text-muted-foreground">Myndbandið er á ensku.</p>
+          )}
+          <h1 className="mt-6 text-2xl font-bold">{title}</h1>
+          {showIs && lesson.body_is_machine && (
+            <p className="mt-2 inline-block rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground">
+              Vélþýtt úr ensku
+            </p>
+          )}
 
-          {lesson.body_markdown && (
+          {body && (
             <div className="mt-5">
-              <Markdown source={lesson.body_markdown} />
+              <Markdown source={body} />
             </div>
           )}
 
@@ -195,7 +216,7 @@ export default async function LessonPage({
                   <span className="font-mono text-xs text-muted-foreground">
                     {String(mi + 1).padStart(2, "0")}
                   </span>
-                  {m.title}
+                  {pick(lang, m.title, m.title_is)}
                 </div>
                 <ul className="mt-1.5 space-y-0.5">
                   {(lessonsByModule.get(m.id) ?? []).map((l) => {
@@ -216,7 +237,7 @@ export default async function LessonPage({
                           >
                             {done ? "✓" : "○"}
                           </span>
-                          <span className="line-clamp-1">{l.title}</span>
+                          <span className="line-clamp-1">{pick(lang, l.title, l.title_is)}</span>
                         </Link>
                       </li>
                     );

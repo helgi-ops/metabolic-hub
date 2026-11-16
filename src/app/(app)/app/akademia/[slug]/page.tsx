@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { Markdown } from "@/components/markdown";
 import { formatPrice, formatDuration } from "@/lib/format";
 import { EnrollButton } from "../enroll-button";
+import { getCourseLang, pick } from "@/lib/course-lang";
+import { CourseLangToggle } from "@/components/course-lang-toggle";
 
 const TRACK_LABEL: Record<string, string> = {
   metabolic_coach: "Metabolic Coach",
@@ -15,6 +17,7 @@ type LessonRow = {
   module_id: string;
   position: number;
   title: string;
+  title_is: string | null;
   video_duration_seconds: number | null;
   is_free_preview: boolean;
 };
@@ -28,10 +31,12 @@ export async function generateMetadata({
   const supabase = await createClient();
   const { data: course } = await supabase
     .from("courses")
-    .select("title")
+    .select("title, title_is")
     .eq("slug", slug)
     .single();
-  return { title: `${course?.title ?? "Námskeið"} · Akademía` };
+  const lang = await getCourseLang();
+  const title = course ? pick(lang, course.title, course.title_is) : "Námskeið";
+  return { title: `${title} · Akademía` };
 }
 
 export default async function CoursePage({
@@ -56,11 +61,12 @@ export default async function CoursePage({
   const { data: course } = await supabase
     .from("courses")
     .select(
-      "id, slug, title, subtitle, description, track, price_cents, currency, is_published, estimated_hours",
+      "id, slug, title, subtitle, description, title_is, subtitle_is, description_is, track, price_cents, currency, is_published, estimated_hours",
     )
     .eq("slug", slug)
     .single();
   if (!course) notFound();
+  const lang = await getCourseLang();
 
   const { data: enrollment } = await supabase
     .from("enrollments")
@@ -72,7 +78,7 @@ export default async function CoursePage({
 
   const { data: modules } = await supabase
     .from("modules")
-    .select("id, position, title, description")
+    .select("id, position, title, description, title_is, description_is")
     .eq("course_id", course.id)
     .order("position", { ascending: true });
 
@@ -81,7 +87,7 @@ export default async function CoursePage({
     ? await supabase
         .from("lessons")
         .select(
-          "id, module_id, position, title, video_duration_seconds, is_free_preview",
+          "id, module_id, position, title, title_is, video_duration_seconds, is_free_preview",
         )
         .in("module_id", moduleIds)
         .order("position", { ascending: true })
@@ -107,6 +113,11 @@ export default async function CoursePage({
   const pct =
     totalLessons > 0 ? Math.round((doneLessons / totalLessons) * 100) : 0;
 
+  // Show the EN/IS switch only for courses that have Icelandic content.
+  const bilingual =
+    !!course.title_is || allLessons.some((l) => !!l.title_is);
+  const view = bilingual ? lang : "en";
+
   const continueLesson =
     allLessons.find((l) => !completed.has(l.id)) ?? allLessons[0];
 
@@ -119,14 +130,17 @@ export default async function CoursePage({
         >
           ← Námskeið
         </Link>
-        {isAdmin && (
-          <Link
-            href={`/app/akademia/${course.slug}/framvinda`}
-            className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition"
-          >
-            Framvinda iðkenda →
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {bilingual && <CourseLangToggle lang={view} />}
+          {isAdmin && (
+            <Link
+              href={`/app/akademia/${course.slug}/framvinda`}
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition"
+            >
+              Framvinda iðkenda →
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Hero */}
@@ -141,9 +155,13 @@ export default async function CoursePage({
             </span>
           )}
         </div>
-        <h1 className="mt-3 text-3xl sm:text-4xl font-bold">{course.title}</h1>
+        <h1 className="mt-3 text-3xl sm:text-4xl font-bold">
+          {pick(view, course.title, course.title_is)}
+        </h1>
         {course.subtitle && (
-          <p className="mt-2 text-lg text-muted-foreground">{course.subtitle}</p>
+          <p className="mt-2 text-lg text-muted-foreground">
+            {pick(view, course.subtitle, course.subtitle_is)}
+          </p>
         )}
       </div>
 
@@ -207,7 +225,7 @@ export default async function CoursePage({
       {/* Description */}
       {course.description && (
         <div className="mt-8">
-          <Markdown source={course.description} />
+          <Markdown source={pick(view, course.description, course.description_is)} />
         </div>
       )}
 
@@ -226,11 +244,11 @@ export default async function CoursePage({
                   <span className="font-mono text-xs text-accent">
                     {String(mi + 1).padStart(2, "0")}
                   </span>
-                  <h3 className="font-semibold">{m.title}</h3>
+                  <h3 className="font-semibold">{pick(view, m.title, m.title_is)}</h3>
                 </div>
                 {m.description && (
                   <p className="mt-1 pl-8 text-sm text-muted-foreground">
-                    {m.description}
+                    {pick(view, m.description, m.description_is)}
                   </p>
                 )}
                 <ul className="mt-3 divide-y divide-border">
@@ -256,7 +274,7 @@ export default async function CoursePage({
                               {done ? "✓" : canOpen ? "▸" : "🔒"}
                             </span>
                             <span className={canOpen ? "" : "text-muted-foreground"}>
-                              {l.title}
+                              {pick(view, l.title, l.title_is)}
                             </span>
                             {l.is_free_preview && !enrolled && (
                               <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">

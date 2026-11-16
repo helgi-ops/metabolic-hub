@@ -195,6 +195,9 @@ export type Database = {
       }
       courses: {
         Row: {
+          title_is: string | null
+          subtitle_is: string | null
+          description_is: string | null
           cover_image_url: string | null
           created_at: string
           currency: string
@@ -211,6 +214,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          title_is?: string | null
+          subtitle_is?: string | null
+          description_is?: string | null
           cover_image_url?: string | null
           created_at?: string
           currency?: string
@@ -227,6 +233,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          title_is?: string | null
+          subtitle_is?: string | null
+          description_is?: string | null
           cover_image_url?: string | null
           created_at?: string
           currency?: string
@@ -595,6 +604,9 @@ export type Database = {
       }
       lessons: {
         Row: {
+          title_is: string | null
+          body_markdown_is: string | null
+          body_is_machine: boolean
           body_markdown: string | null
           created_at: string
           id: string
@@ -608,6 +620,9 @@ export type Database = {
           video_url: string | null
         }
         Insert: {
+          title_is?: string | null
+          body_markdown_is?: string | null
+          body_is_machine?: boolean
           body_markdown?: string | null
           created_at?: string
           id?: string
@@ -621,6 +636,9 @@ export type Database = {
           video_url?: string | null
         }
         Update: {
+          title_is?: string | null
+          body_markdown_is?: string | null
+          body_is_machine?: boolean
           body_markdown?: string | null
           created_at?: string
           id?: string
@@ -672,6 +690,8 @@ export type Database = {
       }
       modules: {
         Row: {
+          title_is: string | null
+          description_is: string | null
           course_id: string
           created_at: string
           description: string | null
@@ -681,6 +701,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          title_is?: string | null
+          description_is?: string | null
           course_id: string
           created_at?: string
           description?: string | null
@@ -690,6 +712,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          title_is?: string | null
+          description_is?: string | null
           course_id?: string
           created_at?: string
           description?: string | null

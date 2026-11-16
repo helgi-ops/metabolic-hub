@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { formatPrice } from "@/lib/format";
+import { getCourseLang, pick } from "@/lib/course-lang";
 
 export const metadata = { title: "Akademía · Metabolic" };
 
@@ -28,9 +29,11 @@ export default async function AcademyHome() {
   const { data: courses } = await supabase
     .from("courses")
     .select(
-      "id, slug, title, subtitle, track, price_cents, currency, is_published, estimated_hours",
+      "id, slug, title, subtitle, title_is, subtitle_is, track, price_cents, currency, is_published, estimated_hours",
     )
     .order("price_cents", { ascending: false });
+
+  const lang = await getCourseLang();
 
   const { data: enrollments } = await supabase
     .from("enrollments")
@@ -87,10 +90,12 @@ export default async function AcademyHome() {
                     </span>
                   )}
                 </div>
-                <h2 className="mt-3 text-2xl font-bold">{c.title}</h2>
+                <h2 className="mt-3 text-2xl font-bold">
+                  {pick(lang, c.title, c.title_is)}
+                </h2>
                 {c.subtitle && (
                   <p className="mt-2 text-sm text-muted-foreground">
-                    {c.subtitle}
+                    {pick(lang, c.subtitle, c.subtitle_is)}
                   </p>
                 )}
                 <div className="mt-5 flex items-center gap-4 text-sm text-muted-foreground">

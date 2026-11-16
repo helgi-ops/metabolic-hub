@@ -27,7 +27,9 @@ export default async function EditLessonPage({
 
   const { data: lesson } = await supabase
     .from("lessons")
-    .select("id, module_id, title, video_url, image_urls, body_markdown")
+    .select(
+      "id, module_id, title, video_url, image_urls, body_markdown, title_is, body_markdown_is, body_is_machine",
+    )
     .eq("id", lessonId)
     .single();
   if (!lesson) notFound();
@@ -61,6 +63,9 @@ export default async function EditLessonPage({
           video_url: lesson.video_url,
           image_urls: lesson.image_urls ?? [],
           body_markdown: lesson.body_markdown,
+          title_is: lesson.title_is,
+          body_markdown_is: lesson.body_markdown_is,
+          body_is_machine: lesson.body_is_machine,
         }}
       />
     </main>
