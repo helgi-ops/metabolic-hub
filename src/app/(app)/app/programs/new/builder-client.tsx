@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { generatePlanPdf } from "../weeks/[id]/actions";
+import { duplicateWeekMessage, existingWeekId } from "@/lib/programs/duplicate-week";
 
 type Structure = {
   id: string;
@@ -539,6 +540,16 @@ export function BuilderClient({
       .single();
 
     if (insertError || !inserted) {
+      const existingId = existingWeekId(insertError);
+      if (existingId) {
+        // Only one plan per level and week — point to the one that exists.
+        setSavedId(existingId);
+        setError(
+          `${duplicateWeekMessage(level, weekStarting)} Ekkert var vistað — breyttu frekar vikunni sem er til.`,
+        );
+        setSaving(null);
+        return;
+      }
       setError(insertError?.message ?? "Tókst ekki að vista vikuna.");
       setSaving(null);
       return;

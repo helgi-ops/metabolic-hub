@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProgramBuilder } from "@/lib/auth/require-staff";
+import { duplicateWeekMessage, existingWeekId } from "@/lib/programs/duplicate-week";
 import type { Database } from "@/lib/types/database";
 import {
   generateOptiSignsPdf,
@@ -235,6 +236,8 @@ export async function cloneWeekToLevels(
       programs_json,
     });
     if (!insErr) created++;
+    // The DB trigger is the backstop for a race (two clicks at once).
+    else if (existingWeekId(insErr)) skipped.push(NUM_LEVEL[lvl]);
   }
 
   revalidatePath("/app/programs");
@@ -313,15 +316,25 @@ export async function generatePlanPdf(
 export async function moveWeekStart(
   planId: string,
   weekStarting: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; existingId?: string }> {
   const { supabase } = await requireProgramBuilder();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStarting))
     return { ok: false, error: "Ógild dagsetning." };
-  const { error } = await supabase
+  const { data: moved, error } = await supabase
     .from("weekly_plans")
     .update({ week_starting: weekStarting })
-    .eq("id", planId);
-  if (error) return { ok: false, error: error.message };
+    .eq("id", planId)
+    .select("level")
+    .maybeSingle();
+  if (error) {
+    const existingId = existingWeekId(error);
+    if (existingId) {
+      const { data: w } = await supabase.from("weekly_plans").select("level").eq("id", planId).maybeSingle();
+      return { ok: false, existingId, error: duplicateWeekMessage(w?.level ?? "", weekStarting) };
+    }
+    return { ok: false, error: error.message };
+  }
+  if (!moved) return { ok: false, error: "Vika fannst ekki." };
   revalidatePath(`/app/programs/weeks/${planId}`);
   revalidatePath("/app/programs");
   return { ok: true };
@@ -331,7 +344,7 @@ export async function moveWeekStart(
 // on one step (Vika 4 → Vika 1); the title's week number is bumped when it has one.
 export async function copyWeekToNext(
   planId: string,
-): Promise<{ ok: boolean; id?: string; error?: string }> {
+): Promise<{ ok: boolean; id?: string; existingId?: string; error?: string }> {
   const { supabase, user } = await requireProgramBuilder();
   const { data: week, error } = await supabase
     .from("weekly_plans")
@@ -361,7 +374,12 @@ export async function copyWeekToNext(
     })
     .select("id")
     .single();
-  if (insErr || !inserted) return { ok: false, error: insErr?.message ?? "Tókst ekki að afrita." };
+  if (insErr || !inserted) {
+    const existingId = existingWeekId(insErr);
+    if (existingId)
+      return { ok: false, existingId, error: duplicateWeekMessage(week.level, nextISO) };
+    return { ok: false, error: insErr?.message ?? "Tókst ekki að afrita." };
+  }
   revalidatePath("/app/programs");
   return { ok: true, id: inserted.id };
 }

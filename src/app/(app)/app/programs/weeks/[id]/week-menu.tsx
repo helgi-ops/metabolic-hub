@@ -130,6 +130,11 @@ export function WeekMenu({
             onClick={() =>
               run(async () => {
                 const res = await copyWeekToNext(planId);
+                if (res.existingId) {
+                  if (confirm(`${res.error} Ekkert var afritað.\n\nOpna þá viku?`))
+                    router.push(`/app/programs/weeks/${res.existingId}`);
+                  return setMsg(`${res.error} Ekkert var afritað.`);
+                }
                 if (!res.ok || !res.id) return setMsg(res.error ?? "Tókst ekki að afrita.");
                 router.push(`/app/programs/weeks/${res.id}`);
               })
@@ -169,6 +174,7 @@ export function WeekMenu({
 export function MoveStartButton({ planId, to, label }: { planId: string; to: string; label: string }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [existingId, setExistingId] = useState<string | null>(null);
   return (
     <>
       <button
@@ -177,6 +183,7 @@ export function MoveStartButton({ planId, to, label }: { planId: string; to: str
         onClick={() =>
           startTransition(async () => {
             const res = await moveWeekStart(planId, to);
+            setExistingId(res.existingId ?? null);
             if (!res.ok) setError(res.error ?? "Villa kom upp.");
           })
         }
@@ -184,7 +191,19 @@ export function MoveStartButton({ planId, to, label }: { planId: string; to: str
       >
         {pending ? "Færi…" : label}
       </button>
-      {error && <span className="text-red-400">{error}</span>}
+      {error && (
+        <span className="text-red-400">
+          {error}
+          {existingId && (
+            <>
+              {" "}
+              <a href={`/app/programs/weeks/${existingId}`} className="underline">
+                Opna hana →
+              </a>
+            </>
+          )}
+        </span>
+      )}
     </>
   );
 }
