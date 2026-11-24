@@ -108,7 +108,14 @@ export function WeekMenu({
                 run(async () => {
                   const res = await cloneWeekToLevels(planId);
                   if (!res.ok) return setMsg(res.error ?? "Tókst ekki að afrita.");
-                  setMsg(`Búið til fyrir ${OTHER_LEVELS[level]}.`);
+                  const skipped = res.skipped ?? [];
+                  setMsg(
+                    skipped.length && !res.created
+                      ? `${skipped.join(" og ")} er þegar til fyrir þessa viku — ekkert afritað.`
+                      : skipped.length
+                        ? `Búið til. ${skipped.join(" og ")} var þegar til og var ekki snert.`
+                        : `Búið til fyrir ${OTHER_LEVELS[level]}.`,
+                  );
                   router.refresh();
                 })
               }

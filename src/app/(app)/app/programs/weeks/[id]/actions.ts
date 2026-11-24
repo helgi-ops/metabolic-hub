@@ -111,7 +111,7 @@ export async function deleteWeek(
 // doesn't exist, the original pick is kept so no slot ends up empty.
 export async function cloneWeekToLevels(
   planId: string,
-): Promise<{ ok: boolean; created?: number; error?: string }> {
+): Promise<{ ok: boolean; created?: number; skipped?: string[]; error?: string }> {
   const { supabase, user } = await requireProgramBuilder();
 
   const { data: week, error } = await supabase
@@ -187,14 +187,38 @@ export async function cloneWeekToLevels(
     return { id: sid, name: "" };
   }
 
+  // Never create a second plan for a level that already has this week — a
+  // repeat click used to insert duplicates, and the app shows the newest one,
+  // hiding edits made to the first copy.
+  let existingQuery = supabase
+    .from("weekly_plans")
+    .select("level")
+    .eq("week_starting", week.week_starting);
+  existingQuery = week.station_id
+    ? existingQuery.eq("station_id", week.station_id)
+    : existingQuery.is("station_id", null).eq("owner_id", user.id);
+  const { data: existing } = await existingQuery;
+  const taken = new Set((existing ?? []).map((r) => r.level as string));
+  const skipped: string[] = [];
+
   let created = 0;
   for (const lvl of targets) {
+    if (taken.has(NUM_LEVEL[lvl])) {
+      skipped.push(NUM_LEVEL[lvl]);
+      continue;
+    }
     const programs_json = slots.map((s) => {
       const r = resolve(s.structure_source_id, lvl);
+      const sameStructure = r.id === s.structure_source_id;
       return {
         ...s,
         structure_source_id: r.id,
         name: r.name || s.name,
+        // A custom exercise list written for this level must not follow the
+        // workout to another level — drop it so the target level's own
+        // structure text is used. Kept only when the structure is shared
+        // across levels (same source_id).
+        preview: sameStructure ? s.preview : undefined,
       };
     });
     const hadToken = /\bMB[123]\b/.test(week.title ?? "");
@@ -214,7 +238,7 @@ export async function cloneWeekToLevels(
   }
 
   revalidatePath("/app/programs");
-  return { ok: true, created };
+  return { ok: true, created, skipped };
 }
 
 export async function generatePlanPdf(
