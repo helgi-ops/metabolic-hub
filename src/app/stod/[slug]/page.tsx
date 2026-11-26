@@ -252,6 +252,15 @@ export default async function StationPage({
             >
               Innskráning →
             </Link>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Ekki kominn með aðgang að appinu?{" "}
+              <Link
+                href={`${signupHref}&idkandi=1`}
+                className="text-accent hover:underline"
+              >
+                Búa til aðgang →
+              </Link>
+            </p>
           </div>
         </aside>
       </div>

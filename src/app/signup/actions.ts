@@ -33,6 +33,8 @@ export async function registerMember(input: {
   kennitala?: string;
   planTitle?: string;
   acceptBilling?: boolean;
+  /** Already training at the station (pays the gym fee) — app account only. */
+  existingMember?: boolean;
 }): Promise<MemberSignupResult> {
   const fullName = input.fullName.trim();
   const email = input.email.trim().toLowerCase();
@@ -62,7 +64,8 @@ export async function registerMember(input: {
   // Membership details (only for stations taking online signups).
   let membership: { kennitala: string; planTitle: string; planPrice: string } | null =
     null;
-  if (station.online_signup) {
+  const existingMember = !!station.online_signup && !!input.existingMember;
+  if (station.online_signup && !existingMember) {
     const plans = parsePricing(station.pricing);
     const plan = plans.find((p) => p.title === input.planTitle);
     if (plans.length > 0 && !plan) {
@@ -132,6 +135,16 @@ export async function registerMember(input: {
       });
     } catch (e) {
       console.error("Signup notification failed:", e);
+    }
+  }
+
+  if (existingMember) {
+    // Not a sale — just tell the owner someone wants app access so they can
+    // check the member list and approve on the Stöðin page.
+    try {
+      await notifyAppAccessRequest({ fullName, email, stationName: station.name });
+    } catch (e) {
+      console.error("App access notification failed:", e);
     }
   }
 
@@ -216,5 +229,43 @@ async function notifySignup(s: {
       html,
     });
     if (!sent.ok) console.error("Signup notification email failed:", sent.error);
+  }
+}
+
+async function notifyAppAccessRequest(s: {
+  fullName: string;
+  email: string;
+  stationName: string;
+}) {
+  const to = await notificationRecipients();
+  if (to.length === 0) return;
+
+  const base = await siteBase();
+  const html = `
+<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
+  <p style="font:600 12px/1 ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;color:#16a34a;margin:0 0 16px">Metabolic · Aðgangur að appinu</p>
+  <h1 style="font-size:20px;margin:0 0 16px">${esc(s.fullName)} biður um aðgang að appinu</h1>
+  <p style="font-size:14px;line-height:1.6;color:#333;margin:0 0 12px">
+    Segist æfa nú þegar í <strong>${esc(s.stationName)}</strong> og greiða æfingagjald —
+    engin ný áskrift, enginn greiðsluseðill.
+  </p>
+  <p style="font-size:14px;line-height:1.6;color:#333;margin:0 0 20px">
+    Netfang: <strong>${esc(s.email)}</strong><br>
+    Athugaðu að viðkomandi sé á iðkendalistanum og samþykktu á Stöðin-síðunni.
+  </p>
+  <p style="margin:0">
+    <a href="${base}/app/station" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 20px;border-radius:8px">
+      Opna Stöðina
+    </a>
+  </p>
+</div>`.trim();
+
+  for (const addr of to) {
+    const sent = await sendEmail({
+      to: addr,
+      subject: `Aðgangur að appinu: ${s.fullName} (${s.stationName})`,
+      html,
+    });
+    if (!sent.ok) console.error("App access notification email failed:", sent.error);
   }
 }

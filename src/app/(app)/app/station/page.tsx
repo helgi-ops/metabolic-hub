@@ -42,7 +42,7 @@ export default async function StationPage({
 
   const { data: stations } = await supabase
     .from("stations")
-    .select("id, name")
+    .select("id, name, online_signup")
     .order("name", { ascending: true });
   const allStations = stations ?? [];
 
@@ -61,6 +61,7 @@ export default async function StationPage({
       ? stationParam
       : allowedStations[0]?.id ?? profile.station_id;
   const targetStation = allStations.find((s) => s.id === targetStationId);
+  const stationOnlineSignup = !!targetStation?.online_signup;
 
   const { data: members } = targetStationId
     ? await supabase
@@ -298,6 +299,11 @@ export default async function StationPage({
                 <div className="truncate font-medium">
                   {m.full_name ?? "—"}
                 </div>
+                {isAdmin && stationOnlineSignup && !signupById.has(m.id) && (
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    Æfir nú þegar — biður bara um aðgang að appinu
+                  </div>
+                )}
                 {signupById.has(m.id) && (
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     <span className="font-mono">

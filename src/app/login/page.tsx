@@ -35,8 +35,8 @@ export default function LoginPage({
           </Link>
         </div>
         <div className="mt-4 text-center text-sm text-muted-foreground">
-          Engan aðgang?{" "}
-          <Link href="/signup" className="text-accent hover:underline">
+          Æfir þú í Metabolic en ert ekki með aðgang?{" "}
+          <Link href="/signup?idkandi=1" className="text-accent hover:underline">
             Búa til aðgang
           </Link>
         </div>

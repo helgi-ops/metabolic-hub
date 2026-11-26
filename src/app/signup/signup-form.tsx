@@ -20,9 +20,11 @@ const labelCls = "block text-sm font-medium text-muted-foreground mb-1";
 export function SignupForm({
   stations,
   initialStationId = "",
+  initialExisting = false,
 }: {
   stations: SignupStation[];
   initialStationId?: string;
+  initialExisting?: boolean;
 }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -31,12 +33,15 @@ export function SignupForm({
   const [kennitala, setKennitala] = useState("");
   const [planTitle, setPlanTitle] = useState("");
   const [acceptBilling, setAcceptBilling] = useState(false);
+  // Already training at the station (paying the gym fee) and only needs an
+  // app account — no new membership, kennitala or greiðsluseðill.
+  const [existing, setExisting] = useState(initialExisting);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState<null | { membership: boolean }>(null);
+  const [sent, setSent] = useState<null | { membership: boolean; existing: boolean }>(null);
 
   const station = stations.find((s) => s.id === stationId);
-  const membership = !!station?.onlineSignup;
+  const membership = !!station?.onlineSignup && !existing;
   const plans = station?.plans ?? [];
 
   const ktDigits = normalizeKennitala(kennitala);
@@ -67,6 +72,7 @@ export function SignupForm({
       email,
       password,
       stationId,
+      existingMember: existing,
       ...(membership ? { kennitala, planTitle, acceptBilling } : {}),
     });
 
@@ -76,7 +82,7 @@ export function SignupForm({
       return;
     }
 
-    setSent({ membership: result.membership });
+    setSent({ membership: result.membership, existing });
     setLoading(false);
   }
 
@@ -84,7 +90,11 @@ export function SignupForm({
     return (
       <div className="rounded-lg border border-accent/40 bg-accent/10 p-6 text-center">
         <div className="text-accent font-semibold">
-          {sent.membership ? "Skráning móttekin! 🎉" : "Aðgangur stofnaður!"}
+          {sent.membership
+            ? "Skráning móttekin! 🎉"
+            : sent.existing
+              ? "Umsókn um aðgang móttekin!"
+              : "Aðgangur stofnaður!"}
         </div>
         <div className="mt-2 text-sm text-muted-foreground">
           {sent.membership ? (
@@ -92,6 +102,12 @@ export function SignupForm({
               Velkomin(n) í Metabolic! Greiðsluseðill birtist í heimabankanum
               þínum og þú færð aðgang að appinu um leið og skráningin hefur
               verið samþykkt.
+            </>
+          ) : sent.existing ? (
+            <>
+              Þjálfari staðfestir að þú sért iðkandi hjá {station?.name ?? "stöðinni"} og
+              opnar aðganginn. Þú getur skráð þig inn um leið og hann hefur verið
+              samþykktur — notaðu netfangið og lykilorðið sem þú varst að velja.
             </>
           ) : (
             <>
@@ -136,6 +152,46 @@ export function SignupForm({
           ))}
         </select>
       </div>
+
+      {station?.onlineSignup && (
+        <fieldset>
+          <legend className={labelCls}>Ertu nú þegar að æfa í Metabolic?</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { v: true, t: "Já, ég æfi nú þegar", d: "Vantar bara aðgang að appinu" },
+              { v: false, t: "Nei, ég er ný(r)", d: "Velja áskrift og byrja" },
+            ].map((o) => {
+              const active = existing === o.v;
+              return (
+                <button
+                  key={String(o.v)}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    setExisting(o.v);
+                    setError(null);
+                  }}
+                  className={`rounded-lg border p-3 text-left transition ${
+                    active
+                      ? "border-accent bg-accent/10"
+                      : "border-border bg-muted hover:border-accent/50"
+                  }`}
+                >
+                  <div className="text-sm font-medium">{o.t}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">{o.d}</div>
+                </button>
+              );
+            })}
+          </div>
+          {existing && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Engin ný áskrift og enginn greiðsluseðill — þú heldur áfram að
+              greiða æfingagjaldið eins og áður. Þjálfari staðfestir að þú sért
+              iðkandi og opnar aðganginn.
+            </p>
+          )}
+        </fieldset>
+      )}
 
       {membership && plans.length > 0 && (
         <fieldset>
@@ -291,7 +347,13 @@ export function SignupForm({
         disabled={loading}
         className="w-full rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 transition disabled:opacity-50"
       >
-        {loading ? "Skrái…" : membership ? "Skrá mig í Metabolic" : "Búa til aðgang"}
+        {loading
+          ? "Skrái…"
+          : membership
+            ? "Skrá mig í Metabolic"
+            : existing && station?.onlineSignup
+              ? "Sækja um aðgang að appinu"
+              : "Búa til aðgang"}
       </button>
     </form>
   );

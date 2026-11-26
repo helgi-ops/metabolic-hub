@@ -10,9 +10,12 @@ export const metadata = {
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ stod?: string | string[] }>;
+  searchParams: Promise<{ stod?: string | string[]; idkandi?: string | string[] }>;
 }) {
-  const { stod } = await searchParams;
+  const { stod, idkandi } = await searchParams;
+  // ?idkandi=1 — "I already train here, I just need the app" (login page and
+  // the station page link here with it).
+  const existing = (Array.isArray(idkandi) ? idkandi[0] : idkandi) === "1";
   const slug = Array.isArray(stod) ? stod[0] : stod;
 
   const supabase = await createClient();
@@ -39,12 +42,20 @@ export default async function SignupPage({
           >
             ← Metabolic
           </Link>
-          <h1 className="mt-6 text-2xl font-semibold">Skráning í Metabolic</h1>
+          <h1 className="mt-6 text-2xl font-semibold">
+            {existing ? "Aðgangur að appinu" : "Skráning í Metabolic"}
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Veldu stöðina þína og búðu til aðgang að Metabolic-appinu.
+            {existing
+              ? "Æfir þú nú þegar í Metabolic? Veldu stöðina þína og búðu til aðgang að appinu."
+              : "Veldu stöðina þína og búðu til aðgang að Metabolic-appinu."}
           </p>
         </div>
-        <SignupForm stations={stations} initialStationId={preselected} />
+        <SignupForm
+          stations={stations}
+          initialStationId={preselected}
+          initialExisting={existing}
+        />
         <div className="mt-6 text-center text-sm text-muted-foreground">
           Áttu nú þegar aðgang?{" "}
           <Link href="/login" className="text-accent hover:underline">
